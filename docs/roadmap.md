@@ -1,0 +1,191 @@
+# Implementation Roadmap
+
+## Phase 0 — Repository and local foundation
+
+Goal: make the project easy to run and test locally.
+
+Deliverables:
+
+- Python package and dependency management.
+- Environment configuration with a checked-in example file.
+- FastAPI health endpoint and a CLI entry point.
+- Docker Compose PostgreSQL for local development.
+- Database migration tooling.
+- Formatting, linting, type checking, and test commands.
+- Structured logging with request and task identifiers.
+
+Exit criteria: a new checkout can start the API, run migrations, and execute a smoke test without cloud credentials.
+
+## Phase 1 — Investigation brief and structured planning
+
+Goal: prove that the system can create and continue an open-ended investigation safely.
+
+Progress: initial domain models and API slice implemented. PostgreSQL schema and SQLAlchemy wiring are present, and the API now uses PostgreSQL by default. The PostgreSQL API path persists tasks, sources, claims, provenance links, and hypothesis assessments, and the first bounded HTTP retrieval adapter is implemented.
+
+Lifecycle progress: audited compare-and-set status changes now support pause, resume,
+block, conclude, and abandon. Only active tasks may plan additional cycles. Row locks
+serialize lifecycle/cycle changes, existing cycle IDs are preserved, and tests cover
+fresh-session persistence, stale requests, races, and audit-failure rollback. Lifecycle
+controls do not yet cancel running work or enforce stopping criteria automatically.
+
+Next-cycle planning now prioritizes persisted counterevidence, missing/unresolved
+assessments, claims needing verification, unanalyzed sources, and open questions.
+It stores at most three objectives with per-objective reasons and evidence IDs via
+migration 005. Earlier plans remain unchanged, and task/assessment locks keep planning
+consistent with evidence writes. Semantic synthesis and cycle outcome tracking remain open.
+
+Deliverables:
+
+- `ResearchBrief`, `InvestigationPlan`, `ResearchTask`, `ResearchCycle`, and `HypothesisAssessment` schemas.
+- Support for objectives, hypotheses, research questions, scope, methods, evidence requirements, and stopping criteria.
+- LLM provider interface and one provider implementation.
+- Strict structured-output parsing and validation.
+- Retry and failure handling for malformed or unavailable model responses.
+- Task persistence and status transitions, including pause, resume, blocked, and concluded states.
+- A minimal endpoint that creates a task and returns the initial plan and task identifier.
+- A next-cycle endpoint that proposes bounded follow-up work from the current task state.
+
+Exit criteria: a brief such as “test whether agent networking improves research coverage for AI infrastructure case studies” produces a persisted investigation with hypotheses, questions, methods, stopping criteria, and a first bounded cycle. The task remains open for later cycles.
+
+## Phase 2 — Source retrieval and evidence storage
+
+Goal: gather reproducible source material.
+
+Progress: HTTP retrieval now validates enabled-domain policy before each request,
+including redirects, streams response bodies under byte limits, caps normalized text,
+and rejects redirect loops and unsupported formats. Static HTML is normalized to text;
+PDF and compressed responses are explicitly rejected pending bounded extractors.
+Tests cover policy rejection without contacting the redirected host, stream cutoff and
+closure, text normalization, and persistence only after successful retrieval.
+A second retrieval pass adds socket-bound public-address validation and a shared
+30-second deadline, including bounded DNS waits and shrinking socket timeouts.
+Controlled DNS/socket tests verify IP pinning, Host/TLS identity, private-address
+rejection on redirects, and slow-header/body cutoff. Exact source retries now reuse persisted records under task-row locks, including
+concurrent fetch/ingestion requests. Claim writes and deterministic extraction also
+reuse exact statement/provenance identities, and extraction batches commit atomically.
+Evidence writes and reuse, extraction completion/failure, and retrieval rejection now
+produce persistent, redacted task events, exposed by a bounded events endpoint.
+Success events commit with their writes; extraction failure events are saved after
+rollback. Tests cover durability, concurrent retry outcomes, event ordering, redaction,
+and rollback when event storage fails. Original-byte storage and historical duplicate
+reconciliation remain open; audit coverage for other mutations is still future work.
+
+Deliverables:
+
+- `Source` schema and repository.
+- Explicit retrieval tool interface.
+- Source content hashing and duplicate detection.
+- Raw source storage abstraction.
+- Source size, timeout, content-type, and domain policy limits.
+- Retrieval errors represented as task events rather than hidden failures.
+
+Exit criteria: a research task can retrieve approved sources and retain enough metadata to reproduce what was observed.
+
+## Phase 3 — Claims and provenance
+
+Goal: transform source material into auditable structured knowledge.
+
+Deliverables:
+
+- Entity, claim, relationship, and claim-source schemas.
+- Claim extraction with schema validation.
+- Support, contradiction, and inference classifications.
+- Confidence and status transition rules.
+- Queries for claims by entity, source, status, and confidence.
+
+Exit criteria: every accepted claim can be traced to its source material, and unsupported model assertions are not silently promoted to facts.
+
+## Phase 4 — Memory retrieval and reporting
+
+Goal: make stored knowledge useful in later research.
+
+Progress: a deterministic `GET /investigations/{task_id}/snapshot` endpoint now reads
+persisted briefs, plans, cycles, hypotheses, current assessments, claims, and sources.
+It preserves link classifications, confidence, verification status, and stored open
+questions, and explicitly marks missing assessments. PostgreSQL integration tests
+cover fresh-app retrieval, assessment replacement, empty investigations, unknown IDs,
+and cross-investigation evidence rejection. This is a read foundation for reporting;
+cross-task memory search, generated synthesis, and evidence-aware planning remain open.
+
+Deliverables:
+
+- Keyword and relational retrieval first.
+- pgvector embeddings only after the non-semantic path is reliable.
+- Context builder that includes provenance and uncertainty.
+- Report schema with evidence, conclusions, open questions, and citations.
+- Report generation from persisted state.
+
+Exit criteria: a later task can retrieve relevant prior claims and generate a report that preserves uncertainty and provenance.
+
+## Phase 5 — Memory governance and rollback
+
+Goal: make consolidation safe and reversible.
+
+Deliverables:
+
+- Explicit memory-change proposal schema.
+- Deterministic validation service.
+- Event log with previous-state snapshots.
+- Archive, merge, restore, and logical-delete operations.
+- 48-hour rollback worker or scheduled job.
+- Tests for idempotency, stale versions, dependent claims, and rollback conflicts.
+
+Exit criteria: a merge or archive can be undone within the retention window, and the audit trail explains what changed and why.
+
+## Phase 6 — Agent-network research method
+
+Goal: use external agents as a controlled research method without coupling the core to one platform.
+
+Deliverables:
+
+- Agent identity and observation schemas.
+- `AgentNetwork` interface.
+- Research questions that can be sent to selected agents.
+- Agent roles such as source finder, domain specialist, critic, and case-study participant.
+- Untrusted-message ingestion pipeline.
+- Separate agent-sourced claims and reputation observations.
+- Outbound message policy, rate limits, and audit events.
+- Fake adapter for local tests.
+
+Exit criteria: an investigation cycle can ask external agents targeted questions, record responses as agent-sourced evidence, compare responses, and seek independent corroboration. Agent messages can never become executable instructions.
+
+## Phase 7 — Moltbook adapter
+
+Goal: connect the abstract networking layer to Moltbook.
+
+Deliverables:
+
+- Authentication and identity handling through secrets management.
+- Discovery, observation, posting, and messaging adapter methods.
+- Platform-specific rate limits and error mapping.
+- Contract tests using mocked API responses.
+- Operational controls for enabling or disabling the adapter.
+
+Exit criteria: Moltbook can be enabled as one replaceable research source and communication channel without changing core domain code.
+
+## Phase 8 — Long-running research
+
+Goal: support autonomous continuation under explicit user-controlled limits.
+
+Deliverables:
+
+- Persistent subtask scheduling.
+- SQS or equivalent queue integration.
+- EventBridge maintenance schedules.
+- Per-task budgets, timeouts, and stopping criteria.
+- Human approval gates for external communication or sensitive actions.
+- Operational dashboards and failure recovery.
+
+Exit criteria: a research objective can resume after interruption while respecting task budgets, tool policy, and approval boundaries.
+
+## Cross-cutting quality gates
+
+Every phase should add:
+
+- unit tests for deterministic logic;
+- contract tests for adapters;
+- integration tests for database behavior;
+- structured audit events;
+- security tests for prompt injection and unauthorized tool/state changes;
+- migration and rollback checks;
+- documentation of new operational assumptions.

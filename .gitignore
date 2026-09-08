@@ -1,0 +1,21 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.env
+dist/
+build/
+*.egg-info/
+src/research_agent.egg-info/
+
+# Local development data and generated output
+postgres-data/
+coverage.xml
+
+# Local logs and editor state
+*.log
+.vscode/
