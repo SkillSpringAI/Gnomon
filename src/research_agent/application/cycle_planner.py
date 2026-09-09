@@ -4,6 +4,7 @@ from research_agent.domain.research import (
     ClaimResponse,
     ClaimStatus,
     CyclePlanningBasis,
+    CycleStatus,
     HypothesisAssessmentStatus,
     SupportType,
 )
@@ -20,6 +21,20 @@ def plan_cycle_objectives(
     snapshot: InvestigationSnapshot,
 ) -> tuple[list[str], list[CyclePlanningBasis]]:
     candidates: list[tuple[int, str, CyclePlanningBasis]] = []
+    completed_objectives = {
+        objective
+        for cycle in snapshot.task.cycles
+        if cycle.status == CycleStatus.COMPLETED
+        for objective in cycle.objectives
+        if objective not in cycle.unresolved_objectives
+    }
+    for cycle in snapshot.task.cycles:
+        if cycle.status in {CycleStatus.BLOCKED, CycleStatus.FAILED}:
+            for objective in cycle.unresolved_objectives or cycle.objectives:
+                if objective.strip():
+                    candidates.append(
+                        (1, objective.strip(), CyclePlanningBasis(reason="incomplete_cycle"))
+                    )
     addressed_claims = set()
     claims = {claim.id: claim for claim in snapshot.claims}
     for row in snapshot.hypotheses:
@@ -129,6 +144,8 @@ def plan_cycle_objectives(
     seen = set()
     # Stable sorting preserves brief and snapshot order within a priority.
     for _, objective, reason in sorted(candidates, key=lambda item: item[0]):
+        if objective in completed_objectives:
+            continue
         identity = (objective, reason.hypothesis_id, tuple(reason.claim_ids), reason.source_id)
         if identity in seen:
             continue
@@ -137,4 +154,13 @@ def plan_cycle_objectives(
         basis.append(reason)
         if len(objectives) == 3:
             break
+    if not objectives:
+        if not snapshot.sources:
+            objectives.append("Gather initial sources relevant to the investigation objective.")
+            basis.append(CyclePlanningBasis(reason="missing_evidence"))
+        else:
+            objectives.append(
+                "Review the stopping criteria and decide whether more evidence is needed."
+            )
+            basis.append(CyclePlanningBasis(reason="review_stopping_criteria"))
     return objectives, basis

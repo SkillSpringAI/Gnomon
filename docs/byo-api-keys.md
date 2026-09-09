@@ -43,4 +43,26 @@ The domain and research database should know only the provider name and model id
 
 ## Initial implementation decision
 
-The current backend supports `LLM_API_KEY` as an environment-backed secret and keeps it out of response models. A future UI can add a session-scoped credential provider without changing the research-task, evidence, or provenance schema.
+The current backend supports `LLM_API_KEY` as an environment-backed secret and includes
+an optional AWS Bedrock adapter that uses the standard boto3 credential chain. Bedrock
+is disabled unless `LLM_PROVIDER=bedrock`; configure `MODEL_ID`, `AWS_REGION`, and
+`LLM_TIMEOUT_SECONDS` through environment-backed settings. AWS access keys, session
+tokens, and provider errors are never placed in response models, prompts, research
+records, or audit payloads. A future UI can add a session-scoped credential provider
+without changing the research-task, evidence, or provenance schema.
+
+Provider usage is bounded by configurable output-token, report-size, and per-task draft
+limits. Exceeding a limit returns a rate or payload error, records only a fixed failure
+reason, and does not send the report to the provider.
+
+Local development can use `POST /provider/session` to place a bearer token in a short-lived
+in-memory session, scoped by an HttpOnly cookie and restricted to loopback requests.
+The endpoint is a local bridge for testing, not an authentication system for a deployed
+multi-user UI; production use requires an authenticated identity and encrypted session
+management.
+
+Bedrock bearer API keys are supported by boto3 through the AWS-supported
+`AWS_BEARER_TOKEN_BEDROCK` environment variable. The local shell may set that value
+for a temporary run; it must never be committed or copied into application state. A UI
+should hold it only in an expiring session secret, and should prefer short-term keys or
+federated temporary credentials.

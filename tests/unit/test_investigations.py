@@ -50,6 +50,45 @@ def test_unknown_investigation_returns_not_found() -> None:
     assert response.status_code == 404
 
 
+def test_cycle_can_start_and_record_a_bounded_outcome() -> None:
+    client = TestClient(create_app(InMemoryResearchTaskRepository()))
+    created = client.post(
+        "/investigations",
+        json={"title": "Cycle", "objective": "Track a bounded result."},
+    )
+    task = created.json()["task"]
+
+    started = client.post(f"/investigations/{task['id']}/cycles/1/start")
+    assert started.status_code == 200
+    assert started.json()["task"]["cycles"][0]["status"] == "active"
+
+    outcome = client.post(
+        f"/investigations/{task['id']}/cycles/1/outcome",
+        json={
+            "status": "completed",
+            "result_summary": "The evidence boundary is now explicit.",
+            "unresolved_objectives": [],
+        },
+    )
+    assert outcome.status_code == 200
+    cycle = outcome.json()["task"]["cycles"][0]
+    assert cycle["status"] == "completed"
+    assert cycle["result_summary"] == "The evidence boundary is now explicit."
+    assert cycle["completed_at"] is not None
+
+
+def test_cycle_outcome_requires_active_cycle() -> None:
+    client = TestClient(create_app(InMemoryResearchTaskRepository()))
+    task = client.post(
+        "/investigations", json={"title": "Cycle", "objective": "Track state."}
+    ).json()["task"]
+    response = client.post(
+        f"/investigations/{task['id']}/cycles/1/outcome",
+        json={"status": "failed", "result_summary": "It did not start."},
+    )
+    assert response.status_code == 409
+
+
 def test_rejected_cycle_does_not_mutate_in_memory_task() -> None:
     import pytest
 

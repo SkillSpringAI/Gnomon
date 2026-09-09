@@ -32,7 +32,9 @@ Next-cycle planning now prioritizes persisted counterevidence, missing/unresolve
 assessments, claims needing verification, unanalyzed sources, and open questions.
 It stores at most three objectives with per-objective reasons and evidence IDs via
 migration 005. Earlier plans remain unchanged, and task/assessment locks keep planning
-consistent with evidence writes. Semantic synthesis and cycle outcome tracking remain open.
+consistent with evidence writes. Cycle start/outcome tracking now persists bounded
+results, provenance IDs, unresolved objectives, and audited lifecycle transitions via
+migration 006. Semantic synthesis and automated stopping-criteria evaluation remain open.
 
 Deliverables:
 
@@ -99,13 +101,25 @@ Exit criteria: every accepted claim can be traced to its source material, and un
 
 Goal: make stored knowledge useful in later research.
 
-Progress: a deterministic `GET /investigations/{task_id}/snapshot` endpoint now reads
+Progress: deterministic `GET /investigations/{task_id}/snapshot` and
+`GET /investigations/{task_id}/report` endpoints now read
 persisted briefs, plans, cycles, hypotheses, current assessments, claims, and sources.
-It preserves link classifications, confidence, verification status, and stored open
-questions, and explicitly marks missing assessments. PostgreSQL integration tests
-cover fresh-app retrieval, assessment replacement, empty investigations, unknown IDs,
-and cross-investigation evidence rejection. This is a read foundation for reporting;
-cross-task memory search, generated synthesis, and evidence-aware planning remain open.
+The report preserves link classifications, confidence, verification status, stored open
+questions, cycle outcomes, and explicit limitations while omitting raw source content.
+The local `rule_based` provider and optional AWS Bedrock provider can generate unpersisted
+provider metadata and cited record IDs. Draft output validation, redacted success/failure
+events, and rollback-safe provider failure handling are covered; external semantic
+synthesis remains open. Configurable output, input-size, and per-task draft limits now
+bound provider spend before a live call.
+The non-secret `GET /provider/status` endpoint exposes the active model, region,
+credential mode, and limits for a future UI without exposing credentials.
+The local investigation workspace can display a report and request a bounded draft;
+credential entry remains intentionally deferred until a production authenticated session design exists.
+The local-only session bridge now provides a bounded in-memory bearer-token path for
+testing; multi-user federation and encrypted session management remain open.
+PostgreSQL integration tests cover fresh-app retrieval, assessment replacement, empty
+investigations, unknown IDs, cross-investigation evidence rejection, and report
+provenance. Cross-task memory search, generated synthesis, and semantic retrieval remain open.
 
 Deliverables:
 

@@ -22,6 +22,14 @@ class TaskStatus(StrEnum):
     ABANDONED = "abandoned"
 
 
+class CycleStatus(StrEnum):
+    PLANNED = "planned"
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    BLOCKED = "blocked"
+    FAILED = "failed"
+
+
 class ResearchMethod(StrEnum):
     WEB_RESEARCH = "web_research"
     SOURCE_ANALYSIS = "source_analysis"
@@ -140,6 +148,7 @@ class CyclePlanningBasis(BaseModel):
         "open_question",
         "review_stopping_criteria",
         "missing_evidence",
+        "incomplete_cycle",
     ]
     hypothesis_id: UUID | None = None
     assessment_id: UUID | None = None
@@ -156,8 +165,14 @@ class ResearchCycle(BaseModel):
     planning_basis: list[CyclePlanningBasis] = Field(default_factory=list, max_length=3)
     objectives: list[str]
     methods: list[ResearchMethod]
-    status: str = "planned"
+    status: CycleStatus = CycleStatus.PLANNED
     created_at: datetime = Field(default_factory=utc_now)
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    result_summary: str | None = Field(default=None, max_length=10_000)
+    evidence_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    claim_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    unresolved_objectives: list[str] = Field(default_factory=list, max_length=50)
 
 
 class ResearchTask(BaseModel):
@@ -311,3 +326,15 @@ class TaskStatusChange(BaseModel):
 
     status: TaskStatus
     expected_status: TaskStatus
+
+
+class CycleOutcomeCreate(BaseModel):
+    """Bounded, provenance-linked result for a started research cycle."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["completed", "blocked", "failed"]
+    result_summary: str = Field(min_length=1, max_length=10_000)
+    evidence_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    claim_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    unresolved_objectives: list[str] = Field(default_factory=list, max_length=50)

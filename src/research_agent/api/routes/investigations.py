@@ -7,13 +7,19 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from research_agent.application.research_service import (
+    CycleNotFound,
     InMemoryResearchTaskRepository,
     ResearchService,
     ResearchTaskNotFound,
     TaskStateConflict,
 )
 from research_agent.config.settings import get_settings
-from research_agent.domain.research import ResearchBrief, ResearchTaskResponse, TaskStatusChange
+from research_agent.domain.research import (
+    CycleOutcomeCreate,
+    ResearchBrief,
+    ResearchTaskResponse,
+    TaskStatusChange,
+)
 from research_agent.persistence.database import SessionFactory
 from research_agent.persistence.repositories import SqlAlchemyResearchTaskRepository
 
@@ -80,5 +86,40 @@ def change_status(
         return ResearchTaskResponse(task=service.change_status(task_id, change))
     except ResearchTaskNotFound as exc:
         raise HTTPException(status_code=404, detail="Investigation not found") from exc
+    except TaskStateConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/{task_id}/cycles/{cycle_number}/start", response_model=ResearchTaskResponse)
+def start_cycle(
+    task_id: UUID,
+    cycle_number: int,
+    service: Annotated[ResearchService, Depends(get_research_service)],
+) -> ResearchTaskResponse:
+    """Mark a planned cycle as active."""
+    try:
+        return ResearchTaskResponse(task=service.start_cycle(task_id, cycle_number))
+    except (ResearchTaskNotFound, CycleNotFound) as exc:
+        raise HTTPException(status_code=404, detail="Cycle not found") from exc
+    except TaskStateConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post(
+    "/{task_id}/cycles/{cycle_number}/outcome", response_model=ResearchTaskResponse
+)
+def record_cycle_outcome(
+    task_id: UUID,
+    cycle_number: int,
+    outcome: CycleOutcomeCreate,
+    service: Annotated[ResearchService, Depends(get_research_service)],
+) -> ResearchTaskResponse:
+    """Record a bounded result and provenance for an active cycle."""
+    try:
+        return ResearchTaskResponse(
+            task=service.record_cycle_outcome(task_id, cycle_number, outcome)
+        )
+    except (ResearchTaskNotFound, CycleNotFound) as exc:
+        raise HTTPException(status_code=404, detail="Cycle not found") from exc
     except TaskStateConflict as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc

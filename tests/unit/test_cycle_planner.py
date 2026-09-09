@@ -10,6 +10,7 @@ from research_agent.application.research_service import (
 from research_agent.domain.research import (
     ClaimResponse,
     ClaimStatus,
+    CycleStatus,
     ResearchBrief,
     SourceResponse,
     SourceType,
@@ -72,3 +73,16 @@ def test_claim_conflict_precedes_verification_and_duplicate_questions():
     ]
     assert basis[0].claim_ids == [snapshot.claims[1].id]
     assert objectives.count("What remains?") == 1
+
+
+def test_completed_objectives_are_not_replanned():
+    repo = InMemoryResearchTaskRepository()
+    task = ResearchService(repo).create_task(
+        ResearchBrief(title="Test", objective="Inspect evidence.")
+    )
+    task.cycles[0].status = CycleStatus.COMPLETED
+    task.cycles[0].result_summary = "Completed the initial objective."
+    repo.save(task)
+    objectives, basis = plan_cycle_objectives(repo.planning_snapshot(task.id))
+    assert task.cycles[0].objectives[0] not in objectives
+    assert basis[0].reason == "missing_evidence"

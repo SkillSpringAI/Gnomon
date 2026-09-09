@@ -7,6 +7,8 @@ from uuid import UUID
 
 from research_agent.application.cycle_planner import plan_cycle_objectives
 from research_agent.domain.research import (
+    CycleOutcomeCreate,
+    CycleStatus,
     InvestigationPlan,
     ResearchBrief,
     ResearchCycle,
@@ -25,6 +27,10 @@ class ResearchTaskNotFound(Exception):
 
 class TaskStateConflict(Exception):
     """A stale or disallowed lifecycle operation."""
+
+
+class CycleNotFound(Exception):
+    """Raised when a cycle number is unknown."""
 
 
 class InMemoryResearchTaskRepository:
@@ -107,6 +113,8 @@ class ResearchService:
         with self.repository.edit(task_id) as task:
             if task.status != TaskStatus.ACTIVE:
                 raise TaskStateConflict("New cycles require an active investigation")
+            if any(cycle.status == CycleStatus.ACTIVE for cycle in task.cycles):
+                raise TaskStateConflict("Complete the active cycle before planning another")
             next_number = max((cycle.number for cycle in task.cycles), default=0) + 1
             objectives, basis = plan_cycle_objectives(self.repository.planning_snapshot(task_id))
             task.cycles.append(
@@ -119,6 +127,50 @@ class ResearchService:
             )
             task.updated_at = utc_now()
         return task
+
+    def start_cycle(self, task_id: UUID, cycle_number: int) -> ResearchTask:
+        with self.repository.edit(task_id) as task:
+            if task.status != TaskStatus.ACTIVE:
+                raise TaskStateConflict("Cycles require an active investigation")
+            cycle = self._cycle(task, cycle_number)
+            if cycle.status == CycleStatus.ACTIVE:
+                return task
+            if cycle.status != CycleStatus.PLANNED:
+                raise TaskStateConflict("Only a planned cycle can be started")
+            cycle.status = CycleStatus.ACTIVE
+            cycle.started_at = utc_now()
+            task.updated_at = utc_now()
+        return task
+
+    def record_cycle_outcome(
+        self, task_id: UUID, cycle_number: int, outcome: CycleOutcomeCreate
+    ) -> ResearchTask:
+        with self.repository.edit(task_id) as task:
+            cycle = self._cycle(task, cycle_number)
+            if cycle.status != CycleStatus.ACTIVE:
+                raise TaskStateConflict("Only an active cycle can record an outcome")
+            snapshot = self.repository.planning_snapshot(task_id)
+            source_ids = {source.id for source in snapshot.sources}
+            claim_ids = {claim.id for claim in snapshot.claims}
+            if not set(outcome.evidence_ids).issubset(source_ids):
+                raise TaskStateConflict("Outcome references evidence outside this investigation")
+            if not set(outcome.claim_ids).issubset(claim_ids):
+                raise TaskStateConflict("Outcome references claims outside this investigation")
+            cycle.status = CycleStatus(outcome.status)
+            cycle.result_summary = outcome.result_summary
+            cycle.evidence_ids = list(outcome.evidence_ids)
+            cycle.claim_ids = list(outcome.claim_ids)
+            cycle.unresolved_objectives = list(outcome.unresolved_objectives)
+            cycle.completed_at = utc_now()
+            task.updated_at = utc_now()
+        return task
+
+    @staticmethod
+    def _cycle(task: ResearchTask, cycle_number: int) -> ResearchCycle:
+        for cycle in task.cycles:
+            if cycle.number == cycle_number:
+                return cycle
+        raise CycleNotFound
 
     def change_status(self, task_id: UUID, change: TaskStatusChange) -> ResearchTask:
         allowed = {

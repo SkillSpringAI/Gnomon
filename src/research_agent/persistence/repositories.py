@@ -12,6 +12,7 @@ from research_agent.application.research_service import ResearchTaskNotFound
 from research_agent.domain.events import EventPayload, EventType
 from research_agent.domain.research import (
     CyclePlanningBasis,
+    CycleStatus,
     InvestigationPlan,
     ResearchBrief,
     ResearchCycle,
@@ -74,17 +75,29 @@ class SqlAlchemyResearchTaskRepository:
                     ],
                     objectives=cycle.objectives,
                     methods=[method.value for method in cycle.methods],
-                    status=cycle.status,
+                    status=cycle.status.value,
                     created_at=cycle.created_at,
+                    started_at=cycle.started_at,
+                    completed_at=cycle.completed_at,
+                    result_summary=cycle.result_summary,
+                    evidence_ids=[str(item) for item in cycle.evidence_ids],
+                    claim_ids=[str(item) for item in cycle.claim_ids],
+                    unresolved_objectives=cycle.unresolved_objectives,
                 )
                 record.cycles.append(cycle_record)
             else:
                 cycle_record.objectives = cycle.objectives
                 cycle_record.methods = [method.value for method in cycle.methods]
-                cycle_record.status = cycle.status
+                cycle_record.status = cycle.status.value
                 cycle_record.planning_basis = [
                     basis.model_dump(mode="json") for basis in cycle.planning_basis
                 ]
+                cycle_record.started_at = cycle.started_at
+                cycle_record.completed_at = cycle.completed_at
+                cycle_record.result_summary = cycle.result_summary
+                cycle_record.evidence_ids = [str(item) for item in cycle.evidence_ids]
+                cycle_record.claim_ids = [str(item) for item in cycle.claim_ids]
+                cycle_record.unresolved_objectives = cycle.unresolved_objectives
 
     @contextmanager
     def edit(self, task_id: UUID) -> Iterator[ResearchTask]:
@@ -115,6 +128,26 @@ class SqlAlchemyResearchTaskRepository:
                             EventPayload(
                                 operation_id=operation_id,
                                 cycle_number=cycle.number,
+                            ),
+                        )
+                before_cycles = {cycle.number: cycle for cycle in before.cycles}
+                for cycle in task.cycles:
+                    previous = before_cycles.get(cycle.number)
+                    if previous is None:
+                        continue
+                    if cycle.status != previous.status:
+                        audit.stage(
+                            task_id,
+                            EventType.CYCLE_STARTED
+                            if cycle.status.value == "active"
+                            else EventType.CYCLE_OUTCOME_RECORDED,
+                            EventPayload(
+                                operation_id=operation_id,
+                                cycle_number=cycle.number,
+                                from_status=previous.status,
+                                to_status=cycle.status,
+                                claim_count=len(cycle.claim_ids),
+                                unresolved_count=len(cycle.unresolved_objectives),
                             ),
                         )
             self.session.commit()
@@ -151,8 +184,14 @@ class SqlAlchemyResearchTaskRepository:
                     ],
                     objectives=cycle.objectives,
                     methods=[ResearchMethod(method) for method in cycle.methods],
-                    status=cycle.status,
+                    status=CycleStatus(cycle.status),
                     created_at=cycle.created_at,
+                    started_at=cycle.started_at,
+                    completed_at=cycle.completed_at,
+                    result_summary=cycle.result_summary,
+                    evidence_ids=[UUID(item) for item in cycle.evidence_ids],
+                    claim_ids=[UUID(item) for item in cycle.claim_ids],
+                    unresolved_objectives=cycle.unresolved_objectives,
                 )
                 for cycle in record.cycles
             ],

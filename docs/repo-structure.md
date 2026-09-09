@@ -9,11 +9,11 @@ concept docs/
 ├── .env.example
 ├── docker-compose.yml
 ├── Makefile
-├── migrations/                  # Five ordered SQL scripts; no migration runner yet
+├── migrations/                  # Six ordered SQL scripts; no migration runner yet
 ├── src/research_agent/
 │   ├── api/
 │   │   ├── app.py               # Application composition
-│   │   └── routes/              # Investigations, evidence, assessments, events, snapshots, registry, health
+│   │   └── routes/              # Investigations, evidence, assessments, reports, provider, events, snapshots, registry, health
 │   ├── cli.py                  # API startup guidance
 │   ├── config/                 # Environment-backed settings and provider secrets
 │   ├── domain/
@@ -23,7 +23,7 @@ concept docs/
 │   ├── application/            # Research, evidence, extraction, assessment, registry, snapshot, audit, planning services
 │   ├── ports/                  # Task repository, retrieval, extraction, and LLM protocols
 │   ├── adapters/
-│   │   ├── llm/                # Deterministic sentence extractor
+│   │   ├── llm/                # Rule-based extractor, report providers, AWS Bedrock adapters
 │   │   └── web/                # HTTP retriever and public-address transport
 │   ├── persistence/            # SQLAlchemy models, engine/session factory, task repository
 │   └── security/               # Placeholder; dedicated security services are not implemented
@@ -51,4 +51,4 @@ concept docs/
   the transaction that changes state, so an audit failure rolls the state change back.
 - The application factory and route dependencies compose services and close sessions.
 - Add modules and folders when a real boundary emerges. Deployment infrastructure,
-  agent networking, reporting, and governance are still future work.
+  multi-user authentication, agent networking, and advanced synthesis remain future work.

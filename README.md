@@ -2,7 +2,7 @@
 
 A local, single-user research API for persistent investigations, evidence, claims,
 and hypothesis assessments. Planning and claim extraction currently use deterministic
-logic; no external LLM provider is implemented.
+logic; the local rule-based provider and optional AWS Bedrock provider are implemented.
 
 ## Current capabilities
 
@@ -12,6 +12,9 @@ logic; no external LLM provider is implemented.
 - Extract conservative, unverified sentence-based claims from stored content.
 - Read a complete investigation snapshot with explicit uncertainty and source provenance.
 - Plan up to three evidence-aware next-cycle objectives with persisted planning reasons.
+- Start cycles explicitly and record completed, blocked, or failed outcomes with bounded summaries and evidence/claim IDs.
+- Assemble a deterministic read-only report that preserves provenance and uncertainty without generating conclusions.
+- Generate a local provider-backed report draft that declares its provider/model and cited record IDs.
 - Pause, resume, block, conclude, or abandon investigations with compare-and-set lifecycle controls.
 - Inspect redacted, task-scoped audit events for evidence, extraction, retrieval, lifecycle, and cycle operations.
 
@@ -24,8 +27,53 @@ python -m pip install -e ".[dev]"
 docker compose up -d postgres
 ```
 
+The default `stub` provider requires no model credentials. To use the optional AWS
+Bedrock adapter, install `python -m pip install -e ".[dev,aws]"`, set `LLM_PROVIDER=bedrock`,
+set `MODEL_ID` and `AWS_REGION`, and provide AWS credentials through the standard AWS
+credential chain or environment variables. Never place keys in source, `.env.example`,
+research records, or audit payloads.
+
+For Amazon Bedrock in Sydney, use `AWS_REGION=ap-southeast-2` and
+`MODEL_ID=au.anthropic.claude-sonnet-4-6`. This is the Australia geo inference profile
+for Claude Sonnet 4.6. See [AWS’s Claude Sonnet 4.6 model card](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-4-6.html)
+for current availability and routing details.
+
+For a Bedrock bearer API key in PowerShell, set the AWS-supported environment variable
+in the same terminal before starting the API:
+
+```powershell
+$env:AWS_BEARER_TOKEN_BEDROCK = "<paste-key-locally>"
+```
+
+The boto3 adapter reads that variable directly. The application does not copy it into
+settings, prompts, reports, database records, or audit events. AWS documents this
+environment-variable flow and recommends short-term keys for ongoing use.
+
+Draft generation is bounded by `LLM_MAX_OUTPUT_TOKENS`, `LLM_MAX_REPORT_CHARS`, and
+`LLM_MAX_DRAFTS_PER_TASK` (defaults: 3000, 100000, and 20). The per-task limit is
+counted from successful generation audit events; rejected requests record a redacted
+budget failure event and do not call the provider.
+
+`GET /provider/status` exposes the active provider, model, region, credential mode, and
+limits for a UI status panel. Credential mode is reported only as `stub`,
+`bearer_token`, or `aws_default_chain`; the token value is never returned and the
+endpoint does not make a provider call.
+
+`GET /provider` serves a small browser panel backed by that status endpoint. It is a
+read-only operator surface for local use; it does not accept or store credentials.
+
+`GET /investigations/{task_id}/workspace` provides a lightweight browser workspace for
+one investigation. It loads the structured report and can request a draft through the
+existing bounded API; it never presents a credential-entry form.
+
+For local-only testing, `POST /provider/session` accepts a short-lived bearer token
+from loopback, stores it only in process memory, and returns an HttpOnly session cookie.
+`DELETE /provider/session` clears it. This endpoint is intentionally not a multi-user
+authentication system; deploy behind an authenticated identity layer before exposing
+it beyond the local machine.
+
 After PostgreSQL is ready, apply the SQL migrations in filename order. There is no
-version table or automatic migration runner yet. For the current five migrations, in PowerShell:
+version table or automatic migration runner yet. For the current six migrations, in PowerShell:
 
 ```powershell
 Get-ChildItem migrations/*.sql | Sort-Object Name | ForEach-Object {
@@ -100,6 +148,49 @@ relevant hypothesis, assessment, claim, or source IDs. Earlier cycles retain the
 objectives and reasons even after assessments change. The first cycle and pre-migration
 cycles have an empty basis list. Migration `005_cycle_planning_basis.sql` must be applied
 before running this version against another database; it is additive and repeatable.
+
+## Cycle outcomes
+
+Cycles begin as `planned`. Use `POST /investigations/{task_id}/cycles/{cycle_number}/start`
+to mark one active, then record a bounded result with
+`POST /investigations/{task_id}/cycles/{cycle_number}/outcome`:
+
+```json
+{
+  "status": "completed",
+  "result_summary": "The selected evidence was reviewed and mapped.",
+  "evidence_ids": [],
+  "claim_ids": [],
+  "unresolved_objectives": []
+}
+```
+
+Outcome status is `completed`, `blocked`, or `failed`; summaries are required. Evidence
+and claim IDs must belong to the same investigation. Completed objectives are excluded
+from later planning, while unresolved objectives from blocked or failed cycles are
+carried forward with an `incomplete_cycle` planning basis. Cycle start and outcome
+events are redacted audit records and commit atomically with the cycle change.
+Migration `006_cycle_outcomes.sql` adds the durable outcome fields.
+
+## Evidence-aware reports
+
+`GET /investigations/{task_id}/report` returns a structured inventory assembled from
+one repeatable-read snapshot. It includes hypothesis assessments (or explicit missing
+assessments), claims with source links, citation metadata, cycle outcomes, open
+questions, unresolved objectives, and deterministic limitations. It omits full source
+content and does not synthesize conclusions; the provider adapters receive this
+provenance-preserving model for generated reporting.
+
+`POST /investigations/{task_id}/report/draft` runs the local `rule_based` provider
+against that structured report. The draft is not persisted, includes source and claim
+IDs used to assemble it, and explicitly states that it does not establish conclusions.
+The same provider seam supports the optional AWS Bedrock adapter; credentials and provider
+configuration remain outside research state.
+
+Draft output is validated before it is returned: the task ID and cited IDs must match
+the structured report, and credential-shaped content is rejected. Successful generation
+records a redacted `report.draft_generated` event; provider or validation failures
+return 502 and record `report.draft_failed` without exposing exception text.
 
 Cycle planning holds the task row lock while reading evidence. Evidence and assessment
 writers use that same lock, so application writes cannot interleave with the planning
@@ -261,10 +352,10 @@ after each test. Run `python -m pytest tests/unit` for database-free checks.
 
 ## Remaining work
 
-- Cycle outcome tracking, semantic synthesis, and a real LLM provider.
+- Deeper semantic synthesis, provider cost accounting, and production authentication.
 - PDF extraction and bounded compressed-response support.
 - Historical duplicate reconciliation, broader audit coverage, and reversible memory changes.
-- Automated migrations, report generation, and agent-network adapters.
+- Automated migrations, richer report synthesis, and agent-network adapters.
 
 See [the roadmap](docs/roadmap.md), [architecture](docs/architecture.md),
 [repository structure](docs/repo-structure.md), and

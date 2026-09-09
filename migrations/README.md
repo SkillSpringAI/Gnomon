@@ -6,6 +6,10 @@ The initial service does not require a database connection to expose its health 
 
 Migration `005_cycle_planning_basis.sql` adds a JSONB planning-basis list to research cycles. Existing rows default to an empty list; apply it before starting the evidence-aware planner. No rows are rewritten by application code or removed.
 
-The application currently expects migration 005 to be present. The SQL is additive and
+Migration `006_cycle_outcomes.sql` adds cycle start/completion timestamps, a bounded
+result summary, evidence and claim ID lists, and unresolved objectives. Existing cycles
+remain `planned` with empty outcome fields. The migration is additive and repeatable.
+
+The application currently expects migrations 005 and 006 to be present. The SQL is additive and
 repeatable, but there is no migration-version table or automatic runner yet. Applying
 the scripts in filename order to a fresh database creates the complete local schema.

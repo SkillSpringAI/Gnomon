@@ -51,6 +51,7 @@ Agent-to-agent networking should be part of the research-method design from the 
 - A basic report containing sources, claims, conclusions, and uncertainty.
 - A bounded next-cycle mechanism that can continue an investigation without pretending it is finished.
 - Evidence-aware next-cycle prioritization that records why each objective was selected.
+- Explicit cycle start and bounded completed/blocked/failed outcomes with provenance links and unresolved-objective carry-forward.
 - Audit logs and reversible logical archive operations.
 - Automated tests for the deterministic parts of the system.
 
@@ -133,4 +134,8 @@ Each risk should have a test or operational safeguard before the corresponding c
 
 ## 10. Open-source credential strategy
 
-The project should support bring-your-own-provider credentials from the beginning. A local deployment can use environment-backed secrets, while a future UI can add short-lived session credentials or an encrypted secret store. The research database must remain credential-free so exported investigations can be shared without exposing provider access.
+The project supports bring-your-own-provider credentials through environment-backed
+secrets and a loopback-only short-lived session bridge for local testing. A production
+UI still needs federated identity and encrypted session storage. The research database
+must remain credential-free so exported investigations can be shared without exposing
+provider access.

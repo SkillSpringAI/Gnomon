@@ -74,3 +74,15 @@ class AuditService:
         return [
             ResearchEventResponse.model_validate(record, from_attributes=True) for record in records
         ]
+
+    def count_events(self, task_id: UUID, event_type: EventType) -> int:
+        """Count task-scoped events for bounded operational guardrails."""
+        return int(
+            self.session.scalar(
+                select(func.count(ResearchEventRecord.id)).where(
+                    ResearchEventRecord.task_id == task_id,
+                    ResearchEventRecord.event_type == event_type.value,
+                )
+            )
+            or 0
+        )

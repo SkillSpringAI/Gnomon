@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://research_agent:research_agent@localhost:5432/research_agent"
     llm_provider: str = "stub"
     model_id: str = "local-development"
+    aws_region: str = "us-east-1"
+    llm_timeout_seconds: int = 30
+    llm_max_output_tokens: int = 3000
+    llm_max_report_chars: int = 100_000
+    llm_max_drafts_per_task: int = 20
     llm_api_key: SecretStr | None = None
     llm_base_url: str | None = None
     persistence_backend: Literal["memory", "postgres"] = "postgres"

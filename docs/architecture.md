@@ -39,8 +39,9 @@ PostgreSQL / pgvector       Object storage for raw sources
 8. Deterministic validators accept, reject, or quarantine proposed memory changes.
 9. The task service records findings, contradictions, open questions, and the next cycle.
 10. The deterministic cycle planner ranks persisted gaps and records a bounded planning basis with relevant IDs.
-11. The report generator creates interim or final reports from persisted evidence and claims rather than relying only on conversation context.
-12. Audit events make the important decisions and mutations inspectable.
+11. A cycle runner records an explicit start and a bounded completed, blocked, or failed outcome with provenance IDs and unresolved objectives.
+12. The report generator creates structured inventories and provider-backed drafts from persisted evidence and claims rather than relying only on conversation context.
+13. Audit events make the important decisions and mutations inspectable.
 
 ## 3. Core domain objects
 
@@ -107,7 +108,7 @@ class AgentNetwork(Protocol):
 
 The current implementation also has explicit application services for evidence,
 claim extraction, hypothesis assessment, source-domain policy, snapshots, audit
-events, and deterministic cycle planning. PostgreSQL task-row locks serialize
+events, deterministic cycle planning, and evidence-aware report assembly. PostgreSQL task-row locks serialize
 lifecycle changes, evidence writes, assessment replacement, and cycle planning.
 The cycle planner reads a task-scoped snapshot, ranks contradictions and missing
 assessments before weaker gaps, and stores at most three objectives. It treats
@@ -125,6 +126,12 @@ The concrete implementations can change without changing the orchestrator or dom
 - Every accepted claim must have provenance, even if the provenance is a user statement or model inference.
 - Lifecycle changes use compare-and-set expected statuses and are audited in the same transaction.
 - New cycles require an active task and retain their planning basis for later review.
+- Reports are read-only deterministic inventories: they preserve provenance and uncertainty, omit raw source content, and do not manufacture conclusions.
+- Draft generation is an explicit provider boundary; local drafts are unpersisted and carry provider/model metadata plus cited record IDs.
+- Draft output is validated against the source report, credential-shaped content is rejected, and generation success/failure is recorded as redacted audit metadata.
+- Provider status is read-only and non-secret: it reports configuration mode and limits without probing or returning credentials.
+- The local investigation workspace consumes report and draft endpoints but never accepts credentials; session-based BYO credentials require an authenticated UI boundary.
+- Cycles must be started before an outcome is recorded; completed objectives are not replanned automatically, while blocked/failed unresolved objectives remain visible to the planner.
 - Audit payloads contain IDs and fixed categories, never source text, URLs, credentials, or raw exception messages.
 
 ## 6. Adapter rule
@@ -133,4 +140,8 @@ Moltbook, web search providers, LLM providers, and storage backends belong behin
 
 ## 7. Provider credentials
 
-LLM credentials are supplied through deployment configuration or a future user session and are never part of research state. The provider adapter receives a secret through a protected configuration boundary, while tasks, sources, claims, reports, and audit events store only non-secret provider metadata such as provider name and model identifier.
+LLM credentials are supplied through deployment configuration or the local short-lived
+session bridge and are never part of research state. A production UI must replace that
+bridge with authenticated federated sessions. Provider adapters receive secrets through
+a protected boundary, while tasks, sources, claims, reports, and audit events store only
+non-secret provider metadata such as provider name and model identifier.
