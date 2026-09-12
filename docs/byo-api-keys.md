@@ -57,9 +57,11 @@ reason, and does not send the report to the provider.
 
 Local development can use `POST /provider/session` to place a bearer token in a short-lived
 in-memory session, scoped by an HttpOnly cookie and restricted to loopback requests.
-The endpoint is a local bridge for testing, not an authentication system for a deployed
-multi-user UI; production use requires an authenticated identity and encrypted session
-management.
+The endpoint is enabled automatically in local, development, and test environments. A
+non-local deployment must explicitly set `PROVIDER_SESSION_ENABLED=true`; loopback and
+Origin checks remain enforced and deployment cookies are Secure. This is a local bridge
+for testing, not an authentication system for a deployed multi-user UI; production use
+still requires an authenticated identity and encrypted session management.
 
 Bedrock bearer API keys are supported by boto3 through the AWS-supported
 `AWS_BEARER_TOKEN_BEDROCK` environment variable. The local shell may set that value

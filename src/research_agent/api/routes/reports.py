@@ -1,5 +1,6 @@
 """Read-only evidence-aware investigation reports."""
 
+from time import monotonic
 from typing import Annotated
 from uuid import UUID, uuid4
 
@@ -163,7 +164,9 @@ def generate_report_draft(
                 ),
             )
             raise HTTPException(status_code=413, detail="Report input exceeds configured limit")
+        started_at = monotonic()
         draft = generator.generate(report)
+        latency_ms = max(0, round((monotonic() - started_at) * 1000))
         audit.stage(
             task_id,
             EventType.REPORT_DRAFT_GENERATED,
@@ -172,6 +175,10 @@ def generate_report_draft(
                 provider=draft.provider,
                 model=draft.model,
                 claim_count=len(draft.cited_claim_ids),
+                input_tokens=draft.usage.input_tokens if draft.usage else None,
+                output_tokens=draft.usage.output_tokens if draft.usage else None,
+                total_tokens=draft.usage.total_tokens if draft.usage else None,
+                latency_ms=latency_ms,
             ),
         )
         session.commit()

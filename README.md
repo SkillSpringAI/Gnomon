@@ -56,7 +56,7 @@ budget failure event and do not call the provider.
 
 `GET /provider/status` exposes the active provider, model, region, credential mode, and
 limits for a UI status panel. Credential mode is reported only as `stub`,
-`bearer_token`, or `aws_default_chain`; the token value is never returned and the
+`bearer_token`, `session_bearer_token`, or `aws_default_chain`; the token value is never returned and the
 endpoint does not make a provider call.
 
 `GET /provider` serves a small browser panel backed by that status endpoint. It is a
@@ -68,18 +68,16 @@ existing bounded API; it never presents a credential-entry form.
 
 For local-only testing, `POST /provider/session` accepts a short-lived bearer token
 from loopback, stores it only in process memory, and returns an HttpOnly session cookie.
-`DELETE /provider/session` clears it. This endpoint is intentionally not a multi-user
-authentication system; deploy behind an authenticated identity layer before exposing
-it beyond the local machine.
+`DELETE /provider/session` clears it. This endpoint is enabled automatically for local,
+development, and test environments. Set `PROVIDER_SESSION_ENABLED=true` only when an
+explicitly protected non-local deployment needs the route. Loopback and Origin checks
+remain enforced, and deployment cookies are marked Secure. It is not a multi-user
+authentication system; deploy behind an authenticated identity layer before exposing it.
 
-After PostgreSQL is ready, apply the SQL migrations in filename order. There is no
-version table or automatic migration runner yet. For the current six migrations, in PowerShell:
+After PostgreSQL is ready, apply pending migrations with the versioned runner:
 
 ```powershell
-Get-ChildItem migrations/*.sql | Sort-Object Name | ForEach-Object {
-    Get-Content -Raw $_.FullName | docker compose exec -T postgres psql -U research_agent -d research_agent -v ON_ERROR_STOP=1
-    if ($LASTEXITCODE -ne 0) { throw "Migration failed: $($_.Name)" }
-}
+python -m research_agent.cli migrate
 python -m uvicorn research_agent.api.app:app --reload
 ```
 
@@ -90,9 +88,10 @@ service is configured to use its development in-memory backend.
 
 Interactive API documentation is available at <http://127.0.0.1:8000/docs>.
 
-The migration command is safe to rerun because the current scripts use additive
-`IF NOT EXISTS` operations. It is intended for local development; production rollout
-still needs a real migration runner and a recorded schema version.
+The migration runner records applied filenames in `research_agent_schema_migrations`,
+serializes concurrent runs with a PostgreSQL advisory lock, and applies each pending
+file in its own transaction. It is safe to rerun; production deployments should run it
+as an explicit release step before starting application workers.
 
 ## Investigation snapshot
 
@@ -355,7 +354,12 @@ after each test. Run `python -m pytest tests/unit` for database-free checks.
 - Deeper semantic synthesis, provider cost accounting, and production authentication.
 - PDF extraction and bounded compressed-response support.
 - Historical duplicate reconciliation, broader audit coverage, and reversible memory changes.
-- Automated migrations, richer report synthesis, and agent-network adapters.
+- Deeper semantic synthesis and agent-network adapters.
+
+Later-stage circle-backs: add migration checksum and downgrade handling; replace the
+local provider session bridge with authenticated identity and encrypted shared storage;
+add configured provider rate cards for monetary cost estimates; and deepen semantic
+synthesis only after corroboration and stopping-criteria evaluation are implemented.
 
 See [the roadmap](docs/roadmap.md), [architecture](docs/architecture.md),
 [repository structure](docs/repo-structure.md), and

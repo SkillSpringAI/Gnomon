@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     llm_max_drafts_per_task: int = 20
     llm_api_key: SecretStr | None = None
     llm_base_url: str | None = None
+    provider_session_enabled: bool = False
     persistence_backend: Literal["memory", "postgres"] = "postgres"
     require_trusted_sources: bool = True
 

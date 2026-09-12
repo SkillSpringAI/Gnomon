@@ -74,6 +74,16 @@ class InvestigationReport(BaseModel):
     limitations: list[str]
 
 
+class ReportUsage(BaseModel):
+    """Provider-reported usage metadata without prompts, responses, or credentials."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    input_tokens: int = Field(ge=0)
+    output_tokens: int = Field(ge=0)
+    total_tokens: int = Field(ge=0)
+
+
 class ReportDraft(BaseModel):
     """Generated prose with explicit provider metadata and cited record IDs."""
 
@@ -87,3 +97,4 @@ class ReportDraft(BaseModel):
     cited_source_ids: list[UUID] = Field(default_factory=list)
     cited_claim_ids: list[UUID] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
+    usage: ReportUsage | None = None

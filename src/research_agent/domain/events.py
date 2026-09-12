@@ -5,7 +5,7 @@ from enum import StrEnum
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from research_agent.domain.research import CycleStatus, TaskStatus
 
@@ -39,6 +39,10 @@ class EventPayload(BaseModel):
     unresolved_count: int | None = None
     provider: str | None = None
     model: str | None = None
+    input_tokens: int | None = Field(default=None, ge=0)
+    output_tokens: int | None = Field(default=None, ge=0)
+    total_tokens: int | None = Field(default=None, ge=0)
+    latency_ms: int | None = Field(default=None, ge=0)
     reason: Literal[
         "extraction_failed",
         "retrieval_rejected",

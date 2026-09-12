@@ -30,6 +30,23 @@ class RuleBasedReportDraftGenerator:
                 lines.append(f"- {hypothesis.label}: {status} (ID: {hypothesis.id})")
                 if hypothesis.assessment_status == HypothesisAssessmentStatus.UNRESOLVED:
                     lines.append("  - Assessment remains unresolved.")
+        if report.claims:
+            lines.extend(["", "## Claims and provenance"])
+            for claim in report.claims:
+                source_ids = ", ".join(str(link.source_id) for link in claim.source_links)
+                lines.append(
+                    f"- [{claim.status.value}; confidence {claim.confidence:.2f}] "
+                    f"{claim.statement} (Claim ID: {claim.id}; Sources: {source_ids})"
+                )
+        if report.cycles:
+            lines.extend(["", "## Cycle history"])
+            for cycle in report.cycles:
+                lines.append(
+                    f"- Cycle {cycle.number}: {cycle.status.value}; "
+                    f"{len(cycle.objectives)} objective(s), "
+                    f"{len(cycle.evidence_ids)} evidence record(s), "
+                    f"{len(cycle.claim_ids)} claim record(s)."
+                )
         if report.open_questions or report.unresolved_objectives:
             lines.extend(["", "## Open work"])
             for question in report.open_questions:

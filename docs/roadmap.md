@@ -203,3 +203,10 @@ Every phase should add:
 - security tests for prompt injection and unauthorized tool/state changes;
 - migration and rollback checks;
 - documentation of new operational assumptions.
+
+## Later-stage circle-backs
+
+- Add migration checksums, downgrade handling, and release integration around the version table.
+- Replace the loopback provider session bridge with authenticated identity and encrypted shared storage.
+- Add explicit provider rate cards before presenting monetary cost estimates.
+- Revisit semantic synthesis, corroboration, and stopping-criteria evaluation after the evidence and report boundaries mature.

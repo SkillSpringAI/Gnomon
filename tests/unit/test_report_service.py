@@ -1,3 +1,4 @@
+from research_agent.adapters.llm.bedrock_report import _usage
 from research_agent.adapters.llm.rule_based_report import RuleBasedReportDraftGenerator
 from research_agent.application.report_generation_service import (
     ReportGenerationError,
@@ -43,6 +44,29 @@ def test_rule_based_draft_declares_limits_and_provider() -> None:
     assert draft.model == "local-development"
     assert "does not establish conclusions" in draft.content
     assert draft.task_id == task.id
+
+
+def test_rule_based_draft_includes_claim_and_cycle_inventory() -> None:
+    repository = InMemoryResearchTaskRepository()
+    task = ResearchService(repository).create_task(
+        ResearchBrief(title="Rich draft", objective="Preserve provenance.")
+    )
+    report = ReportService().build(repository.planning_snapshot(task.id))
+    draft = RuleBasedReportDraftGenerator().generate(report)
+
+    assert "Evidence inventory" in draft.content
+    assert "does not establish conclusions" in draft.content
+
+
+def test_bedrock_usage_is_redacted_and_defaults_total_tokens() -> None:
+    usage = _usage({"usage": {"inputTokens": 12, "outputTokens": 8}})
+    assert usage is not None
+    assert usage.model_dump() == {
+        "input_tokens": 12,
+        "output_tokens": 8,
+        "total_tokens": 20,
+    }
+    assert _usage({"usage": {"inputTokens": -1, "outputTokens": 8}}) is None
 
 
 def test_report_generation_rejects_provider_citations_outside_report() -> None:

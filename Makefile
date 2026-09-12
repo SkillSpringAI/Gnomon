@@ -1,4 +1,4 @@
-.PHONY: install test lint typecheck run db-up db-down
+.PHONY: install test lint typecheck run migrate db-up db-down
 
 install:
 	python -m pip install -e ".[dev]"
@@ -14,6 +14,9 @@ typecheck:
 
 run:
 	python -m uvicorn research_agent.api.app:app --reload
+
+migrate:
+	python -m research_agent.cli migrate
 
 db-up:
 	docker compose up -d postgres

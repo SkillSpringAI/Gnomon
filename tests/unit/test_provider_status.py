@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from research_agent.api.app import create_app
+from research_agent.application.provider_session import ProviderSessionStore
 from research_agent.config.settings import get_settings
 
 
@@ -56,3 +57,61 @@ def test_provider_session_is_cookie_scoped_and_not_returned(monkeypatch):
     finally:
         monkeypatch.delenv("LLM_PROVIDER", raising=False)
         get_settings.cache_clear()
+
+
+def test_provider_session_is_disabled_outside_local_by_default(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "bedrock")
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    get_settings.cache_clear()
+    try:
+        with TestClient(create_app()) as client:
+            response = client.post(
+                "/provider/session",
+                json={"bearer_token": "temporary-secret", "ttl_seconds": 600},
+            )
+            assert response.status_code == 404
+    finally:
+        monkeypatch.delenv("LLM_PROVIDER", raising=False)
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+        get_settings.cache_clear()
+
+
+def test_provider_session_rejects_cross_origin_request(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "bedrock")
+    get_settings.cache_clear()
+    try:
+        with TestClient(create_app()) as client:
+            response = client.post(
+                "/provider/session",
+                headers={"origin": "https://evil.example"},
+                json={"bearer_token": "temporary-secret", "ttl_seconds": 600},
+            )
+            assert response.status_code == 403
+    finally:
+        monkeypatch.delenv("LLM_PROVIDER", raising=False)
+        get_settings.cache_clear()
+
+
+def test_provider_session_accepts_loopback_origin_with_port(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "bedrock")
+    get_settings.cache_clear()
+    try:
+        with TestClient(create_app()) as client:
+            response = client.post(
+                "/provider/session",
+                headers={"origin": "http://localhost:8000"},
+                json={"bearer_token": "temporary-secret", "ttl_seconds": 600},
+            )
+            assert response.status_code == 201
+    finally:
+        monkeypatch.delenv("LLM_PROVIDER", raising=False)
+        get_settings.cache_clear()
+
+
+def test_provider_session_store_bounds_live_sessions():
+    store = ProviderSessionStore(max_sessions=1)
+    first_id, _ = store.create("first", 600)
+    second_id, _ = store.create("second", 600)
+
+    assert store.get(first_id) is None
+    assert store.get(second_id) == "second"

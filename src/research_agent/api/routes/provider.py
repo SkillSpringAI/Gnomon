@@ -2,6 +2,7 @@
 
 import os
 from typing import Literal
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse
@@ -98,6 +99,10 @@ def create_provider_session(
     response: Response,
 ) -> dict[str, str]:
     """Accept a bearer token only from loopback and keep it in memory until expiry."""
+    settings = get_settings()
+    local_environment = settings.environment.lower() in {"local", "development", "test"}
+    if not local_environment and not settings.provider_session_enabled:
+        raise HTTPException(status_code=404, detail="Provider sessions are disabled")
     if request.client is None or request.client.host not in {
         "127.0.0.1",
         "::1",
@@ -105,6 +110,11 @@ def create_provider_session(
         "testclient",
     }:
         raise HTTPException(status_code=403, detail="Provider sessions are local-only")
+    origin = request.headers.get("origin")
+    origin_host = urlsplit(origin).hostname if origin else None
+    if origin and origin_host not in {"127.0.0.1", "::1", "localhost"}:
+        raise HTTPException(status_code=403, detail="Provider session origin is not allowed")
+    provider_sessions.delete(request.cookies.get("provider_session"))
     session_id, expires_at = provider_sessions.create(
         payload.bearer_token.get_secret_value(), payload.ttl_seconds
     )
@@ -114,6 +124,8 @@ def create_provider_session(
         max_age=payload.ttl_seconds,
         httponly=True,
         samesite="strict",
+        secure=not local_environment,
+        path="/",
     )
     return {"status": "active", "expires_at": expires_at.isoformat()}
 

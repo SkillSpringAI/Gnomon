@@ -10,6 +10,9 @@ Migration `006_cycle_outcomes.sql` adds cycle start/completion timestamps, a bou
 result summary, evidence and claim ID lists, and unresolved objectives. Existing cycles
 remain `planned` with empty outcome fields. The migration is additive and repeatable.
 
-The application currently expects migrations 005 and 006 to be present. The SQL is additive and
-repeatable, but there is no migration-version table or automatic runner yet. Applying
-the scripts in filename order to a fresh database creates the complete local schema.
+The application expects all numbered migrations to be present. Run
+`python -m research_agent.cli migrate` (or `make migrate`) after PostgreSQL is ready.
+The runner creates `research_agent_schema_migrations`, takes a transaction-scoped
+PostgreSQL advisory lock, applies pending files in filename order, and records each
+completed filename. Each migration runs in its own transaction; a failure rolls back
+that migration and stops the command. The numbered SQL remains additive and repeatable.

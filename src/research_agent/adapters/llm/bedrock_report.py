@@ -4,7 +4,7 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-from research_agent.domain.report import InvestigationReport, ReportDraft
+from research_agent.domain.report import InvestigationReport, ReportDraft, ReportUsage
 
 
 class BedrockReportDraftGenerator:
@@ -60,6 +60,7 @@ class BedrockReportDraftGenerator:
         )
         text = _response_text(response)
         payload = _parse_json_object(text)
+        usage = _usage(response)
         return ReportDraft(
             task_id=report.task_id,
             provider=self.provider,
@@ -69,6 +70,7 @@ class BedrockReportDraftGenerator:
             cited_source_ids=payload.get("cited_source_ids", []),
             cited_claim_ids=payload.get("cited_claim_ids", []),
             limitations=payload.get("limitations", []),
+            usage=usage,
         )
 
 
@@ -88,6 +90,32 @@ def _response_text(response: dict[str, Any]) -> str:
     if not text:
         raise ValueError("Bedrock response did not contain text")
     return text
+
+
+def _usage(response: dict[str, Any]) -> ReportUsage | None:
+    usage = response.get("usage")
+    if not isinstance(usage, dict):
+        return None
+    input_value = usage.get("inputTokens")
+    output_value = usage.get("outputTokens")
+    total_value = usage.get("totalTokens")
+    if not (
+        isinstance(input_value, int)
+        and input_value >= 0
+        and isinstance(output_value, int)
+        and output_value >= 0
+    ):
+        return None
+    total_tokens = (
+        total_value
+        if isinstance(total_value, int) and total_value >= 0
+        else input_value + output_value
+    )
+    return ReportUsage(
+        input_tokens=input_value,
+        output_tokens=output_value,
+        total_tokens=total_tokens,
+    )
 
 
 def _parse_json_object(text: str) -> dict[str, Any]:
