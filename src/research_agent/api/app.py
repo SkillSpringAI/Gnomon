@@ -1,6 +1,7 @@
 """FastAPI application factory and application instance."""
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 from research_agent import __version__
 from research_agent.api.routes.assessments import router as assessments_router
@@ -13,6 +14,7 @@ from research_agent.api.routes.investigations import (
 from research_agent.api.routes.investigations import (
     router as investigations_router,
 )
+from research_agent.api.routes.memory import router as memory_router
 from research_agent.api.routes.provider import router as provider_router
 from research_agent.api.routes.reports import router as reports_router
 from research_agent.api.routes.snapshots import router as snapshots_router
@@ -22,6 +24,7 @@ from research_agent.application.research_service import (
     ResearchService,
 )
 from research_agent.config.settings import get_settings
+from research_agent.domain.memory import MemoryConflict, MemoryDenied
 from research_agent.persistence.repositories import SqlAlchemyResearchTaskRepository
 
 
@@ -36,6 +39,16 @@ def create_app(
         description="A provenance-aware research intelligence agent.",
     )
     application.include_router(health_router)
+    application.include_router(memory_router)
+
+    @application.exception_handler(MemoryConflict)
+    async def memory_conflict(request: Request, exc: MemoryConflict) -> JSONResponse:
+        return JSONResponse(status_code=409, content={"detail": str(exc)})
+
+    @application.exception_handler(MemoryDenied)
+    async def memory_denied(request: Request, exc: MemoryDenied) -> JSONResponse:
+        return JSONResponse(status_code=403, content={"detail": str(exc)})
+
     application.include_router(events_router)
     application.include_router(investigations_router)
     application.include_router(evidence_router)

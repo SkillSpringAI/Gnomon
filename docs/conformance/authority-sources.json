@@ -1,0 +1,78 @@
+[
+  {
+    "document": "01",
+    "path": "docs/Gnomon Authority & Constitutional Principles.docx",
+    "sha256": "4342e1b10fb6dd94c5626c21c02e1bedb8f8ba4ff746e7a309a4fb7059821c71",
+    "coverage": "all top-level sections including subordinate clauses",
+    "source_issue": null
+  },
+  {
+    "document": "02",
+    "path": "docs/Gnomon System Architecture Authority.docx",
+    "sha256": "8acf648710630d59a0ab5d92ef051d9702c3beaff44011cd0f984e3e2846aabd",
+    "coverage": "all top-level sections including subordinate clauses",
+    "source_issue": null
+  },
+  {
+    "document": "03",
+    "path": "docs/Gnomon Epistemic & Evidence Authority.docx",
+    "sha256": "f5cc576da120fc13f1bd8a9106bcadcc12ba1ff630f6a170eaeeecd2f3b627fb",
+    "coverage": "all top-level sections including subordinate clauses",
+    "source_issue": null
+  },
+  {
+    "document": "04",
+    "path": "docs/Gnomon Memory & State Authority.docx",
+    "sha256": "7fe372dcddc65c18fded56f908c89fe800e52107c83bb8896ffdddfec3a658d5",
+    "coverage": "all top-level sections including subordinate clauses",
+    "source_issue": null
+  },
+  {
+    "document": "05",
+    "path": "docs/Gnomon — Agent Runtime & Tool Authority.docx",
+    "sha256": "b402436cbf7362848d7bf27cbfacf8caa6f69c3518b2e917ac4940c0e23c1d0a",
+    "coverage": "all top-level sections including subordinate clauses",
+    "source_issue": null
+  },
+  {
+    "document": "06",
+    "path": "docs/Gnomon — Research Methodology Authority.docx",
+    "sha256": "6419698a7e4019583706d700ca1b02b216d8cd1fce6916c8afc7ce156f3ad0a9",
+    "coverage": "all top-level sections including subordinate clauses",
+    "source_issue": null
+  },
+  {
+    "document": "07",
+    "path": "docs/Gnomon — External Agent Network Authority.docx",
+    "sha256": "6b2d4878efd16212e47a28d9ebecdd2d8b0e4b52b33accc69c33f47c0c415b31",
+    "coverage": "all top-level sections including subordinate clauses",
+    "source_issue": null
+  },
+  {
+    "document": "08",
+    "path": "docs/Security, Audit & Recovery Authority.docx",
+    "sha256": "e9d99f3a74464c37a5c56a772326a514a8382b28a4c3d3af7ec279f6a4ce06b0",
+    "coverage": "supplemental review",
+    "source_issue": null,
+    "superseded_source": {
+      "path": "docs/Gnomon — Security, Audit & Recovery Authority.docx",
+      "sha256": "342d321973b502f80be3a64f5efb3234a9af3b89b315bf01ccafe43e7bd3db11",
+      "source_issue": "Ends mid-sentence: If an ext"
+    },
+    "review_note": "Complete replacement reviewed 2026-09-13; sections 1-50 through Final Authority Statement. Supplemental coverage only."
+  },
+  {
+    "document": "09",
+    "path": "docs/Gnomon — Persistence & Data Authority.docx",
+    "sha256": "3f708b271e9b529f4f2951579f588c3088b79c2160de9df7e4a1ed3929244156",
+    "coverage": "supplemental review",
+    "source_issue": null
+  },
+  {
+    "document": "10",
+    "path": "docs/Gnomon — Implementation & Conformance Authority.docx",
+    "sha256": "d629616f4c24c2123d510dba1efa61b9c8828fbb111a9db90b9e6e0e09919cbf",
+    "coverage": "supplemental review",
+    "source_issue": null
+  }
+]

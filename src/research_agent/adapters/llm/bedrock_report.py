@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from research_agent.domain.report import InvestigationReport, ReportDraft, ReportUsage
+from research_agent.security.boundaries import data_delimit
 
 
 class BedrockReportDraftGenerator:
@@ -77,11 +78,7 @@ class BedrockReportDraftGenerator:
 def _prompt(report: InvestigationReport) -> str:
     """Serialize the bounded report as data inside an explicit delimiter."""
     data = report.model_dump(mode="json")
-    return (
-        "BEGIN_STRUCTURED_REPORT\n"
-        + json.dumps(data, separators=(",", ":"))
-        + "\nEND_STRUCTURED_REPORT"
-    )
+    return data_delimit(json.dumps(data, separators=(",", ":")), label="STRUCTURED_REPORT")
 
 
 def _response_text(response: dict[str, Any]) -> str:

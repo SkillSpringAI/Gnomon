@@ -1,0 +1,260 @@
+"""Versioned memory recovery and rollback contracts."""
+
+from datetime import timedelta
+from uuid import UUID, uuid4
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import delete
+
+from research_agent.api.app import create_app
+from research_agent.application.memory_service import MemoryService
+from research_agent.domain.memory import MemoryAuthority, MemoryChangeProposal, MemoryDenied
+from research_agent.domain.research import ClaimCreate, ClaimSourceLink, SupportType
+from research_agent.persistence.database import SessionFactory, engine
+from research_agent.persistence.models import (
+    MemoryChangeRecord,
+    ResearchTaskRecord,
+)
+
+
+@pytest.fixture
+def memory_task():
+    application = create_app()
+    with TestClient(application) as client:
+        task_response = client.post(
+            "/investigations",
+            json={
+                "title": "Rollback contract",
+                "objective": "Test governed recovery.",
+                "hypotheses": [{"label": "H1", "statement": "The claim is relevant."}],
+            },
+        )
+        assert task_response.status_code == 201, task_response.text
+        task_id = task_response.json()["task"]["id"]
+        source_response = client.post(
+            f"/investigations/{task_id}/sources",
+            json={
+                "source_type": "document",
+                "title": "Rollback source",
+                "uri": "https://example.test/rollback",
+                "content": "Observed evidence for rollback.",
+            },
+        )
+        assert source_response.status_code == 201, source_response.text
+        source_id = source_response.json()["id"]
+        claim_response = client.post(
+            f"/investigations/{task_id}/claims",
+            json={
+                "statement": "Original governed statement.",
+                "confidence": 0.4,
+                "source_links": [{"source_id": source_id, "support_type": "supporting"}],
+            },
+        )
+        assert claim_response.status_code == 201, claim_response.text
+        claim_id = claim_response.json()["id"]
+        with SessionFactory() as session:
+            change = session.query(MemoryChangeRecord).filter_by(target_id=UUID(claim_id)).one()
+            change_id = change.change_id
+        try:
+            yield client, task_id, claim_id, source_id, change_id
+        finally:
+            with engine.begin() as connection:
+                connection.execute(
+                    delete(ResearchTaskRecord).where(ResearchTaskRecord.id == UUID(task_id))
+                )
+
+
+def test_normal_rollback_creates_new_version_and_preserves_history(memory_task):
+    client, task_id, claim_id, _, original_id = memory_task
+    update = client.post(
+        f"/investigations/{task_id}/memory/changes",
+        json={
+            "target_type": "claim",
+            "target_id": claim_id,
+            "operation": "UPDATE",
+            "expected_version": 1,
+            "reason": "correct wording",
+            "claim": {
+                "statement": "Updated governed statement.",
+                "confidence": 0.7,
+                "source_links": [{"source_id": memory_task[3], "support_type": "supporting"}],
+            },
+        },
+    )
+    assert update.status_code == 200, update.text
+    update_id = update.json()["change_id"]
+    reversal = client.post(
+        f"/investigations/{task_id}/memory/changes/{update_id}/reverse",
+        json={"reason": "restore prior wording"},
+    )
+    assert reversal.status_code == 200, reversal.text
+    assert reversal.json()["previous_version"] == 2
+    assert reversal.json()["version"] == 3
+    assert reversal.json()["reverses_change_id"] == update_id
+    history = client.get(f"/investigations/{task_id}/memory/changes/{update_id}")
+    assert history.status_code == 200
+    assert history.json()["resulting_state"]["data"]["statement"] == "Updated governed statement."
+    current = client.get(f"/investigations/{task_id}").json()
+    assert current["task"]["id"] == task_id
+
+
+def test_duplicate_rollback_is_idempotent(memory_task):
+    client, task_id, claim_id, source_id, original_id = memory_task
+    payload = {
+        "target_type": "claim",
+        "target_id": claim_id,
+        "operation": "UPDATE",
+        "expected_version": 1,
+        "reason": "change",
+        "claim": {
+            "statement": "Changed once.",
+            "source_links": [{"source_id": source_id, "support_type": "supporting"}],
+        },
+    }
+    changed = client.post(f"/investigations/{task_id}/memory/changes", json=payload).json()
+    reversal = {"change_id": str(uuid4()), "reason": "undo"}
+    first = client.post(
+        f"/investigations/{task_id}/memory/changes/{changed['change_id']}/reverse", json=reversal
+    )
+    second = client.post(
+        f"/investigations/{task_id}/memory/changes/{changed['change_id']}/reverse",
+        json={"reason": "retry"},
+    )
+    assert first.status_code == second.status_code == 200
+    assert first.json()["change_id"] == second.json()["change_id"]
+
+
+def test_stale_update_and_concurrent_modification_are_rejected(memory_task):
+    client, task_id, claim_id, source_id, _ = memory_task
+    base = {
+        "target_type": "claim",
+        "target_id": claim_id,
+        "operation": "UPDATE",
+        "expected_version": 1,
+        "reason": "first",
+        "claim": {
+            "statement": "First",
+            "source_links": [{"source_id": source_id, "support_type": "supporting"}],
+        },
+    }
+    assert client.post(f"/investigations/{task_id}/memory/changes", json=base).status_code == 200
+    stale = base | {"reason": "stale", "change_id": str(uuid4())}
+    response = client.post(f"/investigations/{task_id}/memory/changes", json=stale)
+    assert response.status_code == 409
+
+
+def test_rollback_conflicts_when_dependent_assessment_exists(memory_task):
+    client, task_id, claim_id, source_id, _ = memory_task
+    changed = client.post(
+        f"/investigations/{task_id}/memory/changes",
+        json={
+            "target_type": "claim",
+            "target_id": claim_id,
+            "operation": "UPDATE",
+            "expected_version": 1,
+            "reason": "change",
+            "claim": {
+                "statement": "Changed",
+                "source_links": [{"source_id": source_id, "support_type": "supporting"}],
+            },
+        },
+    ).json()
+    hypothesis_id = client.get(f"/investigations/{task_id}").json()["task"]["brief"]["hypotheses"][
+        0
+    ]["id"]
+    assessment = client.put(
+        f"/investigations/{task_id}/hypotheses/{hypothesis_id}/assessment",
+        json={
+            "status": "supported",
+            "summary": "Dependent",
+            "evidence_links": [{"claim_id": claim_id, "relation": "supporting"}],
+        },
+    )
+    assert assessment.status_code == 200
+    response = client.post(
+        f"/investigations/{task_id}/memory/changes/{changed['change_id']}/reverse",
+        json={"reason": "undo"},
+    )
+    assert response.status_code == 409
+
+
+def test_rollback_conflicts_after_newer_modification(memory_task):
+    client, task_id, claim_id, source_id, _ = memory_task
+    first = client.post(
+        f"/investigations/{task_id}/memory/changes",
+        json={
+            "target_type": "claim",
+            "target_id": claim_id,
+            "operation": "UPDATE",
+            "expected_version": 1,
+            "reason": "first",
+            "claim": {
+                "statement": "First",
+                "source_links": [{"source_id": source_id, "support_type": "supporting"}],
+            },
+        },
+    ).json()
+    second = client.post(
+        f"/investigations/{task_id}/memory/changes",
+        json={
+            "target_type": "claim",
+            "target_id": claim_id,
+            "operation": "UPDATE",
+            "expected_version": 2,
+            "reason": "second",
+            "claim": {
+                "statement": "Second",
+                "source_links": [{"source_id": source_id, "support_type": "supporting"}],
+            },
+        },
+    )
+    assert second.status_code == 200
+    response = client.post(
+        f"/investigations/{task_id}/memory/changes/{first['change_id']}/reverse",
+        json={"reason": "stale undo"},
+    )
+    assert response.status_code == 409
+
+
+def test_rollback_after_48_hours_is_rejected(memory_task):
+    _, task_id, _, _, change_id = memory_task
+    from research_agent.application import memory_service
+
+    with SessionFactory() as session:
+        record = session.get(MemoryChangeRecord, change_id)
+        record.timestamp = memory_service.utc_now() - timedelta(hours=48, seconds=1)
+        session.commit()
+    client = memory_task[0]
+    response = client.post(
+        f"/investigations/{task_id}/memory/changes/{change_id}/reverse", json={"reason": "too late"}
+    )
+    assert response.status_code == 409
+
+
+def test_denied_memory_commit_is_audited(memory_task):
+    client, task_id, claim_id, source_id, _ = memory_task
+    proposal = MemoryChangeProposal(
+        target_type="claim",
+        target_id=UUID(claim_id),
+        operation="UPDATE",
+        expected_version=1,
+        reason="unauthorized attempt",
+        claim=ClaimCreate(
+            statement="Attempted mutation",
+            source_links=[
+                ClaimSourceLink(source_id=UUID(source_id), support_type=SupportType.SUPPORTING)
+            ],
+        ),
+    )
+    with SessionFactory() as session:
+        with pytest.raises(MemoryDenied):
+            MemoryService(session).apply(
+                proposal,
+                MemoryAuthority("model", UUID(task_id), can_commit=True),
+            )
+    events = client.get(f"/investigations/{task_id}/events").json()
+    security = [event for event in events if event["event_type"] == "security.event"]
+    assert security
+    assert security[-1]["payload"]["result"] == "rejected"
+    assert security[-1]["payload"]["change_reason"] == "unauthorized_memory_mutation"

@@ -103,6 +103,9 @@ class ResearchClaimRecord(Base):
 
     __tablename__ = "research_claims"
 
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    lifecycle: Mapped[str] = mapped_column(String, default="active", server_default="active")
+
     id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
     task_id: Mapped[UUID] = mapped_column(
         PostgreSQLUUID(as_uuid=True),
@@ -160,6 +163,8 @@ class HypothesisAssessmentRecord(Base):
     """Database record for the current assessment of a hypothesis."""
 
     __tablename__ = "hypothesis_assessments"
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    lifecycle: Mapped[str] = mapped_column(String, default="active", server_default="active")
     __table_args__ = (UniqueConstraint("task_id", "hypothesis_id"),)
 
     id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
@@ -208,3 +213,26 @@ class ResearchEventRecord(Base):
     event_type: Mapped[str] = mapped_column(Text, nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class MemoryChangeRecord(Base):
+    """Append-only application journal, separate from redacted public events."""
+
+    __tablename__ = "memory_changes"
+
+    change_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    task_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    target_type: Mapped[str] = mapped_column(Text)
+    target_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True))
+    operation: Mapped[str] = mapped_column(Text)
+    actor: Mapped[str] = mapped_column(Text)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    previous_version: Mapped[int] = mapped_column(Integer)
+    version: Mapped[int] = mapped_column(Integer)
+    previous_state: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    proposed_state: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    resulting_state: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    reason: Mapped[str] = mapped_column(Text)
+    provenance: Mapped[list[str]] = mapped_column(JSONB)
+    request: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    reverses_change_id: Mapped[UUID | None] = mapped_column(PostgreSQLUUID(as_uuid=True))

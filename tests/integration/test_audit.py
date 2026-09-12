@@ -70,7 +70,9 @@ def test_audit_survives_fresh_app_and_correlates_extraction(audit_task, monkeypa
     fixed_time = audit_service.utc_now()
     monkeypatch.setattr(audit_service, "utc_now", lambda: fixed_time)
     _, client, task_id = audit_task
-    assert client.get(f"/investigations/{task_id}/events").json() == []
+    assert [
+        row["event_type"] for row in client.get(f"/investigations/{task_id}/events").json()
+    ] == ["task.created"]
     source = create_source(client, task_id)
     assert create_source(client, task_id) == source
     extraction_url = f"/investigations/{task_id}/sources/{source['id']}/extract-claims"
@@ -82,6 +84,7 @@ def test_audit_survives_fresh_app_and_correlates_extraction(audit_task, monkeypa
         assert response.status_code == 200, response.text
         events = response.json()
         assert [item["event_type"] for item in events] == [
+            "task.created",
             "source.created",
             "source.reused",
             "claim.created",
@@ -91,10 +94,10 @@ def test_audit_survives_fresh_app_and_correlates_extraction(audit_task, monkeypa
             "claim.reused",
             "extraction.completed",
         ]
-        assert len({item["payload"]["operation_id"] for item in events[2:5]}) == 1
-        assert len({item["payload"]["operation_id"] for item in events[5:]}) == 1
-        assert events[4]["payload"]["operation_id"] != events[-1]["payload"]["operation_id"]
-        assert events[4]["payload"]["claim_count"] == 2
+        assert len({item["payload"]["operation_id"] for item in events[3:6]}) == 1
+        assert len({item["payload"]["operation_id"] for item in events[6:]}) == 1
+        assert events[5]["payload"]["operation_id"] != events[-1]["payload"]["operation_id"]
+        assert events[5]["payload"]["claim_count"] == 2
         assert all(item["task_id"] == task_id for item in events)
         assert "SECRET" not in response.text
         assert "https://" not in response.text
@@ -105,7 +108,9 @@ def test_audit_survives_fresh_app_and_correlates_extraction(audit_task, monkeypa
         other = fresh.post("/investigations", json={"title": "Other", "objective": "Isolation."})
         other_id = UUID(other.json()["task"]["id"])
         try:
-            assert fresh.get(f"/investigations/{other_id}/events").json() == []
+            assert [
+                row["event_type"] for row in fresh.get(f"/investigations/{other_id}/events").json()
+            ] == ["task.created"]
         finally:
             with engine.begin() as connection:
                 connection.execute(
@@ -157,7 +162,11 @@ def test_failed_extraction_has_failure_event_without_partial_success(audit_task)
             == 0
         )
     response = client.get(f"/investigations/{task_id}/events")
-    assert [row["event_type"] for row in response.json()] == ["source.created", "extraction.failed"]
+    assert [row["event_type"] for row in response.json()] == [
+        "task.created",
+        "source.created",
+        "extraction.failed",
+    ]
     assert response.json()[-1]["payload"]["reason"] == "extraction_failed"
     assert "SECRET" not in response.text
 
@@ -186,9 +195,9 @@ def test_retrieval_failures_are_durable_and_redacted(audit_task, failure, status
     assert response.status_code == status
     events = client.get(f"/investigations/{task_id}/events")
     assert "SECRET" not in events.text
-    assert len(events.json()) == 1
-    assert events.json()[0]["event_type"] == "retrieval.failed"
-    assert events.json()[0]["payload"]["reason"] == reason
+    assert len(events.json()) == 2
+    assert events.json()[1]["event_type"] == "retrieval.failed"
+    assert events.json()[1]["payload"]["reason"] == reason
     assert client.get(f"/investigations/{task_id}/snapshot").json()["sources"] == []
     assert (
         client.post(
@@ -233,4 +242,6 @@ def test_event_insert_failure_rolls_back_source_write(audit_task):
             )
             == 0
         )
-    assert client.get(f"/investigations/{task_id}/events").json() == []
+    assert [
+        row["event_type"] for row in client.get(f"/investigations/{task_id}/events").json()
+    ] == ["task.created"]

@@ -16,7 +16,10 @@ logic; the local rule-based provider and optional AWS Bedrock provider are imple
 - Assemble a deterministic read-only report that preserves provenance and uncertainty without generating conclusions.
 - Generate a local provider-backed report draft that declares its provider/model and cited record IDs.
 - Pause, resume, block, conclude, or abandon investigations with compare-and-set lifecycle controls.
-- Inspect redacted, task-scoped audit events for evidence, extraction, retrieval, lifecycle, and cycle operations.
+- Submit governed memory proposals for claims and hypothesis assessments using deterministic validation, optimistic versions, lifecycle operations, and trusted actor context.
+- Reverse eligible memory changes within 48 hours without erasing the original journal entry; stale, dependent, duplicate, and expired reversals fail safely.
+- Inspect redacted, task-scoped audit events for task creation, evidence, extraction, retrieval, lifecycle, cycle, memory, rollback, and security-denial operations.
+- Apply shared external-boundary guards for bounded untrusted text, provider data delimiters, and explicit capability allowlists.
 
 ## Local setup
 
@@ -351,10 +354,17 @@ after each test. Run `python -m pytest tests/unit` for database-free checks.
 
 ## Remaining work
 
+The active governance baseline and implementation priorities are recorded in
+[docs/conformance/implementation-status.md](docs/conformance/implementation-status.md),
+with authority mappings and known gaps. Run `python scripts/check_conformance.py`
+to verify authority-source revisions and Documents 01–07 matrix coverage. This
+traceability check does not establish behavioral or release conformance.
+
 - Deeper semantic synthesis, provider cost accounting, and production authentication.
 - PDF extraction and bounded compressed-response support.
-- Historical duplicate reconciliation, broader audit coverage, and reversible memory changes.
-- Deeper semantic synthesis and agent-network adapters.
+- Historical duplicate reconciliation, authenticated multi-user identity, and complete security-state observability.
+- Dependent reassessment propagation, backup/restore drills, and migration recovery procedures.
+- Fake/adversarial agent networking, Moltbook integration, and research-loop integration.
 
 Later-stage circle-backs: add migration checksum and downgrade handling; replace the
 local provider session bridge with authenticated identity and encrypted shared storage;

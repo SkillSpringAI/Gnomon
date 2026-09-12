@@ -2,14 +2,23 @@
 
 from datetime import UTC, datetime
 from hashlib import sha256
+from typing import Literal
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from research_agent.application.audit_service import AuditService
+from research_agent.application.memory_service import MemoryService
 from research_agent.application.research_service import ResearchTaskNotFound
 from research_agent.domain.events import EventPayload, EventType
+from research_agent.domain.memory import (
+    MemoryAuthority,
+    MemoryChangeProposal,
+    MemoryConflict,
+    MemoryOperation,
+    MemoryTarget,
+)
 from research_agent.domain.research import (
     ClaimCreate,
     ClaimResponse,
@@ -30,8 +39,15 @@ from research_agent.ports.retrieval import RetrievedSource
 class EvidenceService:
     """Serialize evidence writes per task using a PostgreSQL row lock."""
 
-    def __init__(self, session: Session, operation_id: UUID | None = None) -> None:
+    def __init__(
+        self,
+        session: Session,
+        operation_id: UUID | None = None,
+        *,
+        actor: Literal["local_operator", "claim_extractor"] = "local_operator",
+    ) -> None:
         self.session = session
+        self.actor = actor
         self.operation_id = operation_id or uuid4()
 
     def require_task(self, task_id: UUID, *, lock: bool = False) -> None:
@@ -76,7 +92,12 @@ class EvidenceService:
             AuditService(self.session).stage(
                 task_id,
                 EventType.SOURCE_REUSED if reused else EventType.SOURCE_CREATED,
-                EventPayload(operation_id=self.operation_id, source_id=record.id),
+                EventPayload(
+                    operation_id=self.operation_id,
+                    source_id=record.id,
+                    actor="local_operator",
+                    result="reused" if reused else "committed",
+                ),
             )
             response = SourceResponse.model_validate(record, from_attributes=True)
             self.session.commit()
@@ -117,6 +138,8 @@ class EvidenceService:
     def stage_claim(self, task_id: UUID, claim: ClaimCreate) -> ClaimResponse:
         """Find or insert a claim; the caller must commit or roll back the batch."""
         self.require_task(task_id, lock=True)
+        if self.actor == "claim_extractor" and claim.status.value != "unverified":
+            raise ValueError("Extracted claims must remain unverified")
         source_ids = {link.source_id for link in claim.source_links}
         if len(source_ids) != len(claim.source_links):
             raise ValueError("Each source may appear only once in a claim")
@@ -143,40 +166,45 @@ class EvidenceService:
             if {
                 (link.source_id, link.support_type.value) for link in response.source_links
             } == identity:
+                if candidate.lifecycle != "active":
+                    raise MemoryConflict(
+                        "Matching claim is inactive; explicit restoration required"
+                    )
                 AuditService(self.session).stage(
                     task_id,
                     EventType.CLAIM_REUSED,
-                    EventPayload(operation_id=self.operation_id, claim_id=candidate.id),
+                    EventPayload(
+                        operation_id=self.operation_id,
+                        claim_id=candidate.id,
+                        actor=self.actor,
+                        result="reused",
+                    ),
                 )
                 return response
 
-        now = datetime.now(UTC)
-        record = ResearchClaimRecord(
-            id=uuid4(),
-            task_id=task_id,
-            statement=claim.statement,
-            confidence=claim.confidence,
-            status=claim.status.value,
-            created_at=now,
-            updated_at=now,
+        target_id = uuid4()
+        MemoryService(self.session).stage(
+            MemoryChangeProposal(
+                target_type=MemoryTarget.CLAIM,
+                target_id=target_id,
+                operation=MemoryOperation.CREATE,
+                expected_version=0,
+                reason="Claim ingestion",
+                claim=claim,
+            ),
+            MemoryAuthority(actor=self.actor, task_id=task_id, can_commit=True),
         )
-        self.session.add(record)
-        self.session.flush()
-        self.session.add_all(
-            ClaimSourceRecord(
-                claim_id=record.id,
-                source_id=link.source_id,
-                support_type=link.support_type.value,
-                strength=link.strength,
-            )
-            for link in claim.source_links
-        )
-        # Session autoflush is disabled; later proposals must see staged provenance.
-        self.session.flush()
+        record = self.session.get(ResearchClaimRecord, target_id)
+        assert record is not None
         AuditService(self.session).stage(
             task_id,
             EventType.CLAIM_CREATED,
-            EventPayload(operation_id=self.operation_id, claim_id=record.id),
+            EventPayload(
+                operation_id=self.operation_id,
+                claim_id=record.id,
+                actor=self.actor,
+                result="committed",
+            ),
         )
         return self.claim_response(record)
 
@@ -194,6 +222,8 @@ class EvidenceService:
                 "confidence": record.confidence,
                 "status": record.status,
                 "created_at": record.created_at,
+                "version": record.version,
+                "lifecycle": record.lifecycle,
                 "source_links": [
                     ClaimSourceLink.model_validate(link, from_attributes=True) for link in links
                 ],

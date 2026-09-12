@@ -37,7 +37,9 @@ class SnapshotService:
         ).all()
         claims = self.session.scalars(
             select(ResearchClaimRecord)
-            .where(ResearchClaimRecord.task_id == task_id)
+            .where(
+                ResearchClaimRecord.task_id == task_id, ResearchClaimRecord.lifecycle == "active"
+            )
             .order_by(ResearchClaimRecord.created_at, ResearchClaimRecord.id)
         ).all()
         source_links: dict[UUID, list[ClaimSourceLink]] = defaultdict(list)
@@ -81,12 +83,15 @@ class SnapshotService:
                     "summary": record.summary,
                     "confidence": record.confidence,
                     "updated_at": record.updated_at,
+                    "version": record.version,
+                    "lifecycle": record.lifecycle,
                     "evidence_links": evidence_links[record.id],
                 }
             )
             for record in self.session.scalars(
                 select(HypothesisAssessmentRecord).where(
-                    HypothesisAssessmentRecord.task_id == task_id
+                    HypothesisAssessmentRecord.task_id == task_id,
+                    HypothesisAssessmentRecord.lifecycle == "active",
                 )
             )
         }
@@ -109,6 +114,8 @@ class SnapshotService:
                         "confidence": claim.confidence,
                         "status": claim.status,
                         "created_at": claim.created_at,
+                        "version": claim.version,
+                        "lifecycle": claim.lifecycle,
                         "source_links": source_links[claim.id],
                     }
                 )

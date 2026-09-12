@@ -1,22 +1,14 @@
-"""Application service for evidence-backed hypothesis assessments."""
+"""Compatibility API for governed hypothesis assessments."""
 
-from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from research_agent.domain.research import (
-    HypothesisAssessmentCreate,
-    HypothesisAssessmentResponse,
-    HypothesisAssessmentStatus,
-)
-from research_agent.persistence.models import (
-    AssessmentEvidenceRecord,
-    HypothesisAssessmentRecord,
-    ResearchClaimRecord,
-    ResearchTaskRecord,
-)
+from research_agent.application.memory_service import MemoryService
+from research_agent.domain.memory import MemoryAuthority, MemoryChangeProposal
+from research_agent.domain.research import HypothesisAssessmentCreate, HypothesisAssessmentResponse
+from research_agent.persistence.models import HypothesisAssessmentRecord, ResearchTaskRecord
 
 
 class AssessmentNotFound(Exception):
@@ -24,82 +16,61 @@ class AssessmentNotFound(Exception):
 
 
 class AssessmentService:
-    """Validate and persist current hypothesis assessments."""
-
     def __init__(self, session: Session) -> None:
         self.session = session
 
     def save(
-        self,
-        task_id: UUID,
-        hypothesis_id: UUID,
-        assessment: HypothesisAssessmentCreate,
+        self, task_id: UUID, hypothesis_id: UUID, assessment: HypothesisAssessmentCreate
     ) -> HypothesisAssessmentResponse:
-        task = self.session.scalar(
-            select(ResearchTaskRecord)
-            .where(ResearchTaskRecord.id == task_id)
-            .with_for_update()
-            .execution_options(populate_existing=True)
-        )
-        has_hypothesis = task is not None and any(
-            hypothesis["id"] == str(hypothesis_id) for hypothesis in task.brief["hypotheses"]
-        )
-        if not has_hypothesis:
-            raise AssessmentNotFound
-
-        claim_ids = {link.claim_id for link in assessment.evidence_links}
-        claims = self.session.scalars(
-            select(ResearchClaimRecord).where(
-                ResearchClaimRecord.id.in_(claim_ids),
-                ResearchClaimRecord.task_id == task_id,
+        try:
+            task = self.session.scalar(
+                select(ResearchTaskRecord)
+                .where(ResearchTaskRecord.id == task_id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
             )
-        ).all()
-        if len(claims) != len(claim_ids):
-            raise ValueError("Every assessment claim must belong to the same investigation")
-
-        record = self.session.scalar(
-            select(HypothesisAssessmentRecord).where(
-                HypothesisAssessmentRecord.task_id == task_id,
-                HypothesisAssessmentRecord.hypothesis_id == hypothesis_id,
+            if task is None or not any(
+                h["id"] == str(hypothesis_id) for h in task.brief["hypotheses"]
+            ):
+                raise AssessmentNotFound
+            record = self.session.scalar(
+                select(HypothesisAssessmentRecord)
+                .where(
+                    HypothesisAssessmentRecord.task_id == task_id,
+                    HypothesisAssessmentRecord.hypothesis_id == hypothesis_id,
+                )
+                .execution_options(populate_existing=True)
             )
-        )
-        now = datetime.now(UTC)
-        if record is None:
-            record = HypothesisAssessmentRecord(
-                id=uuid4(),
-                task_id=task_id,
-                hypothesis_id=hypothesis_id,
-                status=assessment.status.value,
-                summary=assessment.summary,
-                confidence=assessment.confidence,
-                updated_at=now,
+            target_id = record.id if record else uuid4()
+            proposal = MemoryChangeProposal.model_validate(
+                {
+                    "target_type": "assessment",
+                    "target_id": target_id,
+                    "operation": "UPDATE" if record else "CREATE",
+                    "expected_version": record.version if record else 0,
+                    "hypothesis_id": None if record else hypothesis_id,
+                    "reason": "Operator assessment submission",
+                    "assessment": assessment,
+                }
             )
-            self.session.add(record)
-        else:
-            record.status = assessment.status.value
-            record.summary = assessment.summary
-            record.confidence = assessment.confidence
-            record.updated_at = now
-
-        self.session.flush()
-        self.session.query(AssessmentEvidenceRecord).filter_by(assessment_id=record.id).delete()
-        self.session.add_all(
-            AssessmentEvidenceRecord(
-                assessment_id=record.id,
-                claim_id=link.claim_id,
-                relation=link.relation.value,
-                strength=link.strength,
+            MemoryService(self.session).stage(
+                proposal, MemoryAuthority("local_operator", task_id, can_commit=True)
             )
-            for link in assessment.evidence_links
-        )
-        self.session.commit()
-        return HypothesisAssessmentResponse(
-            id=record.id,
-            task_id=task_id,
-            hypothesis_id=hypothesis_id,
-            status=HypothesisAssessmentStatus(record.status),
-            summary=record.summary,
-            confidence=record.confidence,
-            evidence_links=assessment.evidence_links,
-            updated_at=record.updated_at,
-        )
+            record = self.session.get(HypothesisAssessmentRecord, target_id)
+            assert record is not None
+            response = HypothesisAssessmentResponse.model_validate(
+                {
+                    **assessment.model_dump(),
+                    "id": record.id,
+                    "task_id": task_id,
+                    "hypothesis_id": hypothesis_id,
+                    "updated_at": record.updated_at,
+                    "version": record.version,
+                    "lifecycle": record.lifecycle,
+                }
+            )
+            self.session.commit()
+            return response
+        except Exception:
+            self.session.rollback()
+            raise

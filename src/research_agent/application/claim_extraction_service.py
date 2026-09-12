@@ -51,7 +51,7 @@ class ClaimExtractionService:
         operation_id = uuid4()
         try:
             proposals = self.extractor.extract(source_response)
-            evidence_service = EvidenceService(self.session, operation_id)
+            evidence_service = EvidenceService(self.session, operation_id, actor="claim_extractor")
             evidence_service.require_task(task_id, lock=True)
             claims: list[ClaimResponse] = []
             seen: set[UUID] = set()

@@ -11,6 +11,9 @@ from research_agent.domain.research import CycleStatus, TaskStatus
 
 
 class EventType(StrEnum):
+    TASK_CREATED = "task.created"
+    MEMORY_CHANGED = "memory.changed"
+    MEMORY_REVERSED = "memory.reversed"
     TASK_STATUS_CHANGED = "task.status_changed"
     CYCLE_PLANNED = "cycle.planned"
     CYCLE_STARTED = "cycle.started"
@@ -24,12 +27,22 @@ class EventType(StrEnum):
     RETRIEVAL_FAILED = "retrieval.failed"
     REPORT_DRAFT_GENERATED = "report.draft_generated"
     REPORT_DRAFT_FAILED = "report.draft_failed"
+    SECURITY_EVENT = "security.event"
 
 
 class EventPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     operation_id: UUID
+    change_id: UUID | None = None
+    target_id: UUID | None = None
+    target_type: Literal["claim", "assessment"] | None = None
+    actor: Literal["local_operator", "claim_extractor", "model"] | None = None
+    memory_operation: (
+        Literal["CREATE", "UPDATE", "ARCHIVE", "LOGICAL_DELETE", "RESTORE", "REVERSE"] | None
+    ) = None
+    previous_version: int | None = None
+    version: int | None = None
     from_status: TaskStatus | CycleStatus | None = None
     to_status: TaskStatus | CycleStatus | None = None
     cycle_number: int | None = None
@@ -43,13 +56,21 @@ class EventPayload(BaseModel):
     output_tokens: int | None = Field(default=None, ge=0)
     total_tokens: int | None = Field(default=None, ge=0)
     latency_ms: int | None = Field(default=None, ge=0)
-    reason: Literal[
-        "extraction_failed",
-        "retrieval_rejected",
-        "domain_not_enabled",
-        "report_generation_failed",
-        "report_budget_exceeded",
-    ] | None = None
+    previous_state_digest: str | None = None
+    new_state_digest: str | None = None
+    provenance: list[UUID] | None = None
+    result: Literal["accepted", "reused", "rejected", "committed", "failed"] | None = None
+    change_reason: str | None = Field(default=None, max_length=1000)
+    reason: (
+        Literal[
+            "extraction_failed",
+            "retrieval_rejected",
+            "domain_not_enabled",
+            "report_generation_failed",
+            "report_budget_exceeded",
+        ]
+        | None
+    ) = None
 
 
 class ResearchEventResponse(BaseModel):

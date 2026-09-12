@@ -53,6 +53,17 @@ class SqlAlchemyResearchTaskRepository:
                 updated_at=task.updated_at,
             )
             self.session.add(record)
+            # Establish the task row before inserting its foreign-keyed audit event.
+            self.session.flush()
+            AuditService(self.session).stage(
+                task.id,
+                EventType.TASK_CREATED,
+                EventPayload(
+                    operation_id=uuid4(),
+                    actor="local_operator",
+                    result="committed",
+                ),
+            )
         else:
             record.status = task.status.value
             record.brief = task.brief.model_dump(mode="json")
@@ -117,6 +128,8 @@ class SqlAlchemyResearchTaskRepository:
                             operation_id=operation_id,
                             from_status=before.status,
                             to_status=task.status,
+                            actor="local_operator",
+                            result="committed",
                         ),
                     )
                 previous_numbers = {cycle.number for cycle in before.cycles}
@@ -128,6 +141,8 @@ class SqlAlchemyResearchTaskRepository:
                             EventPayload(
                                 operation_id=operation_id,
                                 cycle_number=cycle.number,
+                                actor="local_operator",
+                                result="committed",
                             ),
                         )
                 before_cycles = {cycle.number: cycle for cycle in before.cycles}
@@ -148,6 +163,8 @@ class SqlAlchemyResearchTaskRepository:
                                 to_status=cycle.status,
                                 claim_count=len(cycle.claim_ids),
                                 unresolved_count=len(cycle.unresolved_objectives),
+                                actor="local_operator",
+                                result="committed",
                             ),
                         )
             self.session.commit()

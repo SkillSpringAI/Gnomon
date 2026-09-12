@@ -276,6 +276,8 @@ class ClaimCreate(BaseModel):
 class ClaimResponse(BaseModel):
     """Stored claim with provenance."""
 
+    version: int = 1
+    lifecycle: Literal["active", "archived", "logically_deleted"] = "active"
     id: UUID
     task_id: UUID
     statement: str
@@ -309,6 +311,8 @@ class HypothesisAssessmentCreate(BaseModel):
 class HypothesisAssessmentResponse(BaseModel):
     """Stored hypothesis assessment with evidence links."""
 
+    version: int = 1
+    lifecycle: Literal["active", "archived", "logically_deleted"] = "active"
     id: UUID
     task_id: UUID
     hypothesis_id: UUID

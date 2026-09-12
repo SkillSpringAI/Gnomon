@@ -75,15 +75,16 @@ def test_status_survives_restart_and_preserves_cycle_ids(lifecycle_task):
         assert cycle_rows(task_id)[0] == original_rows[0]
         events = fresh.get(f"/investigations/{task_id}/events").json()
         assert [item["event_type"] for item in events] == [
+            "task.created",
             "task.status_changed",
             "task.status_changed",
             "task.status_changed",
             "cycle.planned",
             "task.status_changed",
         ]
-        assert events[0]["payload"]["from_status"] == "active"
-        assert events[0]["payload"]["to_status"] == "paused"
-        assert events[3]["payload"]["cycle_number"] == 2
+        assert events[1]["payload"]["from_status"] == "active"
+        assert events[1]["payload"]["to_status"] == "paused"
+        assert events[4]["payload"]["cycle_number"] == 2
         assert (
             fresh.get(f"/investigations/{task_id}/snapshot").json()["task"]["status"] == "concluded"
         )
@@ -148,7 +149,9 @@ def test_audit_failure_rolls_back_lifecycle_write(lifecycle_task, operation):
         event.remove(ResearchEventRecord, "before_insert", reject)
     assert client.get(f"/investigations/{task_id}").json() == original
     assert cycle_rows(task_id) == original_rows
-    assert client.get(f"/investigations/{task_id}/events").json() == []
+    assert [
+        row["event_type"] for row in client.get(f"/investigations/{task_id}/events").json()
+    ] == ["task.created"]
 
 
 def test_status_request_validation(lifecycle_task):
