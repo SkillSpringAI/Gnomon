@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Investigation workspace</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { margin: 2rem auto; max-width: 58rem; padding: 0 1rem; }
+    button { cursor: pointer; padding: .55rem .8rem; margin: .25rem; }
+    button:disabled { cursor: not-allowed; opacity: .6; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+    article, details { border: 1px solid #8885; border-radius: .6rem; padding: 1rem; margin: 1rem 0; }
+    .muted { opacity: .75; } .error { color: #d74336; }
+    li { margin: .4rem 0; }
+  </style>
+</head>
+<body>
+  <h1 id="title">Investigation workspace</h1>
+  <p id="summary" class="muted">Loading report…</p>
+  <p id="status">Investigation status: loading</p>
+  <p><a href="/provider">Provider status</a></p>
+  <nav aria-label="Investigation actions">
+    <button id="refresh" type="button">Refresh report</button>
+    <button id="run-cycle" type="button" disabled>Run local agent cycle</button>
+    <button id="plan-cycle" type="button" disabled>Plan next cycle</button>
+    <button id="lifecycle" type="button" disabled>Pause investigation</button>
+    <button id="draft" type="button" disabled>Generate draft</button>
+  </nav>
+  <p id="availability" class="muted"></p>
+  <p id="message" class="muted" role="status" aria-live="polite"></p>
+  <h2>Cycles</h2>
+  <p>Completion means the collection pass finished. Research objectives may remain unresolved.</p>
+  <section id="cycles" aria-label="Cycle history"></section>
+  <h2>Report limitations</h2>
+  <ul id="limitations"></ul>
+  <details><summary>Agent comparisons</summary><pre id="observations"></pre></details>
+  <pre id="content" hidden></pre>
+  <script>
+    const taskId = '__TASK_ID__';
+    const byId = id => document.getElementById(id);
+    let report = null;
+    let busy = false;
+    const plannedCycle = () => report?.cycles.find(cycle => cycle.status === 'planned');
+    function controls() {
+      const active = report?.task_status === 'active';
+      const running = report?.cycles.some(cycle => cycle.status === 'active');
+      const planned = plannedCycle();
+      byId('refresh').disabled = busy;
+      byId('run-cycle').disabled = busy || !active || running || !planned;
+      byId('plan-cycle').disabled = busy || !active || running || !!planned;
+      byId('lifecycle').disabled = busy || !['active', 'paused'].includes(report?.task_status);
+      byId('lifecycle').textContent = report?.task_status === 'paused'
+        ? 'Resume investigation' : 'Pause investigation';
+      byId('draft').disabled = busy || !report;
+      byId('availability').textContent = !report ? 'Refresh the report to load current state.'
+        : busy ? 'An operation is in progress.'
+        : report.task_status === 'paused' ? 'Resume the investigation before planning or running a cycle.'
+        : !active ? `Investigation ${report.task_status}; planning and execution are unavailable.`
+        : running ? 'A cycle is active. Refresh to check its outcome.'
+        : planned ? `Cycle ${planned.number} is ready to run.` : 'Plan the next cycle to continue.';
+    }
+    function message(text, error = false) {
+      byId('message').textContent = text;
+      byId('message').className = error ? 'error' : 'muted';
+    }
+    async function request(path, options) {
+      const response = await fetch(`/investigations/${taskId}${path}`, options);
+      if (!response.ok) throw new Error(response.status === 409
+        ? 'The investigation changed. Review the refreshed state before continuing.'
+        : `Request failed (${response.status}).`);
+      return response.json();
+    }
+    function paragraph(parent, text) {
+      const element = document.createElement('p');
+      element.textContent = text;
+      parent.append(element);
+    }
+    function list(parent, values) {
+      for (const value of values) {
+        const item = document.createElement('li');
+        item.textContent = value;
+        parent.append(item);
+      }
+    }
+    function render() {
+      byId('title').textContent = report.title;
+      byId('summary').textContent = report.summary;
+      byId('status').textContent = `Investigation status: ${report.task_status}`;
+      byId('cycles').replaceChildren();
+      for (const cycle of report.cycles) {
+        const article = document.createElement('article');
+        const heading = document.createElement('h3');
+        heading.textContent = `Cycle ${cycle.number} — ${cycle.status}`;
+        article.append(heading);
+        const objectives = document.createElement('ul');
+        list(objectives, cycle.objectives);
+        article.append(objectives);
+        if (cycle.result_summary) paragraph(article, cycle.result_summary);
+        paragraph(article, `${cycle.evidence_ids.length} observations · ${cycle.claim_ids.length} claims`);
+        if (cycle.unresolved_objectives.length) {
+          paragraph(article, 'Unresolved objectives:');
+          const unresolved = document.createElement('ul');
+          list(unresolved, cycle.unresolved_objectives);
+          article.append(unresolved);
+        }
+        byId('cycles').append(article);
+      }
+      byId('limitations').replaceChildren();
+      list(byId('limitations'), report.limitations);
+      byId('observations').textContent = report.agent_comparison
+        ? JSON.stringify(report.agent_comparison, null, 2) : 'No agent observations recorded yet.';
+    }
+    async function loadReport() {
+      try {
+        report = await request('/report');
+        render();
+      } catch (error) {
+        report = null;
+        byId('status').textContent = 'Investigation status: unavailable';
+        throw error;
+      } finally { controls(); }
+    }
+    async function action(work, progress) {
+      if (busy) return;
+      busy = true;
+      controls();
+      message(progress);
+      try {
+        const resultMessage = await work();
+        await loadReport();
+        message(resultMessage);
+      } catch (error) {
+        let detail = error.message;
+        try { await loadReport(); }
+        catch { detail += ' Report refresh failed; displayed history may be stale.'; }
+        message(detail, true);
+      } finally { busy = false; controls(); }
+    }
+    byId('refresh').addEventListener('click', () => action(
+      async () => 'Report refreshed.', 'Refreshing…'
+    ));
+    byId('run-cycle').addEventListener('click', () => {
+      if (byId('run-cycle').disabled) return;
+      const number = plannedCycle().number;
+      action(async () => {
+        const result = await request(`/cycles/${number}/run`, {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ scenario: 'honest', max_agents: 2 })
+        });
+        const cycle = result.task.cycles.find(item => item.number === number);
+        return `Cycle ${number}: ${cycle.status}. Review its outcome and unresolved objectives.`;
+      }, 'Running local agent cycle…');
+    });
+    byId('plan-cycle').addEventListener('click', () => {
+      if (byId('plan-cycle').disabled) return;
+      action(async () => {
+        const result = await request('/cycles', { method: 'POST' });
+        return `Cycle ${result.task.cycles.at(-1).number} planned.`;
+      }, 'Planning…');
+    });
+    byId('lifecycle').addEventListener('click', () => {
+      if (byId('lifecycle').disabled) return;
+      const expected = report.task_status;
+      action(async () => {
+        const status = expected === 'active' ? 'paused' : 'active';
+        await request('/status', {
+          method: 'PATCH', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ expected_status: expected, status })
+        });
+        return `Investigation ${status}.`;
+      }, 'Updating investigation…');
+    });
+    byId('draft').addEventListener('click', () => action(async () => {
+      byId('content').hidden = true;
+      const draft = await request('/report/draft', { method: 'POST' });
+      byId('content').textContent = draft.content;
+      byId('content').hidden = false;
+      return `${draft.provider} / ${draft.model}`;
+    }, 'Generating draft…'));
+    action(async () => 'Report loaded.', 'Loading report…');
+  </script>
+</body>
+</html>

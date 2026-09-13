@@ -69,8 +69,11 @@ read-only operator surface for local use; it does not accept or store credential
 
 `GET /investigations/{task_id}/workspace` provides a lightweight browser workspace for
 one investigation. It loads the structured report and can request a draft through the
-existing bounded API. It can also run one bounded local fake-agent cycle and display
-the resulting untrusted comparison metadata; it never presents a credential-entry form.
+existing bounded API. It shows investigation state, cycle outcomes, unresolved objectives,
+and untrusted comparison metadata. Controls support pause/resume, planning the next
+cycle, and running the next planned local fake-agent cycle. Actions are disabled while
+busy or unavailable in the loaded state; failed requests refresh state before further
+actions. It never presents a credential-entry form.
 
 The runner acquires only planned cycles and rejects execution while any cycle in the
 investigation is active. It checks lifecycle state between stages and under the task
@@ -140,6 +143,24 @@ The smoke test creates an isolated investigation, runs cycle 1 against the bound
 fake network, verifies persisted evidence, extracted claims, comparison metadata, and
 the report, then removes its task record.
 
+For fresh-database and real-server verification, with the local Compose PostgreSQL
+service running and the Python package installed:
+
+```powershell
+python scripts/verify_prototype.py
+# Keep a disposable server open for browser verification:
+python scripts/verify_prototype.py --serve
+```
+
+This command requires permission to create databases on local PostgreSQL. It creates
+its own uniquely named database, applies all migrations, checks migration reruns,
+starts Uvicorn on a temporary loopback port, and verifies pause/resume, two completed
+cycles, a blocked outcome, and identical reports after a server restart. It removes
+only its disposable database when it exits; existing investigation data is untouched.
+With `--serve`, use the printed workspace URL, then Ctrl+C to stop and clean up.
+The command verifies HTTP behavior; browser interaction is checked separately using
+the [workspace verification guide](docs/workspace-verification.md).
+
 Configuration defaults work with the included Compose service; see `.env.example`
 for overrides. The health endpoint and unit tests do not require PostgreSQL.
 Evidence, assessments, and snapshots require PostgreSQL, including when the task
@@ -202,10 +223,10 @@ questions, executes tools, or adds methods beyond the brief's allowed method lis
 Source content is not interpreted as planning instructions.
 
 Each new cycle stores `planning_basis`, aligned with `objectives`: a fixed reason plus
-relevant hypothesis, assessment, claim, or source IDs. Earlier cycles retain their saved
-objectives and reasons even after assessments change. The first cycle and pre-migration
-cycles have an empty basis list. Migration `005_cycle_planning_basis.sql` must be applied
-before running this version against another database; it is additive and repeatable.
+relevant hypothesis, assessment, claim, or source IDs. It also stores an
+`evidence_fingerprint` for the relevant persisted evidence state. Changed evidence can
+reopen matching work while unchanged completed work is suppressed. Migrations
+`005_cycle_planning_basis.sql` and `006_cycle_outcomes.sql` are additive and repeatable.
 
 ## Cycle outcomes
 

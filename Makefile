@@ -1,4 +1,4 @@
-.PHONY: install test lint typecheck run migrate smoke db-up db-down
+.PHONY: install test lint typecheck run migrate smoke verify-prototype db-up db-down
 
 install:
 	python -m pip install -e ".[dev]"
@@ -20,6 +20,9 @@ migrate:
 
 smoke:
 	python scripts/smoke_test.py
+
+verify-prototype:
+	python scripts/verify_prototype.py
 
 db-up:
 	docker compose up -d postgres

@@ -1,5 +1,6 @@
 """Read-only evidence-aware investigation reports."""
 
+from pathlib import Path
 from time import monotonic
 from typing import Annotated
 from uuid import UUID, uuid4
@@ -31,101 +32,8 @@ router = APIRouter(prefix="/investigations", tags=["reports"])
 @router.get("/{task_id}/workspace", response_class=HTMLResponse, include_in_schema=False)
 def investigation_workspace(task_id: UUID) -> str:
     """Serve a credential-free browser workspace for one investigation."""
-    task = str(task_id)
-    return f"""<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Investigation workspace</title>
-  <style>
-    :root {{ color-scheme: light dark; font-family: system-ui, sans-serif; }}
-    body {{ margin: 2rem auto; max-width: 58rem; padding: 0 1rem; }}
-    button {{ cursor: pointer; padding: .55rem .8rem; }}
-    button:disabled {{ cursor: not-allowed; opacity: .6; }}
-    pre {{ white-space: pre-wrap; border: 1px solid #8885; border-radius: .6rem; padding: 1rem; }}
-    .muted {{ opacity: .75; }} .error {{ color: #b42318; }}
-  </style>
-</head>
-<body>
-  <h1 id="title">Investigation workspace</h1>
-  <p id="summary" class="muted">Loading report…</p>
-  <p><a href="/provider">Provider status</a></p>
-  <button id="run-cycle" type="button">Run local agent cycle</button>
-  <button id="draft" type="button">Generate draft</button>
-  <p id="message" class="muted" aria-live="polite"></p>
-  <pre id="observations" hidden></pre>
-  <pre id="content" hidden></pre>
-  <script>
-    const taskId = {task!r};
-    const title = document.getElementById('title');
-    const summary = document.getElementById('summary');
-    const message = document.getElementById('message');
-    const runCycle = document.getElementById('run-cycle');
-    const observations = document.getElementById('observations');
-    const content = document.getElementById('content');
-    const escapeHtml = value => String(value).replace(/[&<>\"']/g, character => ({{
-      '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;'
-    }}[character]));
-    const loadReport = () => fetch(`/investigations/${{taskId}}/report`)
-      .then(response => response.ok ? response.json() : Promise.reject(response.status))
-      .then(report => {{
-        title.textContent = report.title;
-        summary.textContent = report.summary;
-        const comparison = report.agent_comparison;
-        observations.textContent = comparison
-          ? `Agent comparisons\\n${{JSON.stringify(comparison, null, 2)}}`
-          : 'No agent observations recorded yet.';
-        observations.hidden = false;
-        const planned = report.cycles.find(cycle => cycle.status === 'planned');
-        runCycle.disabled = !planned;
-        runCycle.dataset.cycleNumber = planned ? planned.number : '';
-      }})
-      .catch(() => {{
-        message.textContent = 'Unable to load this investigation report.';
-        message.className = 'error';
-      }});
-    loadReport();
-    runCycle.addEventListener('click', () => {{
-      const cycleNumber = runCycle.dataset.cycleNumber;
-      if (!cycleNumber) return;
-      runCycle.disabled = true;
-      message.textContent = 'Running local agent cycle…';
-      fetch(`/investigations/${{taskId}}/cycles/${{cycleNumber}}/run`, {{
-        method: 'POST', headers: {{ 'content-type': 'application/json' }},
-        body: JSON.stringify({{ scenario: 'honest', max_agents: 2 }})
-      }})
-        .then(response => response.ok ? response.json() : Promise.reject(response.status))
-        .then(result => loadReport().then(() => {{
-          const cycle = result.task.cycles.find(item => item.number === Number(cycleNumber));
-          message.textContent = cycle && cycle.status === 'completed'
-            ? 'Agent cycle completed.'
-            : 'Agent cycle is blocked; review the unresolved objective.';
-        }}))
-        .catch(() => {{
-          message.textContent = 'Agent cycle was blocked or failed safely.';
-          message.className = 'error';
-          runCycle.disabled = false;
-        }});
-    }});
-    document.getElementById('draft').addEventListener('click', () => {{
-      message.textContent = 'Generating…';
-      content.hidden = true;
-      fetch(`/investigations/${{taskId}}/report/draft`, {{ method: 'POST' }})
-        .then(response => response.ok ? response.json() : Promise.reject(response.status))
-        .then(draft => {{
-          content.textContent = draft.content;
-          content.hidden = false;
-          message.textContent = `${{draft.provider}} / ${{draft.model}}`;
-        }})
-        .catch(() => {{
-          message.textContent = 'Draft generation failed or was rate-limited.';
-          message.className = 'error';
-        }});
-    }});
-  </script>
-</body>
-</html>"""
+    template = Path(__file__).with_name("workspace.html").read_text(encoding="utf-8")
+    return template.replace("__TASK_ID__", str(task_id))
 
 
 def get_report_generator(request: Request) -> ReportGenerationService:

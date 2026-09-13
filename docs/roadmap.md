@@ -171,6 +171,15 @@ Exit criteria: a merge or archive can be undone within the retention window, and
 
 Goal: use external agents as a controlled research method without coupling the core to one platform.
 
+Progress: local fake networking, neutral agent contracts, bounded policy, inert evidence
+ingestion, deterministic comparison, cycle execution, and a browser workspace are
+implemented. The runner rejects overlapping cycles, checks lifecycle state between
+stages, retains partial results, and records blocked/failed outcomes. Reports resolve
+duplicate observation references to persisted sources, compare matching exact-question
+subjects, disclose comparison omissions, and preserve unresolved work. Live network
+adapters, secrets-backed identity, outbound messaging, and production authentication
+remain open.
+
 Deliverables:
 
 - Agent identity and observation schemas.
