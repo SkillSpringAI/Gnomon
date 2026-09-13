@@ -125,3 +125,5 @@ def test_investigation_workspace_is_credential_free() -> None:
         assert "/report" in response.text
         assert "AWS_BEARER_TOKEN_BEDROCK" not in response.text
         assert "Generate draft" in response.text
+        assert "Run local agent cycle" in response.text
+        assert "Agent comparisons" in response.text

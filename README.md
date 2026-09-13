@@ -69,7 +69,8 @@ read-only operator surface for local use; it does not accept or store credential
 
 `GET /investigations/{task_id}/workspace` provides a lightweight browser workspace for
 one investigation. It loads the structured report and can request a draft through the
-existing bounded API; it never presents a credential-entry form.
+existing bounded API. It can also run one bounded local fake-agent cycle and display
+the resulting untrusted comparison metadata; it never presents a credential-entry form.
 
 For local-only testing, `POST /provider/session` accepts a short-lived bearer token
 from loopback, stores it only in process memory, and returns an HttpOnly session cookie.

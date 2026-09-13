@@ -11,6 +11,9 @@ from research_agent.application.research_service import ResearchService
 from research_agent.domain.agents import AgentQuestion
 from research_agent.domain.research import CycleOutcomeCreate, ResearchTask
 from research_agent.persistence.repositories import SqlAlchemyResearchTaskRepository
+from research_agent.ports.agent_network import AgentNetworkError
+from research_agent.security.agent_policy import AgentRunPolicy
+from research_agent.security.boundaries import BoundaryViolation
 
 
 class AgentCycleRunner:
@@ -28,16 +31,19 @@ class AgentCycleRunner:
         max_agents: int = 2,
     ) -> ResearchTask:
         network = FakeAgentNetwork(scenario)
+        policy = AgentRunPolicy(max_agents=max_agents)
         repository = SqlAlchemyResearchTaskRepository(self.session)
         research = ResearchService(repository)
         task = research.start_cycle(task_id, cycle_number)
         cycle = next(cycle for cycle in task.cycles if cycle.number == cycle_number)
         objective = cycle.objectives[0]
-        agents = network.discover(limit=max_agents)
+        policy.authorize_discovery()
+        agents = network.discover(limit=policy.max_agents)
         evidence_ids: list[UUID] = []
         claim_ids: list[UUID] = []
         try:
-            for agent in agents:
+            for question_number, agent in enumerate(agents, start=1):
+                policy.authorize_question(question_number)
                 question = AgentQuestion(
                     task_id=task_id,
                     agent_id=agent.id,
@@ -60,7 +66,7 @@ class AgentCycleRunner:
                     claim_ids=claim_ids,
                 ),
             )
-        except Exception:
+        except (AgentNetworkError, BoundaryViolation, ValueError):
             # Preserve the bounded failure as a cycle outcome while retaining no
             # provider/agent exception text in the persisted summary.
             return research.record_cycle_outcome(
@@ -74,4 +80,3 @@ class AgentCycleRunner:
                     unresolved_objectives=[objective],
                 ),
             )
-
