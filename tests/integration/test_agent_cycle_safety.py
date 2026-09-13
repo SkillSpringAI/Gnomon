@@ -142,6 +142,12 @@ def test_unexpected_failure_is_raised_and_cycle_recovers(investigation, monkeypa
     assert result["unresolved_objectives"] == result["objectives"]
     assert len(result["evidence_ids"]) == (0 if stage == "discovery" else 1)
     assert result["claim_ids"] == []
+    assert result["attempted_objectives"] == ([] if stage == "discovery" else result["objectives"])
+    assert result["objective_results"] == (
+        []
+        if stage == "discovery"
+        else [{"objective_index": 0, "source_ids": result["evidence_ids"], "claim_ids": []}]
+    )
     assert "sensitive" not in result["result_summary"]
     events = client.get(f"/investigations/{task_id}/events").json()
     assert any(item["event_type"] == "cycle.outcome_recorded" for item in events)
@@ -214,3 +220,124 @@ def test_unavailable_agents_do_not_complete_cycle(investigation, monkeypatch, sc
     result = cycle(client, task_id)
     assert result["status"] == "blocked"
     assert result["evidence_ids"] == result["claim_ids"] == []
+
+    assert result["attempted_objectives"] == ([] if scenario == "empty" else result["objectives"])
+    assert result["objective_results"] == (
+        [] if scenario == "empty" else [{"objective_index": 0, "source_ids": [], "claim_ids": []}]
+    )
+
+
+def test_pause_after_discovery_records_no_attempt(investigation, monkeypatch):
+    client, task_id = investigation
+    original = FakeAgentNetwork.discover
+
+    def discover(network, **kwargs):
+        agents = original(network, **kwargs)
+        assert (
+            client.patch(
+                f"/investigations/{task_id}/status",
+                json={"expected_status": "active", "status": "paused"},
+            ).status_code
+            == 200
+        )
+        return agents
+
+    monkeypatch.setattr(FakeAgentNetwork, "discover", discover)
+    response = client.post(f"/investigations/{task_id}/cycles/1/run", json={})
+    assert response.status_code == 200
+    result = cycle(client, task_id)
+    assert result["status"] == "blocked"
+    assert result["attempted_objectives"] == result["objective_results"] == []
+
+
+def test_multi_objective_agent_result_survives_partial_failure(investigation, monkeypatch):
+    client, task_id = investigation
+    with SessionFactory() as session:
+        with SqlAlchemyResearchTaskRepository(session).edit(task_id) as task:
+            task.cycles[0].objectives = ["Review A.", "Review B.", "Review C."]
+    original = FakeAgentNetwork.ask
+    calls = []
+
+    def ask(network, question):
+        calls.append(question)
+        if len(calls) == 2:
+            raise AgentNetworkError("Unavailable")
+        return original(network, question)
+
+    monkeypatch.setattr(FakeAgentNetwork, "ask", ask)
+    response = client.post(
+        f"/investigations/{task_id}/cycles/1/run", json={"objective_indices": [2, 0]}
+    )
+    assert response.status_code == 200, response.text
+    result = cycle(client, task_id)
+    assert result["status"] == "blocked"
+    assert result["attempted_objectives"] == ["Review C.", "Review A."]
+    assert result["evidence_ids"] and result["claim_ids"]
+    assert result["objective_results"] == [
+        {
+            "objective_index": index,
+            "source_ids": result["evidence_ids"],
+            "claim_ids": result["claim_ids"],
+        }
+        for index in [2, 0]
+    ]
+    report = client.get(f"/investigations/{task_id}/report").json()
+    assert report["cycles"][0]["objective_results"] == result["objective_results"]
+
+
+@pytest.mark.parametrize("failure", ["conflict", "audit_once", "audit_always"])
+def test_outcome_write_failure_is_not_reported_as_success(investigation, monkeypatch, failure):
+    from research_agent.application.research_service import ResearchService, TaskStateConflict
+
+    client, task_id = investigation
+    calls = []
+    if failure == "conflict":
+
+        def reject(*args, **kwargs):
+            raise TaskStateConflict("Rejected recovery mapping")
+
+        monkeypatch.setattr(ResearchService, "record_cycle_outcome", reject)
+        response = client.post(f"/investigations/{task_id}/cycles/1/run", json={})
+        assert response.status_code == 409, response.text
+    else:
+        original = AuditService.stage
+
+        def reject_audit(service, task_id, event_type, payload):
+            if event_type == EventType.CYCLE_OUTCOME_RECORDED:
+                calls.append(event_type)
+                if failure == "audit_always" or len(calls) == 1:
+                    raise RuntimeError("Outcome audit unavailable")
+            return original(service, task_id, event_type, payload)
+
+        monkeypatch.setattr(AuditService, "stage", reject_audit)
+        with pytest.raises(RuntimeError, match="Outcome audit unavailable"):
+            client.post(f"/investigations/{task_id}/cycles/1/run", json={})
+    result = cycle(client, task_id)
+    state = client.get(f"/investigations/{task_id}/snapshot").json()
+    assert state["sources"] and state["claims"]
+    events = client.get(f"/investigations/{task_id}/events").json()
+    outcomes = [item for item in events if item["event_type"] == "cycle.outcome_recorded"]
+    if failure == "audit_once":
+        assert result["status"] == "failed"
+        assert result["objective_results"] == [
+            {
+                "objective_index": 0,
+                "source_ids": result["evidence_ids"],
+                "claim_ids": result["claim_ids"],
+            }
+        ]
+        assert len(outcomes) == 1
+    else:
+        assert result["status"] == "active"
+        assert result["objective_results"] == result["evidence_ids"] == []
+        assert outcomes == []
+
+
+@pytest.mark.parametrize("index", [True, "0", 0.0])
+def test_agent_objective_index_requires_an_integer(investigation, index):
+    client, task_id = investigation
+    response = client.post(
+        f"/investigations/{task_id}/cycles/1/run", json={"objective_indices": [index]}
+    )
+    assert response.status_code == 422
+    assert cycle(client, task_id)["status"] == "planned"

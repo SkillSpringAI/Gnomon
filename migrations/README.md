@@ -14,6 +14,10 @@ Migration `008_attempted_objectives.sql` adds the durable list of objectives exp
 attempted by a runner or operator outcome. Existing cycles default to an empty list. The
 migration is additive and repeatable.
 
+Migration `009_objective_results.sql` adds per-objective source/claim associations as
+JSONB. Existing cycles default to an empty list, preserving unknown historical mappings.
+It is additive and repeatable; apply it before running the updated application.
+
 The application expects all numbered migrations to be present. Run
 `python -m research_agent.cli migrate` (or `make migrate`) after PostgreSQL is ready.
 The runner creates `research_agent_schema_migrations`, takes a transaction-scoped

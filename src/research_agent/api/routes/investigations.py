@@ -41,7 +41,9 @@ class AgentCycleRunRequest(BaseModel):
 
     scenario: FakeScenario = FakeScenario.HONEST
     max_agents: int = Field(default=2, ge=1, le=2)
-    objective_indices: list[int] = Field(default_factory=lambda: [0], min_length=1, max_length=3)
+    objective_indices: list[Annotated[int, Field(strict=True)]] = Field(
+        default_factory=lambda: [0], min_length=1, max_length=3
+    )
 
 
 def get_research_service() -> Generator[ResearchService, None, None]:

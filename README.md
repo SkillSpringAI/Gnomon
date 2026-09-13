@@ -108,6 +108,24 @@ Comparison `observation_ids`, `left_id`, and `right_id` resolve to report source
 The full source inventory is retained. Malformed agent metadata is excluded from
 comparison, and all comparison signals remain untrusted.
 
+Cycle outcomes now include `objective_results`: entries with a zero-based
+`objective_index`, collected `source_ids`, and extracted `claim_ids`. These associations
+are persisted with completed, blocked, or failed outcomes and exposed by task, snapshot,
+and report reads. Empty ID lists mean an attempt produced no committed evidence;
+missing entries on historical cycles mean no mapping was recorded. Migration 009 does
+not infer historical associations.
+
+Agent discovery alone does not count as attempted objective work. A bundled agent
+question associates its returned evidence with every selected objective; this records
+collection context, not proof that a claim addresses or resolves each objective.
+Web results retain the operator's explicit objective mapping, including when a source
+is reused across objectives. Claims must cite an associated source and all mapped IDs
+must belong to the outcome. Outcome persistence remains the recovery boundary: process
+crashes or database outages before an outcome is saved still require operator recovery.
+Rejected recovery writes surface as errors while the cycle remains active; runners only
+accept a conflicting write as already handled when a terminal outcome is present.
+Agent objective indexes require JSON integers, matching web-source index validation.
+
 New cycle planning bases include an `evidence_fingerprint` of the relevant persisted
 evidence state. Completing an objective suppresses the same objective and evidence
 basis; changed referenced claims, assessments, or sources can reopen it. General

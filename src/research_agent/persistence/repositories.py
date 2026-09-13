@@ -11,6 +11,7 @@ from research_agent.application.audit_service import AuditService
 from research_agent.application.research_service import ResearchTaskNotFound
 from research_agent.domain.events import EventPayload, EventType
 from research_agent.domain.research import (
+    CycleObjectiveResult,
     CyclePlanningBasis,
     CycleStatus,
     InvestigationPlan,
@@ -95,6 +96,9 @@ class SqlAlchemyResearchTaskRepository:
                     claim_ids=[str(item) for item in cycle.claim_ids],
                     unresolved_objectives=cycle.unresolved_objectives,
                     attempted_objectives=cycle.attempted_objectives,
+                    objective_results=[
+                        item.model_dump(mode="json") for item in cycle.objective_results
+                    ],
                 )
                 record.cycles.append(cycle_record)
             else:
@@ -111,6 +115,9 @@ class SqlAlchemyResearchTaskRepository:
                 cycle_record.claim_ids = [str(item) for item in cycle.claim_ids]
                 cycle_record.unresolved_objectives = cycle.unresolved_objectives
                 cycle_record.attempted_objectives = cycle.attempted_objectives
+                cycle_record.objective_results = [
+                    item.model_dump(mode="json") for item in cycle.objective_results
+                ]
 
     @contextmanager
     def edit(self, task_id: UUID) -> Iterator[ResearchTask]:
@@ -212,6 +219,10 @@ class SqlAlchemyResearchTaskRepository:
                     claim_ids=[UUID(item) for item in cycle.claim_ids],
                     unresolved_objectives=cycle.unresolved_objectives,
                     attempted_objectives=cycle.attempted_objectives,
+                    objective_results=[
+                        CycleObjectiveResult.model_validate(item)
+                        for item in cycle.objective_results
+                    ],
                 )
                 for cycle in record.cycles
             ],

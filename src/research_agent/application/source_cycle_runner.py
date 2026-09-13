@@ -13,6 +13,7 @@ from research_agent.application.research_service import ResearchService, TaskSta
 from research_agent.application.source_registry import UntrustedSourceError
 from research_agent.domain.events import EventPayload, EventType
 from research_agent.domain.research import (
+    CycleObjectiveResult,
     CycleOutcomeCreate,
     CycleStatus,
     ResearchMethod,
@@ -55,6 +56,7 @@ class SourceCycleRunner:
         )
         cycle = next(item for item in task.cycles if item.number == cycle_number)
         attempted: list[str] = []
+        results: dict[int, CycleObjectiveResult] = {}
         evidence_ids: list[UUID] = []
         claim_ids: list[UUID] = []
 
@@ -87,6 +89,7 @@ class SourceCycleRunner:
                     evidence_ids=evidence_ids,
                     claim_ids=claim_ids,
                     attempted_objectives=attempted,
+                    objective_results=list(results.values()),
                     unresolved_objectives=list(cycle.objectives),
                 ),
                 require_active_task=status == "completed",
@@ -97,8 +100,16 @@ class SourceCycleRunner:
             try:
                 return outcome(status)
             except TaskStateConflict:
-                # Preserve a manually recorded outcome instead of overwriting it.
-                return repository.get(task_id)
+                current = repository.get(task_id)
+                current_cycle = next(item for item in current.cycles if item.number == cycle_number)
+                if current_cycle.status not in {
+                    CycleStatus.COMPLETED,
+                    CycleStatus.BLOCKED,
+                    CycleStatus.FAILED,
+                }:
+                    # A rejected recovery write is not a successfully recorded outcome.
+                    raise
+                return current
 
         try:
             for target in request.sources:
@@ -106,6 +117,10 @@ class SourceCycleRunner:
                 objective = cycle.objectives[target.objective_index]
                 if objective not in attempted:
                     attempted.append(objective)
+                result = results.setdefault(
+                    target.objective_index,
+                    CycleObjectiveResult(objective_index=target.objective_index),
+                )
                 evidence = EvidenceService(self.session)
                 try:
                     retrieved = self.retriever.fetch(SourceTarget(uri=target.uri))
@@ -134,6 +149,8 @@ class SourceCycleRunner:
                 )
                 if source.id not in evidence_ids:
                     evidence_ids.append(source.id)
+                if source.id not in result.source_ids:
+                    result.source_ids.append(source.id)
                 checkpoint()
                 claims = ClaimExtractionService(self.session).extract_for_source(
                     task_id,
@@ -141,6 +158,9 @@ class SourceCycleRunner:
                     before_write=guard,
                 )
                 claim_ids.extend(claim.id for claim in claims if claim.id not in claim_ids)
+                result.claim_ids.extend(
+                    claim.id for claim in claims if claim.id not in result.claim_ids
+                )
             return outcome("completed")
         except (SourceRetrievalError, UntrustedSourceError, TaskStateConflict, ValueError):
             return recover("blocked")

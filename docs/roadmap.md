@@ -70,6 +70,13 @@ Deliverables:
 
 Exit criteria: a brief such as “test whether agent networking improves research coverage for AI infrastructure case studies” produces a persisted investigation with hypotheses, questions, methods, stopping criteria, and a first bounded cycle. The task remains open for later cycles.
 
+Execution provenance now records attempted work only when agent questioning begins,
+and persists per-objective source/claim associations through migration 009. Normal
+failure and pause recovery retain partial mappings; reports expose the same stored
+associations. Validation rejects invalid objectives and provenance references. Historical
+mappings remain unknown, and collection associations do not resolve research objectives.
+Workspace collection controls and explicit evidence-backed objective review remain next.
+
 ## Phase 2 — Source retrieval and evidence storage
 
 Goal: gather reproducible source material.

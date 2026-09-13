@@ -161,6 +161,16 @@ class CyclePlanningBasis(BaseModel):
     evidence_fingerprint: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 
+class CycleObjectiveResult(BaseModel):
+    """Collection associations for a saved objective, not evidence of resolution."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    objective_index: int = Field(ge=0, strict=True)
+    source_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    claim_ids: list[UUID] = Field(default_factory=list, max_length=100)
+
+
 class ResearchCycle(BaseModel):
     """A bounded iteration of an open-ended investigation."""
 
@@ -179,6 +189,7 @@ class ResearchCycle(BaseModel):
     claim_ids: list[UUID] = Field(default_factory=list, max_length=100)
     unresolved_objectives: list[str] = Field(default_factory=list, max_length=50)
     attempted_objectives: list[str] = Field(default_factory=list, max_length=3)
+    objective_results: list[CycleObjectiveResult] = Field(default_factory=list, max_length=3)
 
 
 class ResearchTask(BaseModel):
@@ -351,3 +362,4 @@ class CycleOutcomeCreate(BaseModel):
     claim_ids: list[UUID] = Field(default_factory=list, max_length=100)
     unresolved_objectives: list[str] = Field(default_factory=list, max_length=50)
     attempted_objectives: list[str] = Field(default_factory=list, max_length=3)
+    objective_results: list[CycleObjectiveResult] = Field(default_factory=list, max_length=3)

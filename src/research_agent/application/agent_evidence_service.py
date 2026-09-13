@@ -17,18 +17,26 @@ class AgentEvidenceService:
     """Keep external agents below the evidence and audit boundaries."""
 
     def __init__(
-        self, session: Session, network: AgentNetwork, operation_id: UUID | None = None,
-        *, before_write: Callable[[], None] | None = None,
+        self,
+        session: Session,
+        network: AgentNetwork,
+        operation_id: UUID | None = None,
+        *,
+        before_write: Callable[[], None] | None = None,
     ) -> None:
         self.session = session
         self.network = network
         self.operation_id = operation_id or uuid4()
         self.before_write = before_write
 
-    def ask_and_record(self, question: AgentQuestion) -> SourceResponse:
+    def ask_and_record(
+        self, question: AgentQuestion, *, before_ask: Callable[[], None] | None = None
+    ) -> SourceResponse:
         evidence = EvidenceService(self.session, self.operation_id)
         evidence.require_task(question.task_id)
         try:
+            if before_ask is not None:
+                before_ask()
             observation = self.network.ask(question)
             return self._record_observation(question, observation)
         except AgentNetworkError:

@@ -189,6 +189,30 @@ class ResearchService:
                 raise TaskStateConflict("Outcome references attempted work outside this cycle")
             if not set(outcome.unresolved_objectives).issubset(objectives):
                 raise TaskStateConflict("Outcome references unresolved work outside this cycle")
+            seen_indices: set[int] = set()
+            claims_by_id = {claim.id: claim for claim in snapshot.claims}
+            for result in outcome.objective_results:
+                index = result.objective_index
+                if index >= len(cycle.objectives) or index in seen_indices:
+                    raise TaskStateConflict(
+                        "Objective results require unique saved objective indexes"
+                    )
+                seen_indices.add(index)
+                if cycle.objectives[index] not in outcome.attempted_objectives:
+                    raise TaskStateConflict("Objective result must describe attempted work")
+                if not set(result.source_ids).issubset(outcome.evidence_ids):
+                    raise TaskStateConflict("Objective sources must belong to the cycle outcome")
+                if not set(result.claim_ids).issubset(outcome.claim_ids):
+                    raise TaskStateConflict("Objective claims must belong to the cycle outcome")
+                for claim_id in result.claim_ids:
+                    if not any(
+                        link.source_id in result.source_ids
+                        for link in claims_by_id[claim_id].source_links
+                    ):
+                        raise TaskStateConflict("Objective claims must cite an associated source")
+            cycle.objective_results = [
+                item.model_copy(deep=True) for item in outcome.objective_results
+            ]
             cycle.status = CycleStatus(outcome.status)
             cycle.result_summary = outcome.result_summary
             cycle.evidence_ids = list(outcome.evidence_ids)

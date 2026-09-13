@@ -9,7 +9,13 @@ from research_agent.application.agent_evidence_service import AgentEvidenceServi
 from research_agent.application.claim_extraction_service import ClaimExtractionService
 from research_agent.application.research_service import ResearchService, TaskStateConflict
 from research_agent.domain.agents import AgentQuestion
-from research_agent.domain.research import CycleOutcomeCreate, CycleStatus, ResearchTask, TaskStatus
+from research_agent.domain.research import (
+    CycleObjectiveResult,
+    CycleOutcomeCreate,
+    CycleStatus,
+    ResearchTask,
+    TaskStatus,
+)
 from research_agent.persistence.repositories import SqlAlchemyResearchTaskRepository
 from research_agent.ports.agent_network import AgentNetworkError
 from research_agent.security.agent_policy import AgentRunPolicy
@@ -41,13 +47,13 @@ class AgentCycleRunner:
         )
         if planned_cycle is None:
             raise ValueError("Cycle does not exist")
-        selected_indices = objective_indices or [0]
+        selected_indices = [0] if objective_indices is None else objective_indices
         if (
             not selected_indices
             or len(selected_indices) > 3
             or len(set(selected_indices)) != len(selected_indices)
             or any(
-                index < 0 or index >= len(planned_cycle.objectives)
+                type(index) is not int or index < 0 or index >= len(planned_cycle.objectives)
                 for index in selected_indices
             )
         ):
@@ -57,6 +63,11 @@ class AgentCycleRunner:
         cycle = next(cycle for cycle in task.cycles if cycle.number == cycle_number)
         evidence_ids: list[UUID] = []
         claim_ids: list[UUID] = []
+        results: dict[int, CycleObjectiveResult] = {}
+
+        def mark_attempted() -> None:
+            for index in selected_indices:
+                results.setdefault(index, CycleObjectiveResult(objective_index=index))
 
         def guard() -> None:
             current = repository.get(task_id, for_update=True)
@@ -76,7 +87,8 @@ class AgentCycleRunner:
             # A manual outcome may have stopped this run. Never overwrite it.
             try:
                 return research.record_cycle_outcome(
-                    task_id, cycle_number,
+                    task_id,
+                    cycle_number,
                     CycleOutcomeCreate(
                         status="failed" if status == "failed" else "blocked",
                         result_summary=(
@@ -85,11 +97,21 @@ class AgentCycleRunner:
                         evidence_ids=evidence_ids,
                         claim_ids=claim_ids,
                         unresolved_objectives=list(cycle.objectives),
-                        attempted_objectives=selected_objectives,
+                        attempted_objectives=[cycle.objectives[index] for index in results],
+                        objective_results=list(results.values()),
                     ),
                 )
             except TaskStateConflict:
-                return repository.get(task_id)
+                current = repository.get(task_id)
+                current_cycle = next(item for item in current.cycles if item.number == cycle_number)
+                if current_cycle.status not in {
+                    CycleStatus.COMPLETED,
+                    CycleStatus.BLOCKED,
+                    CycleStatus.FAILED,
+                }:
+                    # A rejected recovery write is not a successfully recorded outcome.
+                    raise
+                return current
 
         try:
             checkpoint()
@@ -107,13 +129,21 @@ class AgentCycleRunner:
                 )
                 source = AgentEvidenceService(
                     self.session, network, before_write=guard
-                ).ask_and_record(question)
-                evidence_ids.append(source.id)
+                ).ask_and_record(question, before_ask=mark_attempted)
+                if source.id not in evidence_ids:
+                    evidence_ids.append(source.id)
+                for result in results.values():
+                    if source.id not in result.source_ids:
+                        result.source_ids.append(source.id)
                 checkpoint()
                 claims = ClaimExtractionService(self.session).extract_for_source(
                     task_id, source.id, before_write=guard
                 )
-                claim_ids.extend(claim.id for claim in claims)
+                claim_ids.extend(claim.id for claim in claims if claim.id not in claim_ids)
+                for result in results.values():
+                    result.claim_ids.extend(
+                        claim.id for claim in claims if claim.id not in result.claim_ids
+                    )
             return research.record_cycle_outcome(
                 task_id,
                 cycle_number,
@@ -126,7 +156,8 @@ class AgentCycleRunner:
                     evidence_ids=evidence_ids,
                     claim_ids=claim_ids,
                     unresolved_objectives=list(cycle.objectives),
-                    attempted_objectives=selected_objectives,
+                    attempted_objectives=[cycle.objectives[index] for index in results],
+                    objective_results=list(results.values()),
                 ),
                 require_active_task=True,
             )

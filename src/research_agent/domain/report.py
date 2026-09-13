@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from research_agent.domain.agent_comparison import AgentObservationComparison
 from research_agent.domain.research import (
     ClaimResponse,
+    CycleObjectiveResult,
     CycleStatus,
     HypothesisAssessmentStatus,
     SourceType,
@@ -53,6 +54,7 @@ class ReportCycle(BaseModel):
     result_summary: str | None
     unresolved_objectives: list[str]
     attempted_objectives: list[str] = Field(default_factory=list)
+    objective_results: list[CycleObjectiveResult] = Field(default_factory=list)
     evidence_ids: list[UUID]
     claim_ids: list[UUID]
 

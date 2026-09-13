@@ -74,6 +74,10 @@ class ResearchCycleRecord(Base):
         JSONB, nullable=False, default=list, server_default="[]"
     )
 
+    objective_results: Mapped[list[dict[str, object]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+
     task: Mapped[ResearchTaskRecord] = relationship(back_populates="cycles")
 
 
