@@ -1,5 +1,6 @@
 """Acquire operator-selected web sources for a bounded research cycle."""
 
+from functools import partial
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -8,6 +9,7 @@ from sqlalchemy.orm import Session
 from research_agent.adapters.web.http import SourceRetrievalError
 from research_agent.application.audit_service import AuditService
 from research_agent.application.claim_extraction_service import ClaimExtractionService
+from research_agent.application.cycle_progress import CycleProgress
 from research_agent.application.evidence_service import EvidenceService
 from research_agent.application.research_service import ResearchService, TaskStateConflict
 from research_agent.application.source_registry import UntrustedSourceError
@@ -51,10 +53,12 @@ class SourceCycleRunner:
             task_id,
             cycle_number,
             exclusive=True,
+            track_progress=True,
             objective_indices=[source.objective_index for source in request.sources],
             required_method=ResearchMethod.WEB_RESEARCH,
         )
         cycle = next(item for item in task.cycles if item.number == cycle_number)
+        progress = CycleProgress(self.session, task_id, cycle_number)
         attempted: list[str] = []
         results: dict[int, CycleObjectiveResult] = {}
         evidence_ids: list[UUID] = []
@@ -114,6 +118,7 @@ class SourceCycleRunner:
         try:
             for target in request.sources:
                 checkpoint()
+                progress.attempt([target.objective_index])
                 objective = cycle.objectives[target.objective_index]
                 if objective not in attempted:
                     attempted.append(objective)
@@ -146,6 +151,7 @@ class SourceCycleRunner:
                         content=retrieved.content,
                     ),
                     before_write=guard,
+                    after_write=partial(progress.source, indices=[target.objective_index]),
                 )
                 if source.id not in evidence_ids:
                     evidence_ids.append(source.id)
@@ -156,6 +162,7 @@ class SourceCycleRunner:
                     task_id,
                     source.id,
                     before_write=guard,
+                    after_write=partial(progress.claims, indices=[target.objective_index]),
                 )
                 claim_ids.extend(claim.id for claim in claims if claim.id not in claim_ids)
                 result.claim_ids.extend(

@@ -27,8 +27,12 @@ class ClaimExtractionService:
         self.extractor = extractor or RuleBasedClaimExtractor()
 
     def extract_for_source(
-        self, task_id: UUID, source_id: UUID,
-        *, before_write: Callable[[], None] | None = None,
+        self,
+        task_id: UUID,
+        source_id: UUID,
+        *,
+        before_write: Callable[[], None] | None = None,
+        after_write: Callable[[list[ClaimResponse]], None] | None = None,
     ) -> list[ClaimResponse]:
         source = self.session.scalar(
             select(ResearchSourceRecord).where(
@@ -75,6 +79,8 @@ class ClaimExtractionService:
                     operation_id=operation_id, source_id=source_id, claim_count=len(claims)
                 ),
             )
+            if after_write is not None:
+                after_write(claims)
             self.session.commit()
             return claims
         except Exception:

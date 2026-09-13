@@ -4,12 +4,18 @@ from collections.abc import Iterable
 
 from research_agent.application.agent_comparison_service import AgentComparisonService
 from research_agent.application.agent_observation_projection import agent_observations
+from research_agent.application.cycle_planner import (
+    review_evidence_fingerprint,
+    review_is_current,
+    reviewed_complete,
+)
 from research_agent.domain.report import (
     InvestigationReport,
     ReportCycle,
     ReportHypothesis,
     ReportSource,
 )
+from research_agent.domain.research import CycleStatus, recovery_fingerprint
 from research_agent.domain.snapshot import InvestigationSnapshot
 
 
@@ -17,9 +23,7 @@ class ReportService:
     """Build an evidence inventory without generating unsupported conclusions."""
 
     def build(self, snapshot: InvestigationSnapshot) -> InvestigationReport:
-        assessments = {
-            row.hypothesis.id: row.assessment for row in snapshot.hypotheses
-        }
+        assessments = {row.hypothesis.id: row.assessment for row in snapshot.hypotheses}
         hypotheses = []
         for row in snapshot.hypotheses:
             assessment = assessments[row.hypothesis.id]
@@ -41,6 +45,11 @@ class ReportService:
             ReportCycle(
                 number=cycle.number,
                 status=cycle.status,
+                started_at=cycle.started_at,
+                progress_tracked=cycle.progress_tracked,
+                recovery_fingerprint=recovery_fingerprint(snapshot.task.status, cycle)
+                if cycle.status == CycleStatus.ACTIVE
+                else None,
                 objectives=cycle.objectives,
                 result_summary=cycle.result_summary,
                 unresolved_objectives=cycle.unresolved_objectives,
@@ -48,6 +57,12 @@ class ReportService:
                 claim_ids=cycle.claim_ids,
                 attempted_objectives=cycle.attempted_objectives,
                 objective_results=cycle.objective_results,
+                objective_reviews=cycle.objective_reviews,
+                stale_review_ids=[
+                    item.id
+                    for item in cycle.objective_reviews
+                    if not review_is_current(item, snapshot)
+                ],
             )
             for cycle in snapshot.task.cycles
         ]
@@ -55,6 +70,16 @@ class ReportService:
             objective
             for cycle in snapshot.task.cycles
             for objective in cycle.unresolved_objectives
+            if not reviewed_complete(objective, snapshot)
+        )
+        unresolved_objectives = _unique(
+            unresolved_objectives
+            + [
+                review.objective
+                for cycle in snapshot.task.cycles
+                for review in cycle.objective_reviews
+                if not reviewed_complete(review.objective, snapshot)
+            ]
         )
         open_questions = _unique(snapshot.open_questions)
         limitations: list[str] = []
@@ -87,6 +112,7 @@ class ReportService:
         )
         return InvestigationReport(
             task_id=snapshot.task.id,
+            review_evidence_fingerprint=review_evidence_fingerprint(snapshot),
             title=snapshot.task.brief.title,
             objective=snapshot.task.brief.objective,
             task_status=snapshot.task.status,

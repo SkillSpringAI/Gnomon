@@ -27,7 +27,7 @@ by this command are disposable; Ctrl+C shuts down the server and removes that da
 Verified on 2026-09-13 in the Codex in-app browser against the actual loopback server:
 pause/resume, two cycles, page reload, draft generation, stale-state conflict, active
 cycle guards, blocked outcome display, and unavailable-server handling. The automated
-command separately verifies all nine migrations and report persistence after server
+command separately verifies all numbered migrations and report persistence after server
 restart. This is a browser QA procedure, not an automated browser regression suite.
 
 ## Source collection and objective selection
@@ -55,3 +55,26 @@ Coverage includes exact objective/URL payloads, successful and partial collectio
 busy controls, invalid URLs, stale-state recovery, reload, unavailable reports, and
 narrow-screen layout. Set `WORKSPACE_SCREENSHOT` to an absolute PNG path to capture
 the rendered cycle history. Browser tests are skipped unless explicitly enabled.
+
+## Objective review
+
+After collection finishes, review the latest cycle before planning another. Select an
+objective, choose a decision, and enter a rationale. Completing a review requires a source
+or claim reference. Save, reload, and inspect Objective review history. Record an unresolved
+correction and verify both revisions remain. Add evidence through a second client before
+submitting an older form; it must reject the stale submission and refresh the report.
+Previously completed reviews show "evidence changed" when their evidence basis is stale.
+The browser regression suite covers this workflow with the real API and database.
+
+## Interrupted-cycle recovery
+
+Refresh an active cycle to see its retained progress and recovery form. Enter a reason
+and close the cycle. Verify a failed outcome retains its IDs, the active investigation
+becomes paused, and reload preserves the result. Resume explicitly before planning.
+Recovery requests using an older progress fingerprint must refresh before retrying.
+Untracked legacy/manual cycles display an explicit incomplete-association notice.
+
+Recovery integration tests terminate a real worker process after source/claim commits,
+verify atomic progress retention, reject concurrent/stale recoveries, and fence late
+returns from both source and agent runners after resume. The browser suite covers
+recovery form validation, stale state, reload, and continuation.

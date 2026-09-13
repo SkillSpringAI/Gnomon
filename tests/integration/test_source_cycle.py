@@ -388,7 +388,14 @@ def test_source_outcome_failure_preserves_atomicity(source_cycle, monkeypatch, f
         ]
     else:
         assert result["status"] == "active" and outcomes == []
-        assert result["objective_results"] == result["evidence_ids"] == []
+        assert result["evidence_ids"] and result["claim_ids"]
+        assert result["objective_results"] == [
+            {
+                "objective_index": 0,
+                "source_ids": result["evidence_ids"],
+                "claim_ids": result["claim_ids"],
+            }
+        ]
 
 
 def test_duplicate_objective_text_keeps_index_associations(source_cycle):

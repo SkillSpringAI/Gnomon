@@ -15,7 +15,7 @@
     li { margin: .4rem 0; }
     fieldset { min-inline-size: 0; border: 1px solid #8885; border-radius: .6rem; margin: 1rem 0; padding: 1rem; }
     label { display: block; margin: .6rem 0; }
-    input[type=url], select { box-sizing: border-box; width: 100%; padding: .55rem; font: inherit; }
+    input[type=url], select, textarea { box-sizing: border-box; width: 100%; padding: .55rem; font: inherit; }
     .source-row { margin: 1rem 0; }
     a { overflow-wrap: anywhere; }
   </style>
@@ -61,6 +61,39 @@
       <button id="run-sources" type="submit" disabled>Collect web sources</button>
     </form>
   </fieldset>
+  <fieldset id="recovery-panel" hidden disabled>
+    <legend>Recover an interrupted cycle</legend>
+    <p id="recovery-progress"></p>
+    <p id="recovery-tracking"></p>
+    <p>Use this when a run is interrupted or unresponsive. Recovery closes the cycle as failed,
+      keeps recorded progress, and pauses an active investigation. An adapter call already in progress
+      may still finish, but its later evidence writes will be rejected. Review the outcome before resuming.</p>
+    <form id="recovery-form">
+      <label for="recovery-reason">Reason for recovery</label>
+      <textarea id="recovery-reason" rows="2" maxlength="4000" required></textarea>
+      <button id="recover-cycle" type="submit" disabled>Close cycle and retain progress</button>
+    </form>
+  </fieldset>
+  <fieldset id="review-panel" hidden disabled>
+    <legend>Review the latest cycle</legend>
+    <p id="review-current"></p>
+    <p>Record a decision before planning another cycle. Completing a review affects follow-up
+      planning; it does not verify claims or conclude the investigation. Changed evidence can reopen work.</p>
+    <form id="review-form">
+      <label for="review-objective">Objective to review</label>
+      <select id="review-objective"></select>
+      <label for="review-decision">Decision</label>
+      <select id="review-decision"><option value="unresolved">Keep unresolved</option>
+        <option value="completed">Review complete for the current evidence</option></select>
+      <label for="review-rationale">Rationale</label>
+      <textarea id="review-rationale" rows="3" maxlength="4000" required></textarea>
+      <details><summary>Select evidence references</summary>
+        <p>A completed review requires at least one source or claim.</p>
+        <div id="review-sources"></div><div id="review-claims"></div>
+      </details>
+      <button id="save-review" type="submit" disabled>Save objective review</button>
+    </form>
+  </fieldset>
   <h2>Cycles</h2>
   <p>Completion means the collection pass finished. Research objectives may remain unresolved.</p>
   <section id="cycles" aria-label="Cycle history"></section>
@@ -74,6 +107,53 @@
     let report = null;
     let busy = false;
     let selectionKey = null;
+    let reviewKey = null;
+    let recoveryKey = null;
+    const activeCycle = () => report?.cycles.find(item => item.status === 'active');
+    function renderRecovery() {
+      const cycle = activeCycle();
+      byId('recovery-panel').hidden = !cycle;
+      if (recoveryKey !== cycle?.recovery_fingerprint) byId('recovery-reason').value = '';
+      recoveryKey = cycle?.recovery_fingerprint;
+      if (!cycle) return;
+      byId('recovery-progress').textContent = `Cycle ${cycle.number}, started ${cycle.started_at || 'at an unknown time'}: ${cycle.evidence_ids.length} retained sources, ${cycle.claim_ids.length} retained claims.`;
+      byId('recovery-tracking').textContent = cycle.progress_tracked
+        ? 'Evidence and objective associations are saved as collection progresses.'
+        : 'This cycle has no durable runner tracking. Historical associations may be incomplete; existing investigation evidence is retained without guessing its cycle membership.';
+    }
+    const latestCycle = () => report?.cycles.at(-1);
+    const canReview = () => ['active', 'paused'].includes(report?.task_status)
+      && ['completed', 'blocked', 'failed'].includes(latestCycle()?.status);
+    const reviewIds = kind => Array.from(byId(`review-${kind}`).querySelectorAll('input:checked'),
+      input => input.value);
+    function renderReview() {
+      const cycle = latestCycle();
+      byId('review-current').textContent = report.unresolved_objectives.length
+        ? `Current unresolved work: ${report.unresolved_objectives.join(' · ')}`
+        : 'No unresolved objectives recorded for the current evidence.';
+      byId('review-panel').hidden = !canReview();
+      const key = JSON.stringify([cycle?.number, report.review_evidence_fingerprint,
+        cycle?.objective_reviews.map(item => item.id)]);
+      if (reviewKey === key) return;
+      reviewKey = key;
+      const select = byId('review-objective'); select.replaceChildren();
+      for (const [index, text] of (cycle?.objectives || []).entries()) {
+        const option = document.createElement('option'); option.value = String(index);
+        option.textContent = `${index + 1}. ${text}`; select.append(option);
+      }
+      byId('review-rationale').value = '';
+      byId('review-decision').value = 'unresolved';
+      for (const kind of ['sources', 'claims']) {
+        const parent = byId(`review-${kind}`); parent.replaceChildren();
+        for (const item of report[kind]) {
+          const label = document.createElement('label');
+          const input = document.createElement('input'); input.type = 'checkbox'; input.value = item.id;
+          input.addEventListener('change', controls);
+          label.append(input, document.createTextNode(` ${kind === 'sources' ? 'Source' : 'Claim'}: ${item.title || item.statement}`));
+          parent.append(label);
+        }
+      }
+    }
     const selectedObjectives = () => Array.from(
       byId('objective-choices').querySelectorAll('input:checked'), input => Number(input.value)
     );
@@ -128,6 +208,11 @@
       const running = report?.cycles.some(cycle => cycle.status === 'active');
       const planned = plannedCycle();
       byId('refresh').disabled = busy;
+      byId('recovery-panel').disabled = busy || !activeCycle();
+      byId('recover-cycle').disabled = busy || !activeCycle() || !byId('recovery-reason').value.trim();
+      byId('review-panel').disabled = busy || !canReview();
+      byId('save-review').disabled = busy || !canReview() || !byId('review-rationale').value.trim()
+        || (byId('review-decision').value === 'completed' && !reviewIds('sources').length && !reviewIds('claims').length);
       const unavailable = busy || !active || running || !planned;
       byId('collection').disabled = unavailable;
       byId('collection').hidden = !!report && !planned;
@@ -157,6 +242,11 @@
     }
     async function request(path, options) {
       const response = await fetch(`/investigations/${taskId}${path}`, options);
+      if (response.status === 409) {
+        const failure = await response.json();
+        if (failure.detail === 'No pending objectives for the current evidence')
+          throw new Error('No pending objectives for the current evidence. Decide whether to conclude the investigation or collect new evidence.');
+      }
       if (!response.ok) throw new Error(response.status === 409
         ? 'The investigation changed. Review the refreshed state before continuing.'
         : response.status === 422 ? 'Check the selected objectives, URLs, and permitted research methods.'
@@ -180,6 +270,8 @@
       byId('summary').textContent = report.summary;
       byId('status').textContent = `Investigation status: ${report.task_status}`;
       renderSelection();
+      renderRecovery();
+      renderReview();
       byId('cycles').replaceChildren();
       for (const cycle of report.cycles) {
         const article = document.createElement('article');
@@ -222,6 +314,26 @@
             if (!result.claim_ids.length) paragraph(details, 'No claims retained for this objective.');
           }
           article.append(details);
+        }
+        if (cycle.objective_reviews.length) {
+          const history = document.createElement('details');
+          const summary = document.createElement('summary'); summary.textContent = 'Objective review history';
+          history.append(summary);
+          for (const review of cycle.objective_reviews) {
+            const stale = cycle.stale_review_ids.includes(review.id);
+            paragraph(history, `${review.objective_index + 1}. ${review.objective} — ${review.decision}, revision ${review.revision}${stale ? ' — evidence changed' : ''}`);
+            paragraph(history, review.rationale);
+            paragraph(history, `By ${review.actor} at ${review.created_at}. References: ${review.source_ids.length} sources, ${review.claim_ids.length} claims.`);
+            for (const id of review.source_ids) {
+              const source = report.sources.find(item => item.id === id);
+              paragraph(history, `Source reference: ${source?.title || id} (${id})`);
+            }
+            for (const id of review.claim_ids) {
+              const claim = report.claims.find(item => item.id === id);
+              paragraph(history, `Claim reference: ${claim?.statement || id} (${id})`);
+            }
+          }
+          article.append(history);
         }
         byId('cycles').append(article);
       }
@@ -290,6 +402,43 @@
         const cycle = result.task.cycles.find(item => item.number === number);
         return `Cycle ${number}: ${cycle.status}. Review retained evidence and unresolved objectives.`;
       }, 'Collecting web sources…');
+    });
+    byId('recovery-reason').addEventListener('input', controls);
+    byId('recovery-form').addEventListener('submit', event => {
+      event.preventDefault();
+      if (byId('recover-cycle').disabled) return;
+      const cycle = activeCycle();
+      const payload = {
+        reason: byId('recovery-reason').value.trim(),
+        expected_fingerprint: cycle.recovery_fingerprint,
+      };
+      action(async () => {
+        await request(`/cycles/${cycle.number}/recover`, {
+          method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload),
+        });
+        return 'Cycle closed with recorded progress retained. Review its outcome before resuming.';
+      }, 'Recovering interrupted cycle…');
+    });
+    byId('review-rationale').addEventListener('input', controls);
+    byId('review-decision').addEventListener('change', controls);
+    byId('review-form').addEventListener('submit', event => {
+      event.preventDefault();
+      if (byId('save-review').disabled) return;
+      const cycle = latestCycle();
+      const index = Number(byId('review-objective').value);
+      const previous = cycle.objective_reviews.filter(item => item.objective_index === index).at(-1);
+      const payload = {
+        decision: byId('review-decision').value, rationale: byId('review-rationale').value.trim(),
+        source_ids: reviewIds('sources'), claim_ids: reviewIds('claims'),
+        expected_revision: previous?.revision || 0,
+        expected_evidence_fingerprint: report.review_evidence_fingerprint,
+      };
+      action(async () => {
+        await request(`/cycles/${cycle.number}/objectives/${index}/reviews`, {
+          method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload),
+        });
+        return 'Objective review saved. Review the remaining work before planning the next cycle.';
+      }, 'Saving objective review…');
     });
     byId('plan-cycle').addEventListener('click', () => {
       if (byId('plan-cycle').disabled) return;

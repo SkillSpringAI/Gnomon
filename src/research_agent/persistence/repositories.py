@@ -15,6 +15,7 @@ from research_agent.domain.research import (
     CyclePlanningBasis,
     CycleStatus,
     InvestigationPlan,
+    ObjectiveReview,
     ResearchBrief,
     ResearchCycle,
     ResearchMethod,
@@ -90,6 +91,8 @@ class SqlAlchemyResearchTaskRepository:
                     status=cycle.status.value,
                     created_at=cycle.created_at,
                     started_at=cycle.started_at,
+                    progress_tracked=cycle.progress_tracked,
+                    recovery_reason=cycle.recovery_reason,
                     completed_at=cycle.completed_at,
                     result_summary=cycle.result_summary,
                     evidence_ids=[str(item) for item in cycle.evidence_ids],
@@ -99,9 +102,17 @@ class SqlAlchemyResearchTaskRepository:
                     objective_results=[
                         item.model_dump(mode="json") for item in cycle.objective_results
                     ],
+                    objective_reviews=[
+                        item.model_dump(mode="json") for item in cycle.objective_reviews
+                    ],
                 )
                 record.cycles.append(cycle_record)
             else:
+                saved_reviews = cycle_record.objective_reviews
+                reviews = [item.model_dump(mode="json") for item in cycle.objective_reviews]
+                if reviews[: len(saved_reviews)] != saved_reviews:
+                    raise ValueError("Objective review history cannot be rewritten")
+                cycle_record.objective_reviews = reviews
                 cycle_record.objectives = cycle.objectives
                 cycle_record.methods = [method.value for method in cycle.methods]
                 cycle_record.status = cycle.status.value
@@ -109,6 +120,8 @@ class SqlAlchemyResearchTaskRepository:
                     basis.model_dump(mode="json") for basis in cycle.planning_basis
                 ]
                 cycle_record.started_at = cycle.started_at
+                cycle_record.progress_tracked = cycle.progress_tracked
+                cycle_record.recovery_reason = cycle.recovery_reason
                 cycle_record.completed_at = cycle.completed_at
                 cycle_record.result_summary = cycle.result_summary
                 cycle_record.evidence_ids = [str(item) for item in cycle.evidence_ids]
@@ -159,6 +172,35 @@ class SqlAlchemyResearchTaskRepository:
                     previous = before_cycles.get(cycle.number)
                     if previous is None:
                         continue
+                    if cycle.recovery_reason is not None and previous.recovery_reason is None:
+                        audit.stage(
+                            task_id,
+                            EventType.CYCLE_RECOVERED,
+                            EventPayload(
+                                operation_id=uuid4(),
+                                cycle_number=cycle.number,
+                                actor="local_operator",
+                                result="committed",
+                                claim_count=len(cycle.claim_ids),
+                                unresolved_count=len(cycle.unresolved_objectives),
+                                provenance=cycle.evidence_ids + cycle.claim_ids,
+                            ),
+                        )
+                    for review in cycle.objective_reviews[len(previous.objective_reviews) :]:
+                        audit.stage(
+                            task_id,
+                            EventType.OBJECTIVE_REVIEWED,
+                            EventPayload(
+                                operation_id=review.id,
+                                cycle_number=cycle.number,
+                                objective_index=review.objective_index,
+                                version=review.revision,
+                                actor="local_operator",
+                                result="committed",
+                                new_state_digest=review.reference_fingerprint,
+                                provenance=review.source_ids + review.claim_ids,
+                            ),
+                        )
                     if cycle.status != previous.status:
                         audit.stage(
                             task_id,
@@ -213,6 +255,8 @@ class SqlAlchemyResearchTaskRepository:
                     status=CycleStatus(cycle.status),
                     created_at=cycle.created_at,
                     started_at=cycle.started_at,
+                    progress_tracked=cycle.progress_tracked,
+                    recovery_reason=cycle.recovery_reason,
                     completed_at=cycle.completed_at,
                     result_summary=cycle.result_summary,
                     evidence_ids=[UUID(item) for item in cycle.evidence_ids],
@@ -222,6 +266,9 @@ class SqlAlchemyResearchTaskRepository:
                     objective_results=[
                         CycleObjectiveResult.model_validate(item)
                         for item in cycle.objective_results
+                    ],
+                    objective_reviews=[
+                        ObjectiveReview.model_validate(item) for item in cycle.objective_reviews
                     ],
                 )
                 for cycle in record.cycles

@@ -11,6 +11,8 @@ from research_agent.domain.research import (
     CyclePlanningBasis,
     CycleStatus,
     HypothesisAssessmentStatus,
+    ObjectiveReview,
+    ResearchCycle,
     SupportType,
 )
 from research_agent.domain.snapshot import InvestigationSnapshot
@@ -24,7 +26,8 @@ def _identity(objective: str, basis: CyclePlanningBasis) -> tuple[str, str]:
 
 
 def _with_evidence(
-    basis: CyclePlanningBasis, snapshot: InvestigationSnapshot,
+    basis: CyclePlanningBasis,
+    snapshot: InvestigationSnapshot,
 ) -> CyclePlanningBasis:
     """Persist a digest of the relevant evidence state, not the raw evidence."""
     if basis.evidence_fingerprint is not None:
@@ -34,15 +37,18 @@ def _with_evidence(
     if basis.source_id is not None:
         source_ids.add(basis.source_id)
     broad = basis.reason in {
-        "missing_assessment", "missing_evidence", "open_question", "incomplete_cycle",
-        "review_stopping_criteria", "agent_comparison_limit",
+        "missing_assessment",
+        "missing_evidence",
+        "open_question",
+        "incomplete_cycle",
+        "review_stopping_criteria",
+        "agent_comparison_limit",
     }
     claims = [item for item in snapshot.claims if broad or item.id in claim_ids]
     source_ids.update(link.source_id for claim in claims for link in claim.source_links)
     sources = [item for item in snapshot.sources if broad or item.id in source_ids]
     hypotheses = [
-        item for item in snapshot.hypotheses
-        if broad or item.hypothesis.id == basis.hypothesis_id
+        item for item in snapshot.hypotheses if broad or item.hypothesis.id == basis.hypothesis_id
     ]
     payload = {
         "claims": [
@@ -51,9 +57,10 @@ def _with_evidence(
         "sources": [
             item.model_dump(mode="json") for item in sorted(sources, key=lambda s: str(s.id))
         ],
-        "hypotheses": [item.model_dump(mode="json") for item in sorted(
-            hypotheses, key=lambda h: str(h.hypothesis.id)
-        )],
+        "hypotheses": [
+            item.model_dump(mode="json")
+            for item in sorted(hypotheses, key=lambda h: str(h.hypothesis.id))
+        ],
     }
     digest = sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
     return basis.model_copy(update={"evidence_fingerprint": digest})
@@ -63,6 +70,75 @@ def has_counterevidence(claim: ClaimResponse) -> bool:
     return claim.status in {ClaimStatus.CONTESTED, ClaimStatus.CONTRADICTED} or any(
         link.support_type == SupportType.CONTRADICTING for link in claim.source_links
     )
+
+
+def review_evidence_fingerprint(snapshot: InvestigationSnapshot) -> str:
+    basis = _with_evidence(CyclePlanningBasis(reason="missing_evidence"), snapshot)
+    assert basis.evidence_fingerprint is not None
+    return basis.evidence_fingerprint
+
+
+def objective_basis(
+    cycle: ResearchCycle, index: int, snapshot: InvestigationSnapshot
+) -> CyclePlanningBasis:
+    basis = (
+        cycle.planning_basis[index]
+        if index < len(cycle.planning_basis)
+        else CyclePlanningBasis(
+            reason="open_question"
+            if cycle.objectives[index] in snapshot.open_questions
+            else "incomplete_cycle"
+        )
+    )
+    return _with_evidence(basis.model_copy(update={"evidence_fingerprint": None}), snapshot)
+
+
+def reference_fingerprint(review: ObjectiveReview, snapshot: InvestigationSnapshot) -> str:
+    basis = _with_evidence(
+        CyclePlanningBasis(
+            reason="unverified_claim",
+            source_ids=review.source_ids,
+            claim_ids=review.claim_ids,
+        ),
+        snapshot,
+    )
+    assert basis.evidence_fingerprint is not None
+    return basis.evidence_fingerprint
+
+
+def review_is_current(review: ObjectiveReview, snapshot: InvestigationSnapshot) -> bool:
+    refreshed = _with_evidence(
+        review.basis.model_copy(update={"evidence_fingerprint": None}), snapshot
+    )
+    return (
+        refreshed == review.basis
+        and reference_fingerprint(review, snapshot) == review.reference_fingerprint
+    )
+
+
+def reviewed_complete(
+    objective: str,
+    snapshot: InvestigationSnapshot,
+    basis: CyclePlanningBasis | None = None,
+) -> bool:
+    """Latest reviewed occurrence governs; duplicate text needs every index reviewed."""
+    for cycle in sorted(snapshot.task.cycles, key=lambda item: item.number, reverse=True):
+        indexes = [
+            index
+            for index, text in enumerate(cycle.objectives)
+            if text.strip() == objective.strip()
+        ]
+        latest = {review.objective_index: review for review in cycle.objective_reviews}
+        if not any(index in latest for index in indexes):
+            continue
+        return all(
+            index in latest
+            and latest[index].decision == "completed"
+            and review_is_current(latest[index], snapshot)
+            and (basis is None or latest[index].basis == _with_evidence(basis, snapshot))
+            for index in indexes
+        )
+    return False
 
 
 def plan_cycle_objectives(
@@ -75,15 +151,23 @@ def plan_cycle_objectives(
         if cycle.status not in {CycleStatus.COMPLETED, CycleStatus.BLOCKED, CycleStatus.FAILED}:
             continue
         unresolved = {item.strip() for item in cycle.unresolved_objectives}
+        latest_reviews = {item.objective_index: item for item in cycle.objective_reviews}
         if cycle.status != CycleStatus.COMPLETED and not unresolved:
             unresolved = {item.strip() for item in cycle.objectives}
         for index, raw_objective in enumerate(cycle.objectives):
             objective = raw_objective.strip()
             reason = (
-                cycle.planning_basis[index] if index < len(cycle.planning_basis)
+                cycle.planning_basis[index]
+                if index < len(cycle.planning_basis)
                 else CyclePlanningBasis(reason="incomplete_cycle")
             )
             identity = _identity(objective, reason)
+            if index in latest_reviews:
+                # Retain the candidate so a stale or unresolved review can reopen it.
+                # Current completed reviews are filtered after current evidence is considered.
+                completed.discard(identity)
+                outstanding[objective] = reason
+                continue
             if objective in unresolved:
                 completed.discard(identity)
                 outstanding[objective] = reason
@@ -234,7 +318,9 @@ def plan_cycle_objectives(
     current_objectives = {objective for _, objective, _ in candidates}
     for objective, reason in outstanding.items():
         if objective and objective not in current_objectives:
-            candidates.append((1, objective, reason))
+            candidates.append(
+                (1, objective, reason.model_copy(update={"evidence_fingerprint": None}))
+            )
 
     objectives: list[str] = []
     basis: list[CyclePlanningBasis] = []
@@ -243,6 +329,8 @@ def plan_cycle_objectives(
     for _, objective, reason in sorted(
         candidates, key=lambda item: min(item[0], 1) if item[1] in outstanding else item[0]
     ):
+        if reviewed_complete(objective, snapshot, reason):
+            continue
         reason = _with_evidence(reason, snapshot)
         identity = _identity(objective, reason)
         if identity in completed or identity in seen:
@@ -253,6 +341,11 @@ def plan_cycle_objectives(
         if len(objectives) == 3:
             break
     if not objectives:
+        if reviewed_complete(
+            "Review the stopping criteria and decide whether more evidence is needed.",
+            snapshot, CyclePlanningBasis(reason="review_stopping_criteria"),
+        ):
+            return [], []
         objectives.append(
             "Review the stopping criteria and decide whether more evidence is needed."
         )

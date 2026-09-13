@@ -77,7 +77,17 @@ associations. Validation rejects invalid objectives and provenance references. H
 mappings remain unknown, and collection associations do not resolve research objectives.
 Workspace collection controls now support objective selection, explicit source URLs,
 and persisted per-objective evidence inspection. Browser regressions cover successful
-and partial collection, stale state, and reload. Evidence-backed objective review remains next.
+and partial collection, stale state, and reload. Evidence-backed operator reviews now
+append rationale, cited record IDs, and evidence fingerprints to the latest finished
+cycle. Planning suppresses unchanged reviewed work and reopens it on relevant evidence
+changes. Review revisions preserve collection outcomes and claim verification states;
+automated semantic assessment and automatic investigation conclusion remain open.
+
+Operator recovery now closes interrupted active cycles using durable progress, preserves
+committed evidence associations, and pauses active investigations for explicit review and
+resume. New runners stage associations atomically with source/claim writes and reject
+late writes after recovery. Legacy cycle mappings remain unknown where not recorded.
+Automatic retry, worker leases, and database backup/restore remain separate future work.
 
 ## Phase 2 — Source retrieval and evidence storage
 

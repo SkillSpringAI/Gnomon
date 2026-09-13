@@ -129,3 +129,84 @@ def test_objective_selection_and_stale_state(workspace_browser):
     page.locator("#refresh").click()
     expect(page.locator("#message")).to_contain_text("displayed history may be stale")
     expect(page.locator("#source-url-0")).to_be_disabled()
+
+
+def test_review_history_correction_and_stale_evidence(workspace_browser):
+    page, expect, (client, task_id, _, _, _) = workspace_browser
+    page.locator("#run-cycle").click()
+    expect(page.locator("#message")).to_contain_text("completed")
+    expect(page.locator("#review-panel")).to_be_visible()
+    page.locator("#review-decision").select_option("completed")
+    page.locator("#review-rationale").fill("Reviewed the evidence; collection remains unverified.")
+    expect(page.locator("#save-review")).to_be_disabled()
+    page.get_by_text("Select evidence references", exact=True).click()
+    page.locator("#review-claims input").first.check()
+    page.locator("#save-review").click()
+    expect(page.locator("#message")).to_contain_text("Objective review saved")
+    state = client.get(f"/investigations/{task_id}/report").json()
+    assert "Review premise A." not in state["unresolved_objectives"]
+    page.reload()
+    expect(page.locator("#message")).to_have_text("Report loaded.")
+    page.locator("#review-rationale").fill("Further checking is needed.")
+    page.locator("#save-review").click()
+    expect(page.locator("#message")).to_contain_text("Objective review saved")
+    state = client.get(f"/investigations/{task_id}/report").json()
+    assert [item["decision"] for item in state["cycles"][0]["objective_reviews"]] == [
+        "completed",
+        "unresolved",
+    ]
+    page.locator("#review-rationale").fill("This submission will become stale.")
+    assert (
+        client.post(
+            f"/investigations/{task_id}/sources",
+            json={
+                "source_type": "document",
+                "title": "New evidence",
+                "content": "Evidence changed.",
+            },
+        ).status_code
+        == 201
+    )
+    page.locator("#save-review").click()
+    expect(page.locator("#message")).to_contain_text("investigation changed")
+    state = client.get(f"/investigations/{task_id}/report").json()
+    assert len(state["cycles"][0]["objective_reviews"]) == 2
+    page.get_by_text("Objective review history", exact=True).click()
+    expect(page.locator("#cycles")).to_contain_text("Further checking is needed.")
+    expect(page.locator("#cycles")).to_contain_text("evidence changed")
+    if screenshot := os.environ.get("WORKSPACE_SCREENSHOT"):
+        page.screenshot(path=screenshot, full_page=True)
+    page.locator("#plan-cycle").click()
+    expect(page.locator("#message")).to_contain_text("planned")
+    expect(page.locator("#review-panel")).to_be_hidden()
+
+
+def test_operator_recovery_from_workspace(workspace_browser):
+    page, expect, (client, task_id, _, _, _) = workspace_browser
+    assert client.post(f"/investigations/{task_id}/cycles/1/start").status_code == 200
+    page.locator("#refresh").click()
+    expect(page.locator("#recovery-panel")).to_be_visible()
+    expect(page.locator("#recovery-tracking")).to_contain_text("no durable runner tracking")
+    expect(page.locator("#recover-cycle")).to_be_disabled()
+    page.locator("#recovery-reason").fill("The previous worker was interrupted.")
+    assert (
+        client.patch(
+            f"/investigations/{task_id}/status",
+            json={"expected_status": "active", "status": "paused"},
+        ).status_code
+        == 200
+    )
+    page.locator("#recover-cycle").click()
+    expect(page.locator("#message")).to_contain_text("investigation changed")
+    page.locator("#recovery-reason").fill("Close the interrupted cycle and retain its evidence.")
+    page.locator("#recover-cycle").click()
+    expect(page.locator("#message")).to_contain_text("Cycle closed")
+    expect(page.locator("#recovery-panel")).to_be_hidden()
+    expect(page.locator("#status")).to_contain_text("paused")
+    page.reload()
+    expect(page.locator("#message")).to_have_text("Report loaded.")
+    expect(page.locator("#cycles")).to_contain_text("Operator recovery")
+    page.locator("#lifecycle").click()
+    expect(page.locator("#plan-cycle")).to_be_enabled()
+    page.locator("#plan-cycle").click()
+    expect(page.locator("#message")).to_contain_text("planned")

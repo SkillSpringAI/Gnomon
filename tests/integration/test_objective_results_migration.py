@@ -3,6 +3,7 @@
 import json
 from uuid import uuid4
 
+import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -11,7 +12,15 @@ from research_agent.persistence.database import engine
 from research_agent.persistence.repositories import SqlAlchemyResearchTaskRepository
 
 
-def test_objective_results_upgrade_preserves_legacy_cycles():
+@pytest.mark.parametrize(
+    "migration,field",
+    [
+        ("009_objective_results.sql", "objective_results"),
+        ("010_objective_reviews.sql", "objective_reviews"),
+        ("011_cycle_progress_tracking.sql", "progress_tracked"),
+    ],
+)
+def test_objective_results_upgrade_preserves_legacy_cycles(migration, field):
     schema = "objective_upgrade_" + uuid4().hex
     task_id = uuid4()
     with engine.connect() as connection:
@@ -21,7 +30,7 @@ def test_objective_results_upgrade_preserves_legacy_cycles():
             connection.exec_driver_sql(f'CREATE SCHEMA "{schema}"')
             connection.exec_driver_sql(f'SET LOCAL search_path TO "{schema}", public')
             files = migration_files()
-            upgrade = next(path for path in files if path.name == "009_objective_results.sql")
+            upgrade = next(path for path in files if path.name == migration)
             for path in files:
                 if path.name < upgrade.name:
                     connection.exec_driver_sql(path.read_text(encoding="utf-8"))
@@ -79,8 +88,15 @@ def test_objective_results_upgrade_preserves_legacy_cycles():
                 .scalars()
                 .all()
             )
-            assert all(row.pop("objective_results") == [] for row in after)
+            if field == "progress_tracked":
+                assert all(row.pop(field) is False for row in after)
+                assert all(row.pop("recovery_reason") is None for row in after)
+            else:
+                assert all(row.pop(field) == [] for row in after)
             assert after == before
+            for path in files:
+                if path.name > upgrade.name:
+                    connection.exec_driver_sql(path.read_text(encoding="utf-8"))
             with Session(bind=connection) as session:
                 task = SqlAlchemyResearchTaskRepository(session).get(task_id)
                 assert len(task.cycles) == 3

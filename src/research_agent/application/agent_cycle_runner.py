@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from research_agent.adapters.agents.fake import FakeAgentNetwork, FakeScenario
 from research_agent.application.agent_evidence_service import AgentEvidenceService
 from research_agent.application.claim_extraction_service import ClaimExtractionService
+from research_agent.application.cycle_progress import CycleProgress
 from research_agent.application.research_service import ResearchService, TaskStateConflict
 from research_agent.domain.agents import AgentQuestion
 from research_agent.domain.research import (
@@ -59,13 +60,15 @@ class AgentCycleRunner:
         ):
             raise ValueError("Objective selection must contain unique cycle objective indexes")
         selected_objectives = [planned_cycle.objectives[index] for index in selected_indices]
-        task = research.start_cycle(task_id, cycle_number, exclusive=True)
+        task = research.start_cycle(task_id, cycle_number, exclusive=True, track_progress=True)
         cycle = next(cycle for cycle in task.cycles if cycle.number == cycle_number)
         evidence_ids: list[UUID] = []
         claim_ids: list[UUID] = []
         results: dict[int, CycleObjectiveResult] = {}
+        progress = CycleProgress(self.session, task_id, cycle_number)
 
         def mark_attempted() -> None:
+            progress.attempt(selected_indices)
             for index in selected_indices:
                 results.setdefault(index, CycleObjectiveResult(objective_index=index))
 
@@ -128,7 +131,10 @@ class AgentCycleRunner:
                     question="\n\n".join(selected_objectives),
                 )
                 source = AgentEvidenceService(
-                    self.session, network, before_write=guard
+                    self.session,
+                    network,
+                    before_write=guard,
+                    after_write=lambda source: progress.source(source, selected_indices),
                 ).ask_and_record(question, before_ask=mark_attempted)
                 if source.id not in evidence_ids:
                     evidence_ids.append(source.id)
@@ -137,7 +143,10 @@ class AgentCycleRunner:
                         result.source_ids.append(source.id)
                 checkpoint()
                 claims = ClaimExtractionService(self.session).extract_for_source(
-                    task_id, source.id, before_write=guard
+                    task_id,
+                    source.id,
+                    before_write=guard,
+                    after_write=lambda claims: progress.claims(claims, selected_indices),
                 )
                 claim_ids.extend(claim.id for claim in claims if claim.id not in claim_ids)
                 for result in results.values():

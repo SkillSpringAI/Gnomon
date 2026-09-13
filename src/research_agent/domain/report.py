@@ -11,6 +11,7 @@ from research_agent.domain.research import (
     CycleObjectiveResult,
     CycleStatus,
     HypothesisAssessmentStatus,
+    ObjectiveReview,
     SourceType,
     TaskStatus,
 )
@@ -50,11 +51,16 @@ class ReportCycle(BaseModel):
 
     number: int
     status: CycleStatus
+    started_at: datetime | None = None
+    progress_tracked: bool = False
+    recovery_fingerprint: str | None = None
     objectives: list[str]
     result_summary: str | None
     unresolved_objectives: list[str]
     attempted_objectives: list[str] = Field(default_factory=list)
     objective_results: list[CycleObjectiveResult] = Field(default_factory=list)
+    objective_reviews: list[ObjectiveReview] = Field(default_factory=list)
+    stale_review_ids: list[UUID] = Field(default_factory=list)
     evidence_ids: list[UUID]
     claim_ids: list[UUID]
 
@@ -65,6 +71,7 @@ class InvestigationReport(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     task_id: UUID
+    review_evidence_fingerprint: str = ""
     title: str
     objective: str
     task_status: TaskStatus

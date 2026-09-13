@@ -67,6 +67,7 @@ class EvidenceService:
         audit_actor: Literal["local_operator", "agent_network"] = "local_operator",
         provenance: list[UUID] | None = None,
         before_write: Callable[[], None] | None = None,
+        after_write: Callable[[SourceResponse], None] | None = None,
     ) -> SourceResponse:
         try:
             self.require_task(task_id, lock=True)
@@ -108,11 +109,11 @@ class EvidenceService:
                 EventPayload(
                     operation_id=self.operation_id,
                     source_id=record.id,
-                actor=audit_actor,
-                provenance=provenance,
-                result="reused" if reused else "committed",
-            ),
-        )
+                    actor=audit_actor,
+                    provenance=provenance,
+                    result="reused" if reused else "committed",
+                ),
+            )
             if audit_event is not None:
                 AuditService(self.session).stage(
                     task_id,
@@ -126,6 +127,8 @@ class EvidenceService:
                     ),
                 )
             response = SourceResponse.model_validate(record, from_attributes=True)
+            if after_write is not None:
+                after_write(response)
             self.session.commit()
             return response
         except Exception:

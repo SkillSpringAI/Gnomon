@@ -18,6 +18,15 @@ Migration `009_objective_results.sql` adds per-objective source/claim associatio
 JSONB. Existing cycles default to an empty list, preserving unknown historical mappings.
 It is additive and repeatable; apply it before running the updated application.
 
+Migration `010_objective_reviews.sql` adds append-only operator review history to each
+cycle as JSONB. Existing rows receive an empty list. Apply it before starting the updated
+application. Review history and its audit event are committed in one transaction.
+
+Migration `011_cycle_progress_tracking.sql` adds a durable-progress marker and recovery
+reason. Existing cycles default to untracked with no recovery reason. This does not
+reconstruct missing historical mappings. New runner acquisitions enable tracking;
+source/claim associations reuse the cycle's existing progress fields.
+
 The application expects all numbered migrations to be present. Run
 `python -m research_agent.cli migrate` (or `make migrate`) after PostgreSQL is ready.
 The runner creates `research_agent_schema_migrations`, takes a transaction-scoped

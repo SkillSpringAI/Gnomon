@@ -23,11 +23,13 @@ class AgentEvidenceService:
         operation_id: UUID | None = None,
         *,
         before_write: Callable[[], None] | None = None,
+        after_write: Callable[[SourceResponse], None] | None = None,
     ) -> None:
         self.session = session
         self.network = network
         self.operation_id = operation_id or uuid4()
         self.before_write = before_write
+        self.after_write = after_write
 
     def ask_and_record(
         self, question: AgentQuestion, *, before_ask: Callable[[], None] | None = None
@@ -86,4 +88,5 @@ class AgentEvidenceService:
             audit_actor="agent_network",
             provenance=[observation.agent.id, question.id],
             before_write=self.before_write,
+            after_write=self.after_write,
         )

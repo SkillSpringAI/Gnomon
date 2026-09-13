@@ -81,6 +81,30 @@ Selections survive a refresh of the same plan and reset when the planned cycle c
 Cycle history expands to show retained sources and claims by objective, including partial
 or blocked results. It never presents a credential-entry form.
 
+The workspace also accepts operator reviews of objectives in the latest finished cycle,
+before planning another cycle. Choose `completed` or `unresolved`, provide a rationale,
+and cite source or claim records (required for completion). Corrections append a new
+revision; original collection outcomes and earlier reviews are retained. A completed
+review affects follow-up planning without verifying claims or concluding the investigation.
+
+`POST /investigations/{task_id}/cycles/{cycle_number}/objectives/{objective_index}/reviews`
+accepts `decision`, `rationale`, `source_ids`, `claim_ids`, `expected_revision` (initially 0),
+and `expected_evidence_fingerprint` from the report's `review_evidence_fingerprint` field.
+Only active or paused investigations may review their latest completed, blocked, or
+failed cycle. Evidence changes since the displayed report or a concurrent review return
+409; invalid references and completion without evidence return 422. Reviews are capped
+at 100 entries per cycle and commit atomically with redacted audit metadata.
+
+Reports retain `objective_reviews` and identify `stale_review_ids`. The report's current
+unresolved list accounts for reviews, while each cycle retains its historical unresolved
+list. Planning suppresses the reviewed objective and evidence basis while both that basis
+and cited records remain unchanged. Changed relevant claims, sources, or assessments
+reopen the work; broad questions conservatively depend on the full evidence state.
+Duplicate objective text needs a separate review for each index. Once all available work,
+including the stopping-criteria review, is reviewed, planning returns a conflict instead
+of creating another identical cycle; the operator still decides the investigation lifecycle.
+Apply migration 010 before using this version. Historical cycles start with no reviews.
+
 The runner acquires only planned cycles and rejects execution while any cycle in the
 investigation is active. It checks lifecycle state between stages and under the task
 lock before evidence and claim commits. A pause does not interrupt an adapter call
@@ -90,12 +114,25 @@ unresolved because collecting unverified claims does not answer them.
 
 Expected acquisition failures record a blocked outcome with committed provenance.
 Unexpected exceptions attempt to record a failed outcome and still surface as errors.
-If the process dies or the database cannot persist recovery, inspect the snapshot and,
-after stopping the original worker, use
-`POST /investigations/{task_id}/cycles/{cycle_number}/outcome` to record a failed outcome
-with retained evidence/claim IDs and unresolved objectives. Then resume the investigation
-if necessary and plan a new cycle. There is no automatic crash recovery or retry of an
-active cycle.
+If a run is interrupted or unresponsive, refresh the workspace and use "Recover an
+interrupted cycle". The form previews retained progress and requires an operator reason.
+Recovery marks the cycle failed, keeps recorded source/claim associations and all
+objectives unresolved, and pauses an active investigation. Existing paused, blocked,
+concluded, or abandoned task states are preserved. Review the outcome, then resume
+and plan another cycle when appropriate. Recovery does not retry adapter calls.
+
+The API equivalent is `POST /investigations/{task_id}/cycles/{cycle_number}/recover`
+with `reason` and `expected_fingerprint` from that report cycle's `recovery_fingerprint`.
+A changed progress snapshot or already-closed cycle returns 409. Recovery and its audit
+events are atomic. Closing a cycle rejects subsequent writes from its old runner even
+if the investigation is resumed; an adapter call already in flight may still finish.
+
+Migration 011 identifies runs with durable progress tracking. New agent/source runners
+record dispatch intent before the adapter call and save each evidence association in the
+same transaction as the source or claims. Dispatch intent does not prove a remote call
+finished. Legacy and manually started cycles are labeled untracked; their known progress
+is retained, but missing historical associations are not inferred from timestamps or
+other task evidence. After a database outage, restore connectivity before recovery.
 
 Agent comparisons match subjects by exact question text within an investigation.
 Different or unknown subjects cannot produce agreement or contradiction; explicit
@@ -125,8 +162,9 @@ question associates its returned evidence with every selected objective; this re
 collection context, not proof that a claim addresses or resolves each objective.
 Web results retain the operator's explicit objective mapping, including when a source
 is reused across objectives. Claims must cite an associated source and all mapped IDs
-must belong to the outcome. Outcome persistence remains the recovery boundary: process
-crashes or database outages before an outcome is saved still require operator recovery.
+must belong to the outcome. Tracked runners persist progress before their final outcome;
+process crashes still require explicit operator recovery. Manual outcomes merge existing
+durable associations so omitted IDs cannot silently discard committed progress.
 Rejected recovery writes surface as errors while the cycle remains active; runners only
 accept a conflicting write as already handled when a terminal outcome is present.
 Agent objective indexes require JSON integers, matching web-source index validation.
@@ -288,7 +326,8 @@ research objectives stay unresolved. Policy/retrieval failures produce a blocked
 outcome and redacted audit event, retaining earlier committed results. A pause prevents
 subsequent commits after an in-flight retrieval or extraction returns. Unexpected
 exceptions attempt a failed outcome before propagating. Process-crash recovery remains
-manual. Use the API docs to initiate source runs; their results appear in the workspace.
+operator-controlled through the workspace or recovery API. Source runs can be initiated
+directly from the workspace with explicit URLs and objective selections.
 
 Cycles begin as `planned`. Use `POST /investigations/{task_id}/cycles/{cycle_number}/start`
 to mark one active, then record a bounded result with

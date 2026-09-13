@@ -24,6 +24,8 @@ from research_agent.application.source_cycle_runner import SourceCycleRequest, S
 from research_agent.config.settings import get_settings
 from research_agent.domain.research import (
     CycleOutcomeCreate,
+    CycleRecoveryCreate,
+    ObjectiveReviewCreate,
     ResearchBrief,
     ResearchTaskResponse,
     TaskStatusChange,
@@ -91,6 +93,36 @@ def plan_next_cycle(
         return ResearchTaskResponse(task=service.plan_next_cycle(task_id))
     except ResearchTaskNotFound as exc:
         raise HTTPException(status_code=404, detail="Investigation not found") from exc
+    except TaskStateConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post(
+    "/{task_id}/cycles/{cycle_number}/objectives/{objective_index}/reviews",
+    response_model=ResearchTaskResponse,
+)
+def review_objective(
+    task_id: UUID,
+    cycle_number: int,
+    objective_index: int,
+    request: ObjectiveReviewCreate,
+    session: Annotated[Session, Depends(get_session)],
+) -> ResearchTaskResponse:
+    """Append a local operator review without changing evidence or collection history."""
+    try:
+        service = ResearchService(SqlAlchemyResearchTaskRepository(session))
+        return ResearchTaskResponse(
+            task=service.review_objective(
+                task_id,
+                cycle_number,
+                objective_index,
+                request,
+            )
+        )
+    except (ResearchTaskNotFound, CycleNotFound) as exc:
+        raise HTTPException(status_code=404, detail="Cycle not found") from exc
+    except InvalidCycleSelection as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except TaskStateConflict as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -183,6 +215,23 @@ def record_cycle_outcome(
         return ResearchTaskResponse(
             task=service.record_cycle_outcome(task_id, cycle_number, outcome)
         )
+    except (ResearchTaskNotFound, CycleNotFound) as exc:
+        raise HTTPException(status_code=404, detail="Cycle not found") from exc
+    except TaskStateConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/{task_id}/cycles/{cycle_number}/recover", response_model=ResearchTaskResponse)
+def recover_cycle(
+    task_id: UUID,
+    cycle_number: int,
+    request: CycleRecoveryCreate,
+    session: Annotated[Session, Depends(get_session)],
+) -> ResearchTaskResponse:
+    """Close an active cycle with its durable progress and fence subsequent runner writes."""
+    try:
+        service = ResearchService(SqlAlchemyResearchTaskRepository(session))
+        return ResearchTaskResponse(task=service.recover_cycle(task_id, cycle_number, request))
     except (ResearchTaskNotFound, CycleNotFound) as exc:
         raise HTTPException(status_code=404, detail="Cycle not found") from exc
     except TaskStateConflict as exc:

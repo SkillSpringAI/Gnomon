@@ -18,6 +18,9 @@ class EventType(StrEnum):
     CYCLE_PLANNED = "cycle.planned"
     CYCLE_STARTED = "cycle.started"
     CYCLE_OUTCOME_RECORDED = "cycle.outcome_recorded"
+    OBJECTIVE_REVIEWED = "cycle.objective_reviewed"
+    CYCLE_PROGRESS_RECORDED = "cycle.progress_recorded"
+    CYCLE_RECOVERED = "cycle.recovered"
     SOURCE_CREATED = "source.created"
     SOURCE_REUSED = "source.reused"
     AGENT_OBSERVATION_RECORDED = "agent.observation_recorded"
@@ -48,6 +51,7 @@ class EventPayload(BaseModel):
     from_status: TaskStatus | CycleStatus | None = None
     to_status: TaskStatus | CycleStatus | None = None
     cycle_number: int | None = None
+    objective_index: int | None = None
     source_id: UUID | None = None
     claim_id: UUID | None = None
     claim_count: int | None = None

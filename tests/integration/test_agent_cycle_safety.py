@@ -329,7 +329,14 @@ def test_outcome_write_failure_is_not_reported_as_success(investigation, monkeyp
         assert len(outcomes) == 1
     else:
         assert result["status"] == "active"
-        assert result["objective_results"] == result["evidence_ids"] == []
+        assert result["evidence_ids"] and result["claim_ids"]
+        assert result["objective_results"] == [
+            {
+                "objective_index": 0,
+                "source_ids": result["evidence_ids"],
+                "claim_ids": result["claim_ids"],
+            }
+        ]
         assert outcomes == []
 
 

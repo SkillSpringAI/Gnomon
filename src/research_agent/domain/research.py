@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 from enum import StrEnum
+from hashlib import sha256
 from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
@@ -171,6 +172,36 @@ class CycleObjectiveResult(BaseModel):
     claim_ids: list[UUID] = Field(default_factory=list, max_length=100)
 
 
+class ObjectiveReviewCreate(BaseModel):
+    """Operator decision against the evidence displayed for review."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    decision: Literal["completed", "unresolved"]
+    rationale: str = Field(min_length=1, max_length=4000)
+    source_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    claim_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    expected_revision: int = Field(ge=0, strict=True)
+    expected_evidence_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class ObjectiveReview(BaseModel):
+    """Append-only planning decision; does not change accepted knowledge."""
+
+    model_config = ConfigDict(extra="forbid")
+    id: UUID = Field(default_factory=uuid4)
+    objective_index: int = Field(ge=0, strict=True)
+    objective: str
+    revision: int = Field(ge=1)
+    decision: Literal["completed", "unresolved"]
+    rationale: str
+    source_ids: list[UUID]
+    claim_ids: list[UUID]
+    basis: CyclePlanningBasis
+    reference_fingerprint: str
+    actor: Literal["local_operator"] = "local_operator"
+    created_at: datetime = Field(default_factory=utc_now)
+
+
 class ResearchCycle(BaseModel):
     """A bounded iteration of an open-ended investigation."""
 
@@ -181,6 +212,8 @@ class ResearchCycle(BaseModel):
     objectives: list[str]
     methods: list[ResearchMethod]
     status: CycleStatus = CycleStatus.PLANNED
+    progress_tracked: bool = False
+    recovery_reason: str | None = None
     created_at: datetime = Field(default_factory=utc_now)
     started_at: datetime | None = None
     completed_at: datetime | None = None
@@ -190,6 +223,17 @@ class ResearchCycle(BaseModel):
     unresolved_objectives: list[str] = Field(default_factory=list, max_length=50)
     attempted_objectives: list[str] = Field(default_factory=list, max_length=3)
     objective_results: list[CycleObjectiveResult] = Field(default_factory=list, max_length=3)
+    objective_reviews: list[ObjectiveReview] = Field(default_factory=list, max_length=100)
+
+
+class CycleRecoveryCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    reason: str = Field(min_length=1, max_length=4000)
+    expected_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+def recovery_fingerprint(status: TaskStatus, cycle: ResearchCycle) -> str:
+    return sha256((status.value + cycle.model_dump_json()).encode()).hexdigest()
 
 
 class ResearchTask(BaseModel):
