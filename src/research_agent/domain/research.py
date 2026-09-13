@@ -149,11 +149,14 @@ class CyclePlanningBasis(BaseModel):
         "review_stopping_criteria",
         "missing_evidence",
         "incomplete_cycle",
+        "agent_contradiction",
+        "agent_corroboration",
     ]
     hypothesis_id: UUID | None = None
     assessment_id: UUID | None = None
     claim_ids: list[UUID] = Field(default_factory=list)
     source_id: UUID | None = None
+    source_ids: list[UUID] = Field(default_factory=list, max_length=100)
 
 
 class ResearchCycle(BaseModel):
@@ -206,6 +209,7 @@ class SourceCreate(BaseModel):
     publisher: str | None = Field(default=None, max_length=300)
     content: str = Field(min_length=1, max_length=500_000)
     reliability_score: Annotated[float, Field(ge=0, le=1)] = 0.5
+    source_metadata: dict[str, str] = Field(default_factory=dict, max_length=20)
 
 
 class SourceResponse(BaseModel):
@@ -220,6 +224,7 @@ class SourceResponse(BaseModel):
     content: str
     reliability_score: float
     observed_at: datetime
+    source_metadata: dict[str, str] = Field(default_factory=dict)
 
 
 class SourceFetchRequest(BaseModel):

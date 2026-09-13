@@ -20,6 +20,8 @@ logic; the local rule-based provider and optional AWS Bedrock provider are imple
 - Reverse eligible memory changes within 48 hours without erasing the original journal entry; stale, dependent, duplicate, and expired reversals fail safely.
 - Inspect redacted, task-scoped audit events for task creation, evidence, extraction, retrieval, lifecycle, cycle, memory, rollback, and security-denial operations.
 - Apply shared external-boundary guards for bounded untrusted text, provider data delimiters, and explicit capability allowlists.
+- Exercise a platform-neutral, read-only fake agent network with bounded adversarial scenarios; observations can be routed into ordinary `AGENT_MESSAGE` evidence with task-scoped provenance and audit events.
+- Reports reconstruct persisted agent observations and expose deterministic agreement, contradiction, duplicate, and independent-agent comparisons as non-authoritative context.
 
 ## Local setup
 
@@ -83,6 +85,17 @@ After PostgreSQL is ready, apply pending migrations with the versioned runner:
 python -m research_agent.cli migrate
 python -m uvicorn research_agent.api.app:app --reload
 ```
+
+Run the local end-to-end prototype smoke test after migrations:
+
+```powershell
+python scripts/smoke_test.py
+# or: make smoke
+```
+
+The smoke test creates an isolated investigation, runs cycle 1 against the bounded
+fake network, verifies persisted evidence, extracted claims, comparison metadata, and
+the report, then removes its task record.
 
 Configuration defaults work with the included Compose service; see `.env.example`
 for overrides. The health endpoint and unit tests do not require PostgreSQL.
@@ -364,7 +377,7 @@ traceability check does not establish behavioral or release conformance.
 - PDF extraction and bounded compressed-response support.
 - Historical duplicate reconciliation, authenticated multi-user identity, and complete security-state observability.
 - Dependent reassessment propagation, backup/restore drills, and migration recovery procedures.
-- Fake/adversarial agent networking, Moltbook integration, and research-loop integration.
+- Moltbook integration and long-running research orchestration.
 
 Later-stage circle-backs: add migration checksum and downgrade handling; replace the
 local provider session bridge with authenticated identity and encrypted shared storage;

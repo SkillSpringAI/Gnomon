@@ -57,7 +57,15 @@ class EvidenceService:
         if self.session.scalar(statement) is None:
             raise ResearchTaskNotFound
 
-    def create_source(self, task_id: UUID, source: SourceCreate) -> SourceResponse:
+    def create_source(
+        self,
+        task_id: UUID,
+        source: SourceCreate,
+        *,
+        audit_event: EventType | None = None,
+        audit_actor: Literal["local_operator", "agent_network"] = "local_operator",
+        provenance: list[UUID] | None = None,
+    ) -> SourceResponse:
         try:
             self.require_task(task_id, lock=True)
             content_hash = sha256(source.content.encode("utf-8")).hexdigest()
@@ -86,6 +94,7 @@ class EvidenceService:
                     content_hash=content_hash,
                     reliability_score=source.reliability_score,
                     observed_at=datetime.now(UTC),
+                    source_metadata=source.source_metadata,
                 )
                 self.session.add(record)
                 self.session.flush()
@@ -95,10 +104,23 @@ class EvidenceService:
                 EventPayload(
                     operation_id=self.operation_id,
                     source_id=record.id,
-                    actor="local_operator",
-                    result="reused" if reused else "committed",
-                ),
-            )
+                actor=audit_actor,
+                provenance=provenance,
+                result="reused" if reused else "committed",
+            ),
+        )
+            if audit_event is not None:
+                AuditService(self.session).stage(
+                    task_id,
+                    audit_event,
+                    EventPayload(
+                        operation_id=self.operation_id,
+                        source_id=record.id,
+                        actor=audit_actor,
+                        provenance=provenance,
+                        result="reused" if reused else "committed",
+                    ),
+                )
             response = SourceResponse.model_validate(record, from_attributes=True)
             self.session.commit()
             return response

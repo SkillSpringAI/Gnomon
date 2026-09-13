@@ -5,7 +5,9 @@
 Repository commit: `2d786916f707f9d6eda89c4003d73942da4dc2d2`.
 The working tree was clean before this conformance documentation was added. The
 user then supplied ten authority documents in `docs`; they are retained unchanged.
-Slices 2–5 subsequently changed runtime code, migrations, audit behavior, and boundary tests; this document tracks the resulting state.
+Slices 2–6 subsequently changed runtime code, migrations, audit behavior, boundary tests,
+the platform-neutral fake agent contract, and the local cycle runner; this document
+tracks the resulting state.
 
 Gnomon currently implements a local research API with PostgreSQL tasks, bounded
 cycles, manual lifecycle/outcome control, approved HTTP source retrieval, exact
@@ -13,7 +15,9 @@ evidence deduplication, conservative claim extraction, provenance links, current
 hypothesis assessments, snapshots, deterministic reports and optional provider drafts.
 Claims and hypothesis assessments now use governed versioned memory, reversible
 changes, and expanded redacted audit events. Agent-network research remains
-unimplemented.
+limited to a read-only domain contract, deterministic adversarial fake, persisted
+agent-message evidence, derived report comparisons, and a local bounded cycle runner;
+live platform adapters and long-running orchestration remain absent.
 
 “Phase 1–4 foundation” accurately describes the repository. “Phases 1–4 complete”
 does not: entity models, raw-source storage, cross-task retrieval, general claim
@@ -52,10 +56,10 @@ code. Slices 2–5 have executable evidence; no v0.1 conformance is claimed.
 | 4 | 48-hour rollback | Implemented with duplicate, stale, concurrent, dependent, expired and conflict tests |
 | 5 | Audit expansion | Implemented for task creation/mutation, cycles, sources, claims, assessments via governed memory events, rollback, and redacted payload metadata; security event type is available for boundary integrations |
 | 6 | Security boundary tests | HTTP policy remains bounded; shared untrusted-text, data-delimiting, and capability guards now have deterministic adversarial tests; broader agent/tool boundaries remain future work |
-| 7 | Agent domain model | Not implemented |
-| 8 | Fake/adversarial network | Not implemented |
+| 7 | Agent domain model | Partial: neutral identity, question, and observation objects implemented; persistence and lifecycle absent |
+| 8 | Fake/adversarial network | Partial: bounded deterministic fake covers required adversarial scenarios; integration and audit pipeline absent |
 | 9 | Moltbook adapter | Not implemented; depends on fake-network gate |
-| 10 | Research-loop integration | Persisted gap planner exists; agent acquisition absent |
+| 10 | Research-loop integration | Local fake-agent acquisition is connected to one bounded cycle runner; long-running and live acquisition remain absent |
 | 11 | Conformance/release gate | Not satisfied |
 
 ## Gate evidence required before v0.1 candidate
@@ -71,8 +75,8 @@ code. Slices 2–5 have executable evidence; no v0.1 conformance is claimed.
    and failure behavior. Protect history from ordinary deletion paths.
 5. Exercise hostile external inputs, capability denial, malformed responses,
    leakage, replay, timeouts and resource limits across the actual adapters.
-6. Demonstrate fake-agent evidence through the existing investigation without
-   granting external actors mutation authority; only then add platform integration.
+6. Integrate fake-agent observations as evidence through the existing investigation
+   without granting external actors mutation authority; only then add platform integration.
 7. Record security, epistemic and recovery review outcomes against the matrix.
 
 See [authority-matrix.md](authority-matrix.md) for requirement evidence and

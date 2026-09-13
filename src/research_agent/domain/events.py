@@ -20,6 +20,8 @@ class EventType(StrEnum):
     CYCLE_OUTCOME_RECORDED = "cycle.outcome_recorded"
     SOURCE_CREATED = "source.created"
     SOURCE_REUSED = "source.reused"
+    AGENT_OBSERVATION_RECORDED = "agent.observation_recorded"
+    AGENT_OBSERVATION_FAILED = "agent.observation_failed"
     CLAIM_CREATED = "claim.created"
     CLAIM_REUSED = "claim.reused"
     EXTRACTION_COMPLETED = "extraction.completed"
@@ -37,7 +39,7 @@ class EventPayload(BaseModel):
     change_id: UUID | None = None
     target_id: UUID | None = None
     target_type: Literal["claim", "assessment"] | None = None
-    actor: Literal["local_operator", "claim_extractor", "model"] | None = None
+    actor: Literal["local_operator", "claim_extractor", "model", "agent_network"] | None = None
     memory_operation: (
         Literal["CREATE", "UPDATE", "ARCHIVE", "LOGICAL_DELETE", "RESTORE", "REVERSE"] | None
     ) = None
@@ -68,6 +70,7 @@ class EventPayload(BaseModel):
             "domain_not_enabled",
             "report_generation_failed",
             "report_budget_exceeded",
+            "agent_network_failed",
         ]
         | None
     ) = None

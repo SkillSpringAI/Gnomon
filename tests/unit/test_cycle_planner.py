@@ -7,6 +7,7 @@ from research_agent.application.research_service import (
     InMemoryResearchTaskRepository,
     ResearchService,
 )
+from research_agent.domain.agents import AgentIdentity, AgentObservation, ObservationStance
 from research_agent.domain.research import (
     ClaimResponse,
     ClaimStatus,
@@ -86,3 +87,49 @@ def test_completed_objectives_are_not_replanned():
     objectives, basis = plan_cycle_objectives(repo.planning_snapshot(task.id))
     assert task.cycles[0].objectives[0] not in objectives
     assert basis[0].reason == "missing_evidence"
+
+
+def test_agent_contradictions_prioritize_independent_corroboration():
+    repo = InMemoryResearchTaskRepository()
+    task = ResearchService(repo).create_task(
+        ResearchBrief(title="Test", objective="Compare agent observations.")
+    )
+    agent_one = AgentIdentity(network="fake", platform_agent_id="one", display_name="One")
+    agent_two = AgentIdentity(network="fake", platform_agent_id="two", display_name="Two")
+    first = AgentObservation(
+        question_id=uuid4(), agent=agent_one, content="Supports the premise.",
+        scenario="test", stance=ObservationStance.SUPPORTS,
+    )
+    second = AgentObservation(
+        question_id=uuid4(), agent=agent_two, content="Contradicts the premise.",
+        scenario="test", stance=ObservationStance.CONTRADICTS,
+    )
+    snapshot = repo.planning_snapshot(task.id)
+    snapshot.sources.extend([
+        SourceResponse(
+            id=first.id, task_id=task.id, source_type=SourceType.AGENT_MESSAGE,
+            title="one", content=first.content, uri="agent://one", publisher="One",
+            reliability_score=0.5, observed_at=first.observed_at,
+            source_metadata={
+                "agent_id": str(agent_one.id), "network": "fake",
+                "platform_agent_id": "one", "question_id": str(first.question_id),
+                "stance": first.stance.value, "duplicate_of": "",
+            },
+        ),
+        SourceResponse(
+            id=second.id, task_id=task.id, source_type=SourceType.AGENT_MESSAGE,
+            title="two", content=second.content, uri="agent://two", publisher="Two",
+            reliability_score=0.5, observed_at=second.observed_at,
+            source_metadata={
+                "agent_id": str(agent_two.id), "network": "fake",
+                "platform_agent_id": "two", "question_id": str(second.question_id),
+                "stance": second.stance.value, "duplicate_of": "",
+            },
+        ),
+    ])
+    objectives, basis = plan_cycle_objectives(snapshot)
+    assert objectives[0] == (
+        "Compare contradictory agent observations and seek independent corroboration."
+    )
+    assert basis[0].reason == "agent_contradiction"
+    assert basis[0].source_ids == sorted([first.id, second.id], key=str)

@@ -5,7 +5,11 @@ from typing import Annotated, Final
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy.orm import Session
 
+from research_agent.adapters.agents.fake import FakeScenario
+from research_agent.application.agent_cycle_runner import AgentCycleRunner
 from research_agent.application.research_service import (
     CycleNotFound,
     InMemoryResearchTaskRepository,
@@ -20,10 +24,19 @@ from research_agent.domain.research import (
     ResearchTaskResponse,
     TaskStatusChange,
 )
-from research_agent.persistence.database import SessionFactory
+from research_agent.persistence.database import SessionFactory, get_session
 from research_agent.persistence.repositories import SqlAlchemyResearchTaskRepository
 
 router: Final = APIRouter(prefix="/investigations", tags=["investigations"])
+
+
+class AgentCycleRunRequest(BaseModel):
+    """Local fake-network controls for one bounded cycle run."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    scenario: FakeScenario = FakeScenario.HONEST
+    max_agents: int = Field(default=2, ge=1, le=2)
 
 
 def get_research_service() -> Generator[ResearchService, None, None]:
@@ -99,6 +112,28 @@ def start_cycle(
     """Mark a planned cycle as active."""
     try:
         return ResearchTaskResponse(task=service.start_cycle(task_id, cycle_number))
+    except (ResearchTaskNotFound, CycleNotFound) as exc:
+        raise HTTPException(status_code=404, detail="Cycle not found") from exc
+    except TaskStateConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/{task_id}/cycles/{cycle_number}/run", response_model=ResearchTaskResponse)
+def run_agent_cycle(
+    task_id: UUID,
+    cycle_number: int,
+    request: AgentCycleRunRequest,
+    session: Annotated[Session, Depends(get_session)],
+) -> ResearchTaskResponse:
+    """Run one bounded cycle against the local fake agent network."""
+    try:
+        task = AgentCycleRunner(session).run(
+            task_id,
+            cycle_number,
+            scenario=request.scenario,
+            max_agents=request.max_agents,
+        )
+        return ResearchTaskResponse(task=task)
     except (ResearchTaskNotFound, CycleNotFound) as exc:
         raise HTTPException(status_code=404, detail="Cycle not found") from exc
     except TaskStateConflict as exc:

@@ -1,7 +1,10 @@
 """Deterministic report assembly from a consistent investigation snapshot."""
 
 from collections.abc import Iterable
+from uuid import UUID
 
+from research_agent.application.agent_comparison_service import AgentComparisonService
+from research_agent.domain.agents import AgentIdentity, AgentObservation, ObservationStance
 from research_agent.domain.report import (
     InvestigationReport,
     ReportCycle,
@@ -54,6 +57,8 @@ class ReportService:
         )
         open_questions = _unique(snapshot.open_questions)
         limitations: list[str] = []
+        agent_observations = _agent_observations(snapshot)
+        agent_comparison = AgentComparisonService().compare(agent_observations)
         if not snapshot.sources:
             limitations.append("No source evidence has been stored for this investigation.")
         if not snapshot.claims:
@@ -65,6 +70,10 @@ class ReportService:
             for claim in snapshot.claims
         ):
             limitations.append("Some claims remain unverified or contested.")
+        if agent_comparison.comparisons:
+            limitations.append(
+                "Agent observation comparisons are untrusted context and do not establish truth."
+            )
         summary = (
             f"Evidence inventory for {snapshot.task.brief.title}: "
             f"{len(snapshot.sources)} sources, {len(snapshot.claims)} claims, "
@@ -93,6 +102,7 @@ class ReportService:
             open_questions=open_questions,
             unresolved_objectives=unresolved_objectives,
             limitations=limitations,
+            agent_comparison=agent_comparison if agent_observations else None,
         )
 
 
@@ -105,3 +115,33 @@ def _unique(values: Iterable[str]) -> list[str]:
             seen.add(cleaned)
             result.append(cleaned)
     return result
+
+
+def _agent_observations(snapshot: InvestigationSnapshot) -> list[AgentObservation]:
+    observations: list[AgentObservation] = []
+    for source in snapshot.sources:
+        if source.source_type.value != "agent_message":
+            continue
+        metadata = source.source_metadata
+        try:
+            duplicate_of = UUID(metadata["duplicate_of"]) if metadata.get("duplicate_of") else None
+            observations.append(
+                AgentObservation(
+                    id=source.id,
+                    question_id=UUID(metadata["question_id"]),
+                    agent=AgentIdentity(
+                        id=UUID(metadata["agent_id"]),
+                        network=metadata["network"],
+                        platform_agent_id=metadata["platform_agent_id"],
+                        display_name=source.publisher or "Unknown agent",
+                    ),
+                    content=source.content,
+                    observed_at=source.observed_at,
+                    scenario="persisted",
+                    stance=ObservationStance(metadata["stance"]),
+                    duplicate_of=duplicate_of,
+                )
+            )
+        except (KeyError, TypeError, ValueError):
+            continue
+    return observations

@@ -1,4 +1,4 @@
-.PHONY: install test lint typecheck run migrate db-up db-down
+.PHONY: install test lint typecheck run migrate smoke db-up db-down
 
 install:
 	python -m pip install -e ".[dev]"
@@ -17,6 +17,9 @@ run:
 
 migrate:
 	python -m research_agent.cli migrate
+
+smoke:
+	python scripts/smoke_test.py
 
 db-up:
 	docker compose up -d postgres

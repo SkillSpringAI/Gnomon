@@ -5,6 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from research_agent.domain.agent_comparison import AgentObservationComparison
 from research_agent.domain.research import (
     ClaimResponse,
     CycleStatus,
@@ -72,6 +73,7 @@ class InvestigationReport(BaseModel):
     open_questions: list[str]
     unresolved_objectives: list[str]
     limitations: list[str]
+    agent_comparison: AgentObservationComparison | None = None
 
 
 class ReportUsage(BaseModel):

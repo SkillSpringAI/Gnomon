@@ -79,13 +79,16 @@ supplied by application code, never accepted as authoritative from model output.
 
 ## Networking and loop integration — Slices 6–9
 
-Agent-related enum values and architecture examples are not an implemented network.
-Build neutral domain objects and a bounded fake adapter before Moltbook. Fake modes
+Agent-related enum values and architecture examples are not a persisted network.
+Neutral domain objects and a bounded fake adapter now exist as an in-memory contract;
+the next step is to integrate observations as evidence. Fake modes
 must include honest, wrong, confidently wrong, contradictory, duplicate, malicious,
 prompt-injection, unresponsive and rate-limited behavior. Verify unchanged policy,
 no unauthorized writes, intact provenance and bounded communication for each.
 
-Integrate observations as evidence in the current planner and application services.
+Agent observations now enter ordinary evidence, report comparison, and one bounded
+local cycle-runner path. The next step is operator-facing visibility and stronger
+runner failure/lifecycle tests before adding live outbound adapters.
 Do not introduce a separate agent knowledge store or independent authority path.
 Live outbound communication is a separate operational action requiring authorization;
 implementing or testing an adapter does not require sending messages to real agents.
