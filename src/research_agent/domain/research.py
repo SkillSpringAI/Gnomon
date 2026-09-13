@@ -178,6 +178,7 @@ class ResearchCycle(BaseModel):
     evidence_ids: list[UUID] = Field(default_factory=list, max_length=100)
     claim_ids: list[UUID] = Field(default_factory=list, max_length=100)
     unresolved_objectives: list[str] = Field(default_factory=list, max_length=50)
+    attempted_objectives: list[str] = Field(default_factory=list, max_length=3)
 
 
 class ResearchTask(BaseModel):
@@ -349,3 +350,4 @@ class CycleOutcomeCreate(BaseModel):
     evidence_ids: list[UUID] = Field(default_factory=list, max_length=100)
     claim_ids: list[UUID] = Field(default_factory=list, max_length=100)
     unresolved_objectives: list[str] = Field(default_factory=list, max_length=50)
+    attempted_objectives: list[str] = Field(default_factory=list, max_length=3)

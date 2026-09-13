@@ -12,6 +12,7 @@ from research_agent.domain.research import (
     InvestigationPlan,
     ResearchBrief,
     ResearchCycle,
+    ResearchMethod,
     ResearchTask,
     TaskStatus,
     TaskStatusChange,
@@ -31,6 +32,10 @@ class TaskStateConflict(Exception):
 
 class CycleNotFound(Exception):
     """Raised when a cycle number is unknown."""
+
+
+class InvalidCycleSelection(ValueError):
+    """Requested execution does not match the saved cycle plan."""
 
 
 class InMemoryResearchTaskRepository:
@@ -129,12 +134,24 @@ class ResearchService:
         return task
 
     def start_cycle(
-        self, task_id: UUID, cycle_number: int, *, exclusive: bool = False
+        self, task_id: UUID, cycle_number: int, *, exclusive: bool = False,
+        objective_indices: list[int] | None = None,
+        required_method: ResearchMethod | None = None,
     ) -> ResearchTask:
         with self.repository.edit(task_id) as task:
             if task.status != TaskStatus.ACTIVE:
                 raise TaskStateConflict("Cycles require an active investigation")
             cycle = self._cycle(task, cycle_number)
+            if objective_indices is not None and (
+                not objective_indices
+                or any(type(index) is not int or index < 0 or index >= len(cycle.objectives)
+                       for index in objective_indices)
+            ):
+                raise InvalidCycleSelection("Objective selection does not match the cycle plan")
+            if required_method is not None:
+                for methods in (task.brief.methods, cycle.methods):
+                    if methods and required_method not in methods:
+                        raise InvalidCycleSelection("Research method is not allowed by this plan")
             if any(
                 item.status == CycleStatus.ACTIVE
                 and (exclusive or item.number != cycle_number)
@@ -167,11 +184,17 @@ class ResearchService:
                 raise TaskStateConflict("Outcome references evidence outside this investigation")
             if not set(outcome.claim_ids).issubset(claim_ids):
                 raise TaskStateConflict("Outcome references claims outside this investigation")
+            objectives = set(cycle.objectives)
+            if not set(outcome.attempted_objectives).issubset(objectives):
+                raise TaskStateConflict("Outcome references attempted work outside this cycle")
+            if not set(outcome.unresolved_objectives).issubset(objectives):
+                raise TaskStateConflict("Outcome references unresolved work outside this cycle")
             cycle.status = CycleStatus(outcome.status)
             cycle.result_summary = outcome.result_summary
             cycle.evidence_ids = list(outcome.evidence_ids)
             cycle.claim_ids = list(outcome.claim_ids)
             cycle.unresolved_objectives = list(outcome.unresolved_objectives)
+            cycle.attempted_objectives = list(outcome.attempted_objectives)
             cycle.completed_at = utc_now()
             task.updated_at = utc_now()
         return task

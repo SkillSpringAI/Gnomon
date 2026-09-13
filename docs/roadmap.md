@@ -74,6 +74,14 @@ Exit criteria: a brief such as “test whether agent networking improves researc
 
 Goal: gather reproducible source material.
 
+Cycle integration: `run-sources` now maps up to two operator-supplied URLs to saved
+objective indexes, acquires a cycle exclusively, and uses the existing bounded HTTP
+adapter and deterministic claim extractor. Attempted objectives, retained evidence,
+and unresolved work flow through outcomes and reports into subsequent planning.
+Integration tests cover the real registry with controlled transport, redirect rejection,
+partial failure, pause during retrieval/extraction, retries, and cross-run exclusion.
+Source execution is initiated through the API; automatic URL discovery remains open.
+
 Progress: HTTP retrieval now validates enabled-domain policy before each request,
 including redirects, streams response bodies under byte limits, caps normalized text,
 and rejects redirect loops and unsupported formats. Static HTML is normalized to text;

@@ -118,8 +118,12 @@ def test_report_draft_budget_is_enforced(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def test_investigation_workspace_is_credential_free() -> None:
-    task_id = "00000000-0000-0000-0000-000000000001"
     with TestClient(create_app()) as client:
+        created = client.post(
+            "/investigations",
+            json={"title": "Workspace", "objective": "Render the workspace."},
+        )
+        task_id = created.json()["task"]["id"]
         response = client.get(f"/investigations/{task_id}/workspace")
         assert response.status_code == 200
         assert "/report" in response.text
@@ -127,3 +131,15 @@ def test_investigation_workspace_is_credential_free() -> None:
         assert "Generate draft" in response.text
         assert "Run local agent cycle" in response.text
         assert "Agent comparisons" in response.text
+        with engine.begin() as connection:
+            connection.execute(
+                delete(ResearchTaskRecord).where(ResearchTaskRecord.id == UUID(task_id))
+            )
+
+
+def test_unknown_investigation_workspace_is_not_served() -> None:
+    with TestClient(create_app()) as client:
+        response = client.get(
+            "/investigations/00000000-0000-0000-0000-000000000001/workspace"
+        )
+        assert response.status_code == 404

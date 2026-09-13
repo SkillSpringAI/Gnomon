@@ -10,6 +10,10 @@ Migration `006_cycle_outcomes.sql` adds cycle start/completion timestamps, a bou
 result summary, evidence and claim ID lists, and unresolved objectives. Existing cycles
 remain `planned` with empty outcome fields. The migration is additive and repeatable.
 
+Migration `008_attempted_objectives.sql` adds the durable list of objectives explicitly
+attempted by a runner or operator outcome. Existing cycles default to an empty list. The
+migration is additive and repeatable.
+
 The application expects all numbered migrations to be present. Run
 `python -m research_agent.cli migrate` (or `make migrate`) after PostgreSQL is ready.
 The runner creates `research_agent_schema_migrations`, takes a transaction-scoped

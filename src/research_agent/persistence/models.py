@@ -70,6 +70,9 @@ class ResearchCycleRecord(Base):
     unresolved_objectives: Mapped[list[str]] = mapped_column(
         JSONB, nullable=False, default=list, server_default="[]"
     )
+    attempted_objectives: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
 
     task: Mapped[ResearchTaskRecord] = relationship(back_populates="cycles")
 

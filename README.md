@@ -13,6 +13,7 @@ logic; the local rule-based provider and optional AWS Bedrock provider are imple
 - Read a complete investigation snapshot with explicit uncertainty and source provenance.
 - Plan up to three evidence-aware next-cycle objectives with persisted planning reasons.
 - Start cycles explicitly and record completed, blocked, or failed outcomes with bounded summaries and evidence/claim IDs.
+- Select up to three cycle objectives for an explicit bounded run; outcomes retain attempted and unresolved objective lists.
 - Assemble a deterministic read-only report that preserves provenance and uncertainty without generating conclusions.
 - Generate a local provider-backed report draft that declares its provider/model and cited record IDs.
 - Pause, resume, block, conclude, or abandon investigations with compare-and-set lifecycle controls.
@@ -230,6 +231,42 @@ reopen matching work while unchanged completed work is suppressed. Migrations
 
 ## Cycle outcomes
 
+### Run a source-collection cycle
+
+`POST /investigations/{task_id}/cycles/{cycle_number}/run-sources` retrieves up to two
+explicit URLs and extracts conservative unverified claims. Each URL is assigned to a
+zero-based index in the saved cycle's `objectives` list:
+
+```json
+{
+  "sources": [
+    {"objective_index": 0, "uri": "https://approved.example/research"},
+    {"objective_index": 1, "uri": "https://approved.example/case-study"}
+  ]
+}
+```
+
+Use actual URLs from enabled source-registry domains. The existing HTTP retriever
+enforces domain policy on every hop (when trusted sources are required), public-address
+checks, at most five redirects, a 2 MB response limit, and a 30-second deadline per URL.
+Only plain text and static HTML are supported. URLs are operator inputs; source content
+and objective text never select additional URLs or trigger tools. No live source is
+contacted by the automated tests; they use the real policy/normalization pipeline with
+controlled HTTP transport.
+
+Selection is checked under the task lock before acquisition. An explicitly configured
+brief or cycle method list must permit `web_research`; an empty list leaves method
+selection unrestricted. An active investigation and a planned cycle are required, with
+the same exclusion against concurrent agent/source runs. Repeated sources and claims
+reuse their stored identities, and outcome IDs are deduplicated.
+
+Successful collection records sources, claims, and attempted objectives, while all
+research objectives stay unresolved. Policy/retrieval failures produce a blocked
+outcome and redacted audit event, retaining earlier committed results. A pause prevents
+subsequent commits after an in-flight retrieval or extraction returns. Unexpected
+exceptions attempt a failed outcome before propagating. Process-crash recovery remains
+manual. Use the API docs to initiate source runs; their results appear in the workspace.
+
 Cycles begin as `planned`. Use `POST /investigations/{task_id}/cycles/{cycle_number}/start`
 to mark one active, then record a bounded result with
 `POST /investigations/{task_id}/cycles/{cycle_number}/outcome`:
@@ -250,6 +287,7 @@ from later planning, while unresolved objectives from blocked or failed cycles a
 carried forward with an `incomplete_cycle` planning basis. Cycle start and outcome
 events are redacted audit records and commit atomically with the cycle change.
 Migration `006_cycle_outcomes.sql` adds the durable outcome fields.
+Outcome objective lists are validated against the cycle plan before persistence.
 
 ## Evidence-aware reports
 

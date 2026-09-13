@@ -9,14 +9,18 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from research_agent.adapters.agents.fake import FakeScenario
+from research_agent.adapters.web.http import HttpSourceRetriever
+from research_agent.api.routes.evidence import get_source_retriever
 from research_agent.application.agent_cycle_runner import AgentCycleRunner
 from research_agent.application.research_service import (
     CycleNotFound,
     InMemoryResearchTaskRepository,
+    InvalidCycleSelection,
     ResearchService,
     ResearchTaskNotFound,
     TaskStateConflict,
 )
+from research_agent.application.source_cycle_runner import SourceCycleRequest, SourceCycleRunner
 from research_agent.config.settings import get_settings
 from research_agent.domain.research import (
     CycleOutcomeCreate,
@@ -37,6 +41,7 @@ class AgentCycleRunRequest(BaseModel):
 
     scenario: FakeScenario = FakeScenario.HONEST
     max_agents: int = Field(default=2, ge=1, le=2)
+    objective_indices: list[int] = Field(default_factory=lambda: [0], min_length=1, max_length=3)
 
 
 def get_research_service() -> Generator[ResearchService, None, None]:
@@ -132,17 +137,39 @@ def run_agent_cycle(
             cycle_number,
             scenario=request.scenario,
             max_agents=request.max_agents,
+            objective_indices=request.objective_indices,
         )
         return ResearchTaskResponse(task=task)
     except (ResearchTaskNotFound, CycleNotFound) as exc:
         raise HTTPException(status_code=404, detail="Cycle not found") from exc
     except TaskStateConflict as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
-@router.post(
-    "/{task_id}/cycles/{cycle_number}/outcome", response_model=ResearchTaskResponse
-)
+@router.post("/{task_id}/cycles/{cycle_number}/run-sources", response_model=ResearchTaskResponse)
+def run_source_cycle(
+    task_id: UUID,
+    cycle_number: int,
+    request: SourceCycleRequest,
+    session: Annotated[Session, Depends(get_session)],
+    retriever: Annotated[HttpSourceRetriever, Depends(get_source_retriever)],
+) -> ResearchTaskResponse:
+    """Retrieve up to two explicit URLs using the existing per-hop source policy."""
+    try:
+        return ResearchTaskResponse(
+            task=SourceCycleRunner(session, retriever).run(task_id, cycle_number, request)
+        )
+    except (ResearchTaskNotFound, CycleNotFound) as exc:
+        raise HTTPException(status_code=404, detail="Cycle not found") from exc
+    except InvalidCycleSelection as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except TaskStateConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/{task_id}/cycles/{cycle_number}/outcome", response_model=ResearchTaskResponse)
 def record_cycle_outcome(
     task_id: UUID,
     cycle_number: int,

@@ -46,6 +46,7 @@ class ReportService:
                 unresolved_objectives=cycle.unresolved_objectives,
                 evidence_ids=cycle.evidence_ids,
                 claim_ids=cycle.claim_ids,
+                attempted_objectives=cycle.attempted_objectives,
             )
             for cycle in snapshot.task.cycles
         ]

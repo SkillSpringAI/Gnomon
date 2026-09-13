@@ -52,6 +52,7 @@ class ReportCycle(BaseModel):
     objectives: list[str]
     result_summary: str | None
     unresolved_objectives: list[str]
+    attempted_objectives: list[str] = Field(default_factory=list)
     evidence_ids: list[UUID]
     claim_ids: list[UUID]
 

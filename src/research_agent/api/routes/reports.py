@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from research_agent.adapters.llm.bedrock_bearer_report import BedrockBearerReportDraftGenerator
@@ -25,13 +26,21 @@ from research_agent.config.settings import get_settings
 from research_agent.domain.events import EventPayload, EventType
 from research_agent.domain.report import InvestigationReport, ReportDraft
 from research_agent.persistence.database import get_session
+from research_agent.persistence.models import ResearchTaskRecord
 
 router = APIRouter(prefix="/investigations", tags=["reports"])
 
 
 @router.get("/{task_id}/workspace", response_class=HTMLResponse, include_in_schema=False)
-def investigation_workspace(task_id: UUID) -> str:
+def investigation_workspace(
+    task_id: UUID, session: Annotated[Session, Depends(get_session)]
+) -> str:
     """Serve a credential-free browser workspace for one investigation."""
+    task_exists = session.scalar(
+        select(ResearchTaskRecord.id).where(ResearchTaskRecord.id == task_id)
+    )
+    if task_exists is None:
+        raise HTTPException(status_code=404, detail="Investigation not found")
     template = Path(__file__).with_name("workspace.html").read_text(encoding="utf-8")
     return template.replace("__TASK_ID__", str(task_id))
 

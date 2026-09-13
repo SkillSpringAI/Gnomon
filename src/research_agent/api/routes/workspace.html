@@ -97,12 +97,18 @@
         list(objectives, cycle.objectives);
         article.append(objectives);
         if (cycle.result_summary) paragraph(article, cycle.result_summary);
-        paragraph(article, `${cycle.evidence_ids.length} observations · ${cycle.claim_ids.length} claims`);
+        paragraph(article, `${cycle.evidence_ids.length} sources · ${cycle.claim_ids.length} claims`);
         if (cycle.unresolved_objectives.length) {
           paragraph(article, 'Unresolved objectives:');
           const unresolved = document.createElement('ul');
           list(unresolved, cycle.unresolved_objectives);
           article.append(unresolved);
+        }
+        if (cycle.attempted_objectives.length) {
+          paragraph(article, 'Attempted objectives:');
+          const attempted = document.createElement('ul');
+          list(attempted, cycle.attempted_objectives);
+          article.append(attempted);
         }
         byId('cycles').append(article);
       }

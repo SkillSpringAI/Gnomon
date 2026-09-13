@@ -29,14 +29,32 @@ class AgentCycleRunner:
         *,
         scenario: FakeScenario = FakeScenario.HONEST,
         max_agents: int = 2,
+        objective_indices: list[int] | None = None,
     ) -> ResearchTask:
         network = FakeAgentNetwork(scenario)
         policy = AgentRunPolicy(max_agents=max_agents)
         repository = SqlAlchemyResearchTaskRepository(self.session)
         research = ResearchService(repository)
+        planned_task = repository.get(task_id)
+        planned_cycle = next(
+            (item for item in planned_task.cycles if item.number == cycle_number), None
+        )
+        if planned_cycle is None:
+            raise ValueError("Cycle does not exist")
+        selected_indices = objective_indices or [0]
+        if (
+            not selected_indices
+            or len(selected_indices) > 3
+            or len(set(selected_indices)) != len(selected_indices)
+            or any(
+                index < 0 or index >= len(planned_cycle.objectives)
+                for index in selected_indices
+            )
+        ):
+            raise ValueError("Objective selection must contain unique cycle objective indexes")
+        selected_objectives = [planned_cycle.objectives[index] for index in selected_indices]
         task = research.start_cycle(task_id, cycle_number, exclusive=True)
         cycle = next(cycle for cycle in task.cycles if cycle.number == cycle_number)
-        objective = cycle.objectives[0]
         evidence_ids: list[UUID] = []
         claim_ids: list[UUID] = []
 
@@ -67,6 +85,7 @@ class AgentCycleRunner:
                         evidence_ids=evidence_ids,
                         claim_ids=claim_ids,
                         unresolved_objectives=list(cycle.objectives),
+                        attempted_objectives=selected_objectives,
                     ),
                 )
             except TaskStateConflict:
@@ -84,7 +103,7 @@ class AgentCycleRunner:
                 question = AgentQuestion(
                     task_id=task_id,
                     agent_id=agent.id,
-                    question=objective,
+                    question="\n\n".join(selected_objectives),
                 )
                 source = AgentEvidenceService(
                     self.session, network, before_write=guard
@@ -107,6 +126,7 @@ class AgentCycleRunner:
                     evidence_ids=evidence_ids,
                     claim_ids=claim_ids,
                     unresolved_objectives=list(cycle.objectives),
+                    attempted_objectives=selected_objectives,
                 ),
                 require_active_task=True,
             )

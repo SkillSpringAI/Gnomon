@@ -94,6 +94,7 @@ class SqlAlchemyResearchTaskRepository:
                     evidence_ids=[str(item) for item in cycle.evidence_ids],
                     claim_ids=[str(item) for item in cycle.claim_ids],
                     unresolved_objectives=cycle.unresolved_objectives,
+                    attempted_objectives=cycle.attempted_objectives,
                 )
                 record.cycles.append(cycle_record)
             else:
@@ -109,6 +110,7 @@ class SqlAlchemyResearchTaskRepository:
                 cycle_record.evidence_ids = [str(item) for item in cycle.evidence_ids]
                 cycle_record.claim_ids = [str(item) for item in cycle.claim_ids]
                 cycle_record.unresolved_objectives = cycle.unresolved_objectives
+                cycle_record.attempted_objectives = cycle.attempted_objectives
 
     @contextmanager
     def edit(self, task_id: UUID) -> Iterator[ResearchTask]:
@@ -209,6 +211,7 @@ class SqlAlchemyResearchTaskRepository:
                     evidence_ids=[UUID(item) for item in cycle.evidence_ids],
                     claim_ids=[UUID(item) for item in cycle.claim_ids],
                     unresolved_objectives=cycle.unresolved_objectives,
+                    attempted_objectives=cycle.attempted_objectives,
                 )
                 for cycle in record.cycles
             ],
