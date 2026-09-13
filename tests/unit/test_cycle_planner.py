@@ -96,6 +96,7 @@ def test_agent_contradictions_prioritize_independent_corroboration():
     )
     agent_one = AgentIdentity(network="fake", platform_agent_id="one", display_name="One")
     agent_two = AgentIdentity(network="fake", platform_agent_id="two", display_name="Two")
+    subject_id = uuid4()
     first = AgentObservation(
         question_id=uuid4(), agent=agent_one, content="Supports the premise.",
         scenario="test", stance=ObservationStance.SUPPORTS,
@@ -114,6 +115,7 @@ def test_agent_contradictions_prioritize_independent_corroboration():
                 "agent_id": str(agent_one.id), "network": "fake",
                 "platform_agent_id": "one", "question_id": str(first.question_id),
                 "stance": first.stance.value, "duplicate_of": "",
+                "subject_id": str(subject_id),
             },
         ),
         SourceResponse(
@@ -124,6 +126,7 @@ def test_agent_contradictions_prioritize_independent_corroboration():
                 "agent_id": str(agent_two.id), "network": "fake",
                 "platform_agent_id": "two", "question_id": str(second.question_id),
                 "stance": second.stance.value, "duplicate_of": "",
+                "subject_id": str(subject_id),
             },
         ),
     ])

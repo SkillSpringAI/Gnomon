@@ -128,11 +128,19 @@ class ResearchService:
             task.updated_at = utc_now()
         return task
 
-    def start_cycle(self, task_id: UUID, cycle_number: int) -> ResearchTask:
+    def start_cycle(
+        self, task_id: UUID, cycle_number: int, *, exclusive: bool = False
+    ) -> ResearchTask:
         with self.repository.edit(task_id) as task:
             if task.status != TaskStatus.ACTIVE:
                 raise TaskStateConflict("Cycles require an active investigation")
             cycle = self._cycle(task, cycle_number)
+            if any(
+                item.status == CycleStatus.ACTIVE
+                and (exclusive or item.number != cycle_number)
+                for item in task.cycles
+            ):
+                raise TaskStateConflict("An investigation cycle is already active")
             if cycle.status == CycleStatus.ACTIVE:
                 return task
             if cycle.status != CycleStatus.PLANNED:
@@ -143,9 +151,12 @@ class ResearchService:
         return task
 
     def record_cycle_outcome(
-        self, task_id: UUID, cycle_number: int, outcome: CycleOutcomeCreate
+        self, task_id: UUID, cycle_number: int, outcome: CycleOutcomeCreate,
+        *, require_active_task: bool = False,
     ) -> ResearchTask:
         with self.repository.edit(task_id) as task:
+            if require_active_task and task.status != TaskStatus.ACTIVE:
+                raise TaskStateConflict("Investigation stopped during cycle execution")
             cycle = self._cycle(task, cycle_number)
             if cycle.status != CycleStatus.ACTIVE:
                 raise TaskStateConflict("Only an active cycle can record an outcome")

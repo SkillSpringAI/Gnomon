@@ -30,5 +30,10 @@ class AgentObservationComparison(BaseModel):
 
     observation_ids: list[UUID] = Field(max_length=100)
     comparisons: list[ObservationComparison] = Field(max_length=4950)
-    independent_agent_count: int = Field(ge=0, le=100)
-    note: str = "Comparisons describe response relationships; they do not establish truth."
+    distinct_agent_count: int = Field(ge=0, le=100)
+    omitted_observation_count: int = Field(default=0, ge=0)
+    note: str = (
+        "Comparisons describe response relationships; they do not establish truth. "
+        "Distinct identities do not establish independent evidence. Counts describe the "
+        "selected observations; at most the latest 100 are compared."
+    )

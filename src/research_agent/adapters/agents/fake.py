@@ -85,6 +85,7 @@ class FakeAgentNetwork:
         duplicate_of = previous.id if previous is not None else None
         observation = AgentObservation(
             question_id=question.id,
+            subject_id=question.subject_id,
             agent=identity,
             content=content,
             scenario=self.scenario.value,

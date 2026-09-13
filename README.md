@@ -21,7 +21,7 @@ logic; the local rule-based provider and optional AWS Bedrock provider are imple
 - Inspect redacted, task-scoped audit events for task creation, evidence, extraction, retrieval, lifecycle, cycle, memory, rollback, and security-denial operations.
 - Apply shared external-boundary guards for bounded untrusted text, provider data delimiters, and explicit capability allowlists.
 - Exercise a platform-neutral, read-only fake agent network with bounded adversarial scenarios; observations can be routed into ordinary `AGENT_MESSAGE` evidence with task-scoped provenance and audit events.
-- Reports reconstruct persisted agent observations and expose deterministic agreement, contradiction, duplicate, and independent-agent comparisons as non-authoritative context.
+- Reports reconstruct persisted agent observations and expose deterministic agreement, contradiction, duplicate relationships, and distinct-agent counts as non-authoritative context.
 
 ## Local setup
 
@@ -71,6 +71,38 @@ read-only operator surface for local use; it does not accept or store credential
 one investigation. It loads the structured report and can request a draft through the
 existing bounded API. It can also run one bounded local fake-agent cycle and display
 the resulting untrusted comparison metadata; it never presents a credential-entry form.
+
+The runner acquires only planned cycles and rejects execution while any cycle in the
+investigation is active. It checks lifecycle state between stages and under the task
+lock before evidence and claim commits. A pause does not interrupt an adapter call
+already in progress; its returned work is rejected if the investigation remains paused.
+Completed means the bounded collection pass finished. All research objectives remain
+unresolved because collecting unverified claims does not answer them.
+
+Expected acquisition failures record a blocked outcome with committed provenance.
+Unexpected exceptions attempt to record a failed outcome and still surface as errors.
+If the process dies or the database cannot persist recovery, inspect the snapshot and,
+after stopping the original worker, use
+`POST /investigations/{task_id}/cycles/{cycle_number}/outcome` to record a failed outcome
+with retained evidence/claim IDs and unresolved objectives. Then resume the investigation
+if necessary and plan a new cycle. There is no automatic crash recovery or retry of an
+active cycle.
+
+Agent comparisons match subjects by exact question text within an investigation.
+Different or unknown subjects cannot produce agreement or contradiction; explicit
+duplicate references describe reported copying regardless of subject. Original
+observation IDs are retained in source metadata and duplicate references are resolved
+to source IDs for reports and planning. Older records can recover duplicate identity
+from their generated agent URI, but missing question context is not inferred.
+
+The comparison response now uses `distinct_agent_count` in place of
+`independent_agent_count`; distinct identities do not prove independent evidence.
+It compares at most the latest 100 valid observations, ordered by stored observation
+time and source ID. `omitted_observation_count` discloses excluded older observations,
+the report states this limitation, and planning can propose reviewing omitted evidence.
+Comparison `observation_ids`, `left_id`, and `right_id` resolve to report source IDs.
+The full source inventory is retained. Malformed agent metadata is excluded from
+comparison, and all comparison signals remain untrusted.
 
 For local-only testing, `POST /provider/session` accepts a short-lived bearer token
 from loopback, stores it only in process memory, and returns an HttpOnly session cookie.

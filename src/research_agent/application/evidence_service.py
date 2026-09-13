@@ -1,5 +1,6 @@
 """Application service for sources, claims, provenance, and retry-safe writes."""
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from hashlib import sha256
 from typing import Literal
@@ -65,9 +66,12 @@ class EvidenceService:
         audit_event: EventType | None = None,
         audit_actor: Literal["local_operator", "agent_network"] = "local_operator",
         provenance: list[UUID] | None = None,
+        before_write: Callable[[], None] | None = None,
     ) -> SourceResponse:
         try:
             self.require_task(task_id, lock=True)
+            if before_write is not None:
+                before_write()
             content_hash = sha256(source.content.encode("utf-8")).hexdigest()
             record = self.session.scalar(
                 select(ResearchSourceRecord)

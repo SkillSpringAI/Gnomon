@@ -26,7 +26,20 @@ Lifecycle progress: audited compare-and-set status changes now support pause, re
 block, conclude, and abandon. Only active tasks may plan additional cycles. Row locks
 serialize lifecycle/cycle changes, existing cycle IDs are preserved, and tests cover
 fresh-session persistence, stale requests, races, and audit-failure rollback. Lifecycle
-controls do not yet cancel running work or enforce stopping criteria automatically.
+controls do not interrupt an adapter call already running or enforce stopping criteria
+automatically. The local agent runner now acquires a planned cycle exclusively, rejects
+overlapping runs across the investigation, and checks lifecycle state between stages
+and under the task lock before evidence/claim commits. Partial results survive blocked
+or failed runs. Unexpected exceptions attempt a failed outcome before propagating;
+process crashes and database outages still require operator recovery. Collection-only
+completion preserves every research objective as unresolved.
+
+Agent reports and planning share a single reconstruction path that resolves network
+observation references to persisted source IDs. Comparison subjects use exact question
+text within each investigation; unknown legacy subjects do not imply agreement or
+contradiction. Distinct agent counts do not imply independent evidence. Comparisons
+select the latest 100 valid observations deterministically, disclose omitted counts,
+and expose a planning reason for reviewing older observations beyond that bound.
 
 Next-cycle planning now prioritizes persisted counterevidence, missing/unresolved
 assessments, claims needing verification, unanalyzed sources, and open questions.

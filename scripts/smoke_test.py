@@ -36,7 +36,7 @@ def main() -> None:
             assert cycle["claim_ids"]
             report = client.get(f"/investigations/{task_id}/report")
             assert report.status_code == 200, report.text
-            assert report.json()["agent_comparison"]["independent_agent_count"] == 2
+            assert report.json()["agent_comparison"]["distinct_agent_count"] == 2
         finally:
             with engine.begin() as connection:
                 connection.execute(

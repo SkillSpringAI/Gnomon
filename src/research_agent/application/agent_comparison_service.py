@@ -8,7 +8,6 @@ from research_agent.domain.agent_comparison import (
     ObservationRelation,
 )
 from research_agent.domain.agents import AgentObservation, ObservationStance
-from research_agent.security.boundaries import BoundaryViolation
 
 
 class AgentComparisonService:
@@ -17,12 +16,10 @@ class AgentComparisonService:
     def compare(
         self, observations: Sequence[AgentObservation]
     ) -> AgentObservationComparison:
-        if len(observations) > 100:
-            raise BoundaryViolation("Agent comparison is limited to 100 observations")
-        if not observations:
-            return AgentObservationComparison(
-                observation_ids=[], comparisons=[], independent_agent_count=0
-            )
+        omitted = max(0, len(observations) - 100)
+        observations = sorted(
+            observations, key=lambda item: (item.observed_at, str(item.id))
+        )[-100:]
 
         comparisons: list[ObservationComparison] = []
         for index, left in enumerate(observations):
@@ -34,20 +31,23 @@ class AgentComparisonService:
                         relation=self._relation(left, right),
                     )
                 )
-        independent_agents = {
+        distinct_agents = {
             (observation.agent.network, observation.agent.platform_agent_id)
             for observation in observations
         }
         return AgentObservationComparison(
             observation_ids=[observation.id for observation in observations],
             comparisons=comparisons,
-            independent_agent_count=len(independent_agents),
+            distinct_agent_count=len(distinct_agents),
+            omitted_observation_count=omitted,
         )
 
     @staticmethod
     def _relation(left: AgentObservation, right: AgentObservation) -> ObservationRelation:
         if left.duplicate_of == right.id or right.duplicate_of == left.id:
             return ObservationRelation.DUPLICATE
+        if left.subject_id is None or left.subject_id != right.subject_id:
+            return ObservationRelation.UNRELATED
         if left.content == right.content:
             return ObservationRelation.AGREEMENT
         if {left.stance, right.stance} == {

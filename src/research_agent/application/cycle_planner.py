@@ -1,9 +1,8 @@
 """Deterministic, evidence-aware planning. No text inference or tool execution."""
 
-from uuid import UUID
 
 from research_agent.application.agent_comparison_service import AgentComparisonService
-from research_agent.domain.agents import AgentIdentity, AgentObservation, ObservationStance
+from research_agent.application.agent_observation_projection import agent_observations
 from research_agent.domain.research import (
     ClaimResponse,
     ClaimStatus,
@@ -126,8 +125,8 @@ def plan_cycle_objectives(
     for question in snapshot.open_questions:
         if question.strip():
             candidates.append((5, question.strip(), CyclePlanningBasis(reason="open_question")))
-    agent_observations = _agent_observations(snapshot)
-    comparison = AgentComparisonService().compare(agent_observations)
+    observations = agent_observations(snapshot)
+    comparison = AgentComparisonService().compare(observations)
     contradictions = [
         item for item in comparison.comparisons if item.relation.value == "contradiction"
     ]
@@ -143,13 +142,21 @@ def plan_cycle_objectives(
                 CyclePlanningBasis(reason="agent_contradiction", source_ids=source_ids),
             )
         )
-    elif agent_observations and comparison.independent_agent_count < 2:
-        source_ids = [observation.id for observation in agent_observations]
+    elif observations and comparison.distinct_agent_count < 2:
+        source_ids = comparison.observation_ids
         candidates.append(
             (
                 2,
-                "Seek an independent agent perspective on the recorded observation.",
+                "Seek another agent perspective and verify the independence of its evidence.",
                 CyclePlanningBasis(reason="agent_corroboration", source_ids=source_ids),
+            )
+        )
+    if comparison.omitted_observation_count:
+        candidates.append(
+            (
+                1,
+                "Review older agent observations omitted from the bounded comparison.",
+                CyclePlanningBasis(reason="agent_comparison_limit"),
             )
         )
     if not candidates and not snapshot.sources:
@@ -194,33 +201,3 @@ def plan_cycle_objectives(
             )
             basis.append(CyclePlanningBasis(reason="review_stopping_criteria"))
     return objectives, basis
-
-
-def _agent_observations(snapshot: InvestigationSnapshot) -> list[AgentObservation]:
-    observations: list[AgentObservation] = []
-    for source in snapshot.sources:
-        if source.source_type.value != "agent_message":
-            continue
-        metadata = source.source_metadata
-        try:
-            duplicate_of = UUID(metadata["duplicate_of"]) if metadata.get("duplicate_of") else None
-            observations.append(
-                AgentObservation(
-                    id=source.id,
-                    question_id=UUID(metadata["question_id"]),
-                    agent=AgentIdentity(
-                        id=UUID(metadata["agent_id"]),
-                        network=metadata["network"],
-                        platform_agent_id=metadata["platform_agent_id"],
-                        display_name=source.publisher or "Unknown agent",
-                    ),
-                    content=source.content,
-                    observed_at=source.observed_at,
-                    scenario="persisted",
-                    stance=ObservationStance(metadata["stance"]),
-                    duplicate_of=duplicate_of,
-                )
-            )
-        except (KeyError, TypeError, ValueError):
-            continue
-    return observations

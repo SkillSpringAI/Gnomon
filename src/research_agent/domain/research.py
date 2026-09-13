@@ -150,6 +150,7 @@ class CyclePlanningBasis(BaseModel):
         "missing_evidence",
         "incomplete_cycle",
         "agent_contradiction",
+        "agent_comparison_limit",
         "agent_corroboration",
     ]
     hypothesis_id: UUID | None = None

@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 from enum import StrEnum
-from uuid import UUID, uuid4
+from uuid import UUID, uuid4, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -47,6 +47,11 @@ class AgentQuestion(BaseModel):
     agent_id: UUID
     created_at: datetime = Field(default_factory=utc_now)
 
+    @property
+    def subject_id(self) -> UUID:
+        """Exact question text within this investigation; no semantic equivalence implied."""
+        return uuid5(self.task_id, self.question)
+
 
 class AgentObservation(BaseModel):
     """Untrusted agent output, retained as an observation rather than a claim."""
@@ -55,6 +60,7 @@ class AgentObservation(BaseModel):
 
     id: UUID = Field(default_factory=uuid4)
     question_id: UUID
+    subject_id: UUID | None = None
     agent: AgentIdentity
     content: str = Field(min_length=1, max_length=20_000)
     observed_at: datetime = Field(default_factory=utc_now)

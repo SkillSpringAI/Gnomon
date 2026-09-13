@@ -1,5 +1,6 @@
 """Acquire agent observations and route them through ordinary evidence storage."""
 
+from collections.abc import Callable
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
@@ -16,11 +17,13 @@ class AgentEvidenceService:
     """Keep external agents below the evidence and audit boundaries."""
 
     def __init__(
-        self, session: Session, network: AgentNetwork, operation_id: UUID | None = None
+        self, session: Session, network: AgentNetwork, operation_id: UUID | None = None,
+        *, before_write: Callable[[], None] | None = None,
     ) -> None:
         self.session = session
         self.network = network
         self.operation_id = operation_id or uuid4()
+        self.before_write = before_write
 
     def ask_and_record(self, question: AgentQuestion) -> SourceResponse:
         evidence = EvidenceService(self.session, self.operation_id)
@@ -60,6 +63,8 @@ class AgentEvidenceService:
                 "network": observation.agent.network,
                 "platform_agent_id": observation.agent.platform_agent_id,
                 "question_id": str(observation.question_id),
+                "observation_id": str(observation.id),
+                "subject_id": str(question.subject_id),
                 "stance": observation.stance.value,
                 "duplicate_of": str(observation.duplicate_of)
                 if observation.duplicate_of is not None
@@ -72,4 +77,5 @@ class AgentEvidenceService:
             audit_event=EventType.AGENT_OBSERVATION_RECORDED,
             audit_actor="agent_network",
             provenance=[observation.agent.id, question.id],
+            before_write=self.before_write,
         )

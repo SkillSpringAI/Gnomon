@@ -7,9 +7,9 @@ from sqlalchemy.orm import Session
 from research_agent.adapters.agents.fake import FakeAgentNetwork, FakeScenario
 from research_agent.application.agent_evidence_service import AgentEvidenceService
 from research_agent.application.claim_extraction_service import ClaimExtractionService
-from research_agent.application.research_service import ResearchService
+from research_agent.application.research_service import ResearchService, TaskStateConflict
 from research_agent.domain.agents import AgentQuestion
-from research_agent.domain.research import CycleOutcomeCreate, ResearchTask
+from research_agent.domain.research import CycleOutcomeCreate, CycleStatus, ResearchTask, TaskStatus
 from research_agent.persistence.repositories import SqlAlchemyResearchTaskRepository
 from research_agent.ports.agent_network import AgentNetworkError
 from research_agent.security.agent_policy import AgentRunPolicy
@@ -34,24 +34,66 @@ class AgentCycleRunner:
         policy = AgentRunPolicy(max_agents=max_agents)
         repository = SqlAlchemyResearchTaskRepository(self.session)
         research = ResearchService(repository)
-        task = research.start_cycle(task_id, cycle_number)
+        task = research.start_cycle(task_id, cycle_number, exclusive=True)
         cycle = next(cycle for cycle in task.cycles if cycle.number == cycle_number)
         objective = cycle.objectives[0]
-        policy.authorize_discovery()
-        agents = network.discover(limit=policy.max_agents)
         evidence_ids: list[UUID] = []
         claim_ids: list[UUID] = []
+
+        def guard() -> None:
+            current = repository.get(task_id, for_update=True)
+            current_cycle = next(c for c in current.cycles if c.number == cycle_number)
+            if current.status != TaskStatus.ACTIVE or current_cycle.status != CycleStatus.ACTIVE:
+                raise TaskStateConflict("Investigation or cycle stopped during execution")
+
+        def checkpoint() -> None:
+            # Release the lock before adapter work so pause can proceed while it runs.
+            try:
+                guard()
+            finally:
+                self.session.rollback()
+
+        def finish_failure(status: str) -> ResearchTask:
+            self.session.rollback()
+            # A manual outcome may have stopped this run. Never overwrite it.
+            try:
+                return research.record_cycle_outcome(
+                    task_id, cycle_number,
+                    CycleOutcomeCreate(
+                        status="failed" if status == "failed" else "blocked",
+                        result_summary=(
+                            "Agent run stopped; review retained evidence and objectives."
+                        ),
+                        evidence_ids=evidence_ids,
+                        claim_ids=claim_ids,
+                        unresolved_objectives=list(cycle.objectives),
+                    ),
+                )
+            except TaskStateConflict:
+                return repository.get(task_id)
+
         try:
+            checkpoint()
+            policy.authorize_discovery()
+            agents = network.discover(limit=policy.max_agents)
+            if not agents:
+                raise AgentNetworkError("No agents available")
             for question_number, agent in enumerate(agents, start=1):
+                checkpoint()
                 policy.authorize_question(question_number)
                 question = AgentQuestion(
                     task_id=task_id,
                     agent_id=agent.id,
                     question=objective,
                 )
-                source = AgentEvidenceService(self.session, network).ask_and_record(question)
+                source = AgentEvidenceService(
+                    self.session, network, before_write=guard
+                ).ask_and_record(question)
                 evidence_ids.append(source.id)
-                claims = ClaimExtractionService(self.session).extract_for_source(task_id, source.id)
+                checkpoint()
+                claims = ClaimExtractionService(self.session).extract_for_source(
+                    task_id, source.id, before_write=guard
+                )
                 claim_ids.extend(claim.id for claim in claims)
             return research.record_cycle_outcome(
                 task_id,
@@ -64,19 +106,18 @@ class AgentCycleRunner:
                     ),
                     evidence_ids=evidence_ids,
                     claim_ids=claim_ids,
+                    unresolved_objectives=list(cycle.objectives),
                 ),
+                require_active_task=True,
             )
-        except (AgentNetworkError, BoundaryViolation, ValueError):
-            # Preserve the bounded failure as a cycle outcome while retaining no
-            # provider/agent exception text in the persisted summary.
-            return research.record_cycle_outcome(
-                task_id,
-                cycle_number,
-                CycleOutcomeCreate(
-                    status="blocked",
-                    result_summary="Agent acquisition did not complete within the bounded run.",
-                    evidence_ids=evidence_ids,
-                    claim_ids=claim_ids,
-                    unresolved_objectives=[objective],
-                ),
-            )
+        except (AgentNetworkError, BoundaryViolation, ValueError, TaskStateConflict):
+            return finish_failure("blocked")
+        except Exception as error:
+            # Unexpected failures remain errors, but do not strand an active cycle
+            # when the database is available for the recovery transaction.
+            try:
+                finish_failure("failed")
+            except Exception:
+                self.session.rollback()
+                error.add_note("Cycle outcome recovery failed; operator recovery is required.")
+            raise

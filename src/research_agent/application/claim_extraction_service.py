@@ -1,5 +1,6 @@
 """Application service for claim extraction from stored sources."""
 
+from collections.abc import Callable
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
@@ -25,7 +26,10 @@ class ClaimExtractionService:
         self.session = session
         self.extractor = extractor or RuleBasedClaimExtractor()
 
-    def extract_for_source(self, task_id: UUID, source_id: UUID) -> list[ClaimResponse]:
+    def extract_for_source(
+        self, task_id: UUID, source_id: UUID,
+        *, before_write: Callable[[], None] | None = None,
+    ) -> list[ClaimResponse]:
         source = self.session.scalar(
             select(ResearchSourceRecord).where(
                 ResearchSourceRecord.id == source_id,
@@ -53,6 +57,8 @@ class ClaimExtractionService:
             proposals = self.extractor.extract(source_response)
             evidence_service = EvidenceService(self.session, operation_id, actor="claim_extractor")
             evidence_service.require_task(task_id, lock=True)
+            if before_write is not None:
+                before_write()
             claims: list[ClaimResponse] = []
             seen: set[UUID] = set()
             for proposal in proposals:

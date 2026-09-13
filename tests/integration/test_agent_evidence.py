@@ -43,7 +43,7 @@ def test_prompt_injection_observation_is_persisted_as_inert_agent_evidence() -> 
             assert client.get(f"/investigations/{task_id}/snapshot").json()["claims"] == []
             report = client.get(f"/investigations/{task_id}/report").json()
             assert report["agent_comparison"]["observation_ids"] == [str(source.id)]
-            assert report["agent_comparison"]["independent_agent_count"] == 1
+            assert report["agent_comparison"]["distinct_agent_count"] == 1
         finally:
             with engine.begin() as connection:
                 connection.execute(
@@ -75,7 +75,7 @@ def test_local_agent_cycle_runs_evidence_claims_report_and_next_plan() -> None:
 
             report = client.get(f"/investigations/{task_id}/report").json()
             assert len(report["sources"]) == 2
-            assert report["agent_comparison"]["independent_agent_count"] == 2
+            assert report["agent_comparison"]["distinct_agent_count"] == 2
             next_cycle = client.post(f"/investigations/{task_id}/cycles")
             assert next_cycle.status_code == 200, next_cycle.text
         finally:
