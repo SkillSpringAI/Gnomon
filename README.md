@@ -104,6 +104,16 @@ Comparison `observation_ids`, `left_id`, and `right_id` resolve to report source
 The full source inventory is retained. Malformed agent metadata is excluded from
 comparison, and all comparison signals remain untrusted.
 
+New cycle planning bases include an `evidence_fingerprint` of the relevant persisted
+evidence state. Completing an objective suppresses the same objective and evidence
+basis; changed referenced claims, assessments, or sources can reopen it. General
+questions and missing-evidence work use the broader investigation evidence state.
+Historical plans remain unchanged, and legacy completions without a fingerprint
+conservatively allow another review. Unresolved objectives carry forward from completed,
+blocked, and failed cycles until a later completion resolves them. Planning remains
+bounded to three objectives and falls back to an operator stopping-criteria review
+when other work has been completed; it does not conclude the investigation automatically.
+
 For local-only testing, `POST /provider/session` accepts a short-lived bearer token
 from loopback, stores it only in process memory, and returns an HttpOnly session cookie.
 `DELETE /provider/session` clears it. This endpoint is enabled automatically for local,

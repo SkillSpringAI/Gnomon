@@ -1,5 +1,7 @@
 """Deterministic, evidence-aware planning. No text inference or tool execution."""
 
+import json
+from hashlib import sha256
 
 from research_agent.application.agent_comparison_service import AgentComparisonService
 from research_agent.application.agent_observation_projection import agent_observations
@@ -14,6 +16,49 @@ from research_agent.domain.research import (
 from research_agent.domain.snapshot import InvestigationSnapshot
 
 
+def _identity(objective: str, basis: CyclePlanningBasis) -> tuple[str, str]:
+    payload = basis.model_dump(mode="json")
+    payload["claim_ids"] = sorted(set(payload["claim_ids"]))
+    payload["source_ids"] = sorted(set(payload["source_ids"]))
+    return objective.strip(), json.dumps(payload, sort_keys=True)
+
+
+def _with_evidence(
+    basis: CyclePlanningBasis, snapshot: InvestigationSnapshot,
+) -> CyclePlanningBasis:
+    """Persist a digest of the relevant evidence state, not the raw evidence."""
+    if basis.evidence_fingerprint is not None:
+        return basis
+    claim_ids = set(basis.claim_ids)
+    source_ids = set(basis.source_ids)
+    if basis.source_id is not None:
+        source_ids.add(basis.source_id)
+    broad = basis.reason in {
+        "missing_assessment", "missing_evidence", "open_question", "incomplete_cycle",
+        "review_stopping_criteria", "agent_comparison_limit",
+    }
+    claims = [item for item in snapshot.claims if broad or item.id in claim_ids]
+    source_ids.update(link.source_id for claim in claims for link in claim.source_links)
+    sources = [item for item in snapshot.sources if broad or item.id in source_ids]
+    hypotheses = [
+        item for item in snapshot.hypotheses
+        if broad or item.hypothesis.id == basis.hypothesis_id
+    ]
+    payload = {
+        "claims": [
+            item.model_dump(mode="json") for item in sorted(claims, key=lambda c: str(c.id))
+        ],
+        "sources": [
+            item.model_dump(mode="json") for item in sorted(sources, key=lambda s: str(s.id))
+        ],
+        "hypotheses": [item.model_dump(mode="json") for item in sorted(
+            hypotheses, key=lambda h: str(h.hypothesis.id)
+        )],
+    }
+    digest = sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+    return basis.model_copy(update={"evidence_fingerprint": digest})
+
+
 def has_counterevidence(claim: ClaimResponse) -> bool:
     return claim.status in {ClaimStatus.CONTESTED, ClaimStatus.CONTRADICTED} or any(
         link.support_type == SupportType.CONTRADICTING for link in claim.source_links
@@ -24,20 +69,30 @@ def plan_cycle_objectives(
     snapshot: InvestigationSnapshot,
 ) -> tuple[list[str], list[CyclePlanningBasis]]:
     candidates: list[tuple[int, str, CyclePlanningBasis]] = []
-    completed_objectives = {
-        objective
-        for cycle in snapshot.task.cycles
-        if cycle.status == CycleStatus.COMPLETED
-        for objective in cycle.objectives
-        if objective not in cycle.unresolved_objectives
-    }
-    for cycle in snapshot.task.cycles:
-        if cycle.status in {CycleStatus.BLOCKED, CycleStatus.FAILED}:
-            for objective in cycle.unresolved_objectives or cycle.objectives:
-                if objective.strip():
-                    candidates.append(
-                        (1, objective.strip(), CyclePlanningBasis(reason="incomplete_cycle"))
-                    )
+    completed: set[tuple[str, str]] = set()
+    outstanding: dict[str, CyclePlanningBasis] = {}
+    for cycle in sorted(snapshot.task.cycles, key=lambda item: item.number):
+        if cycle.status not in {CycleStatus.COMPLETED, CycleStatus.BLOCKED, CycleStatus.FAILED}:
+            continue
+        unresolved = {item.strip() for item in cycle.unresolved_objectives}
+        if cycle.status != CycleStatus.COMPLETED and not unresolved:
+            unresolved = {item.strip() for item in cycle.objectives}
+        for index, raw_objective in enumerate(cycle.objectives):
+            objective = raw_objective.strip()
+            reason = (
+                cycle.planning_basis[index] if index < len(cycle.planning_basis)
+                else CyclePlanningBasis(reason="incomplete_cycle")
+            )
+            identity = _identity(objective, reason)
+            if objective in unresolved:
+                completed.discard(identity)
+                outstanding[objective] = reason
+            elif cycle.status == CycleStatus.COMPLETED:
+                completed.add(identity)
+                outstanding.pop(objective, None)
+        for objective in unresolved:
+            if objective and objective not in {item.strip() for item in cycle.objectives}:
+                outstanding[objective] = CyclePlanningBasis(reason="incomplete_cycle")
     addressed_claims = set()
     claims = {claim.id: claim for claim in snapshot.claims}
     for row in snapshot.hypotheses:
@@ -176,15 +231,21 @@ def plan_cycle_objectives(
             )
         )
 
+    current_objectives = {objective for _, objective, _ in candidates}
+    for objective, reason in outstanding.items():
+        if objective and objective not in current_objectives:
+            candidates.append((1, objective, reason))
+
     objectives: list[str] = []
     basis: list[CyclePlanningBasis] = []
     seen = set()
     # Stable sorting preserves brief and snapshot order within a priority.
-    for _, objective, reason in sorted(candidates, key=lambda item: item[0]):
-        if objective in completed_objectives:
-            continue
-        identity = (objective, reason.hypothesis_id, tuple(reason.claim_ids), reason.source_id)
-        if identity in seen:
+    for _, objective, reason in sorted(
+        candidates, key=lambda item: min(item[0], 1) if item[1] in outstanding else item[0]
+    ):
+        reason = _with_evidence(reason, snapshot)
+        identity = _identity(objective, reason)
+        if identity in completed or identity in seen:
             continue
         seen.add(identity)
         objectives.append(objective)
@@ -192,12 +253,8 @@ def plan_cycle_objectives(
         if len(objectives) == 3:
             break
     if not objectives:
-        if not snapshot.sources:
-            objectives.append("Gather initial sources relevant to the investigation objective.")
-            basis.append(CyclePlanningBasis(reason="missing_evidence"))
-        else:
-            objectives.append(
-                "Review the stopping criteria and decide whether more evidence is needed."
-            )
-            basis.append(CyclePlanningBasis(reason="review_stopping_criteria"))
-    return objectives, basis
+        objectives.append(
+            "Review the stopping criteria and decide whether more evidence is needed."
+        )
+        basis.append(CyclePlanningBasis(reason="review_stopping_criteria"))
+    return objectives, [_with_evidence(reason, snapshot) for reason in basis]

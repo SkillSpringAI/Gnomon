@@ -158,6 +158,7 @@ class CyclePlanningBasis(BaseModel):
     claim_ids: list[UUID] = Field(default_factory=list)
     source_id: UUID | None = None
     source_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    evidence_fingerprint: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 
 class ResearchCycle(BaseModel):

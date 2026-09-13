@@ -41,6 +41,14 @@ contradiction. Distinct agent counts do not imply independent evidence. Comparis
 select the latest 100 valid observations deterministically, disclose omitted counts,
 and expose a planning reason for reviewing older observations beyond that bound.
 
+Planning completion now matches objective text, reason, evidence identifiers, and a
+stored digest of relevant evidence state. Unchanged completed work is suppressed;
+new referenced sources, claim versions, or replaced assessments can reopen the review.
+Unresolved objectives carry forward from collection-only completed cycles as well as
+blocked/failed cycles. Earlier plans are not rewritten; legacy bases without a digest
+remain readable and conservatively permit another review. Tests cover fresh-session
+continuation, unchanged and unrelated evidence, changed evidence, and explicit completion.
+
 Next-cycle planning now prioritizes persisted counterevidence, missing/unresolved
 assessments, claims needing verification, unanalyzed sources, and open questions.
 It stores at most three objectives with per-objective reasons and evidence IDs via

@@ -13,6 +13,7 @@ from research_agent.domain.research import (
     ClaimStatus,
     CycleStatus,
     ResearchBrief,
+    ResearchCycle,
     SourceResponse,
     SourceType,
     utc_now,
@@ -136,3 +137,72 @@ def test_agent_contradictions_prioritize_independent_corroboration():
     )
     assert basis[0].reason == "agent_contradiction"
     assert basis[0].source_ids == sorted([first.id, second.id], key=str)
+
+
+def test_claim_version_change_reopens_review_with_same_claim_id():
+    repo = InMemoryResearchTaskRepository()
+    task = ResearchService(repo).create_task(
+        ResearchBrief(title="Versions", objective="Check claims.")
+    )
+    snapshot = repo.planning_snapshot(task.id)
+    claim = ClaimResponse(
+        id=uuid4(), task_id=task.id, statement="A proposition.", confidence=0.5,
+        status=ClaimStatus.UNVERIFIED, source_links=[], created_at=utc_now(),
+    )
+    snapshot.claims = [claim]
+    objectives, basis = plan_cycle_objectives(snapshot)
+    snapshot.task.cycles.append(ResearchCycle(
+        number=2, objectives=objectives, planning_basis=basis,
+        status=CycleStatus.COMPLETED, methods=[],
+    ))
+    assert plan_cycle_objectives(snapshot)[1][0].reason == "review_stopping_criteria"
+    snapshot.claims = [claim.model_copy(update={"version": 2, "confidence": 0.6})]
+    reopened, new_basis = plan_cycle_objectives(snapshot)
+    assert reopened == objectives
+    assert new_basis[0].claim_ids == basis[0].claim_ids
+    assert new_basis[0].evidence_fingerprint != basis[0].evidence_fingerprint
+
+
+def test_completed_missing_evidence_does_not_repeat_through_fallback():
+    repo = InMemoryResearchTaskRepository()
+    task = ResearchService(repo).create_task(
+        ResearchBrief(title="Empty", objective="Find sources.")
+    )
+    snapshot = repo.planning_snapshot(task.id)
+    objectives, basis = plan_cycle_objectives(snapshot)
+    assert basis[0].reason == "missing_evidence"
+    snapshot.task.cycles.append(ResearchCycle(
+        number=2, objectives=objectives, planning_basis=basis,
+        status=CycleStatus.COMPLETED, methods=[],
+    ))
+    assert plan_cycle_objectives(snapshot)[1][0].reason == "review_stopping_criteria"
+
+
+def test_legacy_completion_without_fingerprint_allows_evidence_review():
+    repo = InMemoryResearchTaskRepository()
+    task = ResearchService(repo).create_task(
+        ResearchBrief(title="Legacy", objective="Find sources.")
+    )
+    snapshot = repo.planning_snapshot(task.id)
+    objectives, basis = plan_cycle_objectives(snapshot)
+    snapshot.task.cycles.append(ResearchCycle(
+        number=2, objectives=objectives, methods=[],
+        planning_basis=[item.model_copy(update={"evidence_fingerprint": None}) for item in basis],
+        status=CycleStatus.COMPLETED,
+    ))
+    assert plan_cycle_objectives(snapshot)[0] == objectives
+
+
+def test_evidence_order_does_not_change_planning_fingerprint():
+    repo = InMemoryResearchTaskRepository()
+    task = ResearchService(repo).create_task(ResearchBrief(
+        title="Stable", objective="Review evidence.", questions=[{"question": "What remains?"}],
+    ))
+    snapshot = repo.planning_snapshot(task.id)
+    snapshot.claims = [ClaimResponse(
+        id=uuid4(), task_id=task.id, statement=f"Claim {index}", confidence=0.5,
+        status=ClaimStatus.SUPPORTED, source_links=[], created_at=utc_now(),
+    ) for index in range(2)]
+    objectives, basis = plan_cycle_objectives(snapshot)
+    snapshot.claims.reverse()
+    assert plan_cycle_objectives(snapshot) == (objectives, basis)

@@ -127,3 +127,22 @@ def test_missing_assessments_are_bounded_and_repeat_until_evidence_changes(plann
     assert first["planning_basis"] == second["planning_basis"]
     assert len(first["objectives"]) == 3
     assert all(basis["reason"] == "missing_assessment" for basis in first["planning_basis"])
+
+
+def test_replaced_assessment_reopens_completed_review(planning_task):
+    client, task = planning_task
+    _, claim = source_and_claim(client, task["id"])
+    assess(client, task, 0, claim, "mixed", "contradicting")
+    first = plan(client, task["id"])
+    url = f"/investigations/{task['id']}/cycles/{first['number']}"
+    assert client.post(f"{url}/start").status_code == 200
+    assert client.post(f"{url}/outcome", json={
+        "status": "completed", "result_summary": "Reviewed the saved assessment."
+    }).status_code == 200
+    unchanged = plan(client, task["id"])
+    assert "contradictory_evidence" not in [item["reason"] for item in unchanged["planning_basis"]]
+    replacement = assess(client, task, 0, claim, "mixed", "contradicting")
+    updated = plan(client, task["id"])
+    assert updated["objectives"][0] == first["objectives"][0]
+    assert updated["planning_basis"][0]["assessment_id"] == replacement["id"]
+    assert updated["planning_basis"][0] != first["planning_basis"][0]
