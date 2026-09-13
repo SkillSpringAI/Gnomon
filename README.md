@@ -74,7 +74,12 @@ existing bounded API. It shows investigation state, cycle outcomes, unresolved o
 and untrusted comparison metadata. Controls support pause/resume, planning the next
 cycle, and running the next planned local fake-agent cycle. Actions are disabled while
 busy or unavailable in the loaded state; failed requests refresh state before further
-actions. It never presents a credential-entry form.
+actions. Agent runs allow selecting up to three saved objectives. Web collection accepts
+one or two explicit HTTP(S) URLs, each mapped to an objective, through the existing
+`run-sources` endpoint. Domains must already be enabled in the source registry.
+Selections survive a refresh of the same plan and reset when the planned cycle changes.
+Cycle history expands to show retained sources and claims by objective, including partial
+or blocked results. It never presents a credential-entry form.
 
 The runner acquires only planned cycles and rejects execution while any cycle in the
 investigation is active. It checks lifecycle state between stages and under the task

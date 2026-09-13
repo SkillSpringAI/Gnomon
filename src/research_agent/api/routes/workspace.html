@@ -6,13 +6,18 @@
   <title>Investigation workspace</title>
   <style>
     :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
-    body { margin: 2rem auto; max-width: 58rem; padding: 0 1rem; }
+    body { margin: 2rem auto; max-width: 58rem; padding: 0 1rem; overflow-wrap: anywhere; }
     button { cursor: pointer; padding: .55rem .8rem; margin: .25rem; }
     button:disabled { cursor: not-allowed; opacity: .6; }
     pre { white-space: pre-wrap; overflow-wrap: anywhere; }
     article, details { border: 1px solid #8885; border-radius: .6rem; padding: 1rem; margin: 1rem 0; }
     .muted { opacity: .75; } .error { color: #d74336; }
     li { margin: .4rem 0; }
+    fieldset { min-inline-size: 0; border: 1px solid #8885; border-radius: .6rem; margin: 1rem 0; padding: 1rem; }
+    label { display: block; margin: .6rem 0; }
+    input[type=url], select { box-sizing: border-box; width: 100%; padding: .55rem; font: inherit; }
+    .source-row { margin: 1rem 0; }
+    a { overflow-wrap: anywhere; }
   </style>
 </head>
 <body>
@@ -22,13 +27,40 @@
   <p><a href="/provider">Provider status</a></p>
   <nav aria-label="Investigation actions">
     <button id="refresh" type="button">Refresh report</button>
-    <button id="run-cycle" type="button" disabled>Run local agent cycle</button>
     <button id="plan-cycle" type="button" disabled>Plan next cycle</button>
     <button id="lifecycle" type="button" disabled>Pause investigation</button>
     <button id="draft" type="button" disabled>Generate draft</button>
   </nav>
   <p id="availability" class="muted"></p>
   <p id="message" class="muted" role="status" aria-live="polite"></p>
+  <fieldset id="collection" disabled>
+    <legend id="collection-title">Collect evidence</legend>
+    <p>Choose one collection method for the next planned cycle.</p>
+    <h3>Local agents</h3>
+    <p>Select up to three objectives. Returned evidence remains unverified.</p>
+    <div id="objective-choices"></div>
+    <button id="run-cycle" type="button" disabled>Run local agent cycle</button>
+    <h3>Web sources</h3>
+    <p>Enter one or two HTTP or HTTPS URLs and choose an objective for each.
+      Source domains must already be enabled in the source registry. A rejected retrieval
+      records a blocked outcome; review it before planning another cycle.</p>
+    <form id="source-form">
+      <div class="source-row">
+        <label for="source-url-0">Source URL 1</label>
+        <input id="source-url-0" type="url" maxlength="2000" placeholder="https://example.org/article">
+        <label for="source-objective-0">Objective for source 1</label>
+        <select id="source-objective-0"></select>
+      </div>
+      <div class="source-row">
+        <label for="source-url-1">Source URL 2 (optional)</label>
+        <input id="source-url-1" type="url" maxlength="2000" placeholder="https://example.org/another-article">
+        <label for="source-objective-1">Objective for source 2</label>
+        <select id="source-objective-1"></select>
+      </div>
+      <p id="source-validation" class="muted" aria-live="polite"></p>
+      <button id="run-sources" type="submit" disabled>Collect web sources</button>
+    </form>
+  </fieldset>
   <h2>Cycles</h2>
   <p>Completion means the collection pass finished. Research objectives may remain unresolved.</p>
   <section id="cycles" aria-label="Cycle history"></section>
@@ -41,13 +73,72 @@
     const byId = id => document.getElementById(id);
     let report = null;
     let busy = false;
+    let selectionKey = null;
+    const selectedObjectives = () => Array.from(
+      byId('objective-choices').querySelectorAll('input:checked'), input => Number(input.value)
+    );
+    function sourceSelection() {
+      const sources = [];
+      for (const index of [0, 1]) {
+        const uri = byId(`source-url-${index}`).value.trim();
+        if (!uri) continue;
+        try {
+          const parsed = new URL(uri);
+          if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password)
+            return { error: 'Use HTTP or HTTPS URLs without embedded credentials.' };
+        } catch { return { error: 'Enter a complete HTTP or HTTPS URL.' }; }
+        const value = byId(`source-objective-${index}`).value;
+        if (value === '') return { error: 'Choose an objective for each source.' };
+        sources.push({ uri, objective_index: Number(value) });
+      }
+      return sources.length ? { sources } : { error: 'Enter at least one source URL.' };
+    }
+    function renderSelection() {
+      const planned = plannedCycle();
+      const key = planned ? JSON.stringify([planned.number, planned.objectives]) : null;
+      byId('collection-title').textContent = planned
+        ? `Collect evidence for cycle ${planned.number}` : 'Collect evidence — no planned cycle';
+      if (selectionKey === key) return;
+      selectionKey = key;
+      byId('objective-choices').replaceChildren();
+      for (const index of [0, 1]) {
+        byId(`source-url-${index}`).value = '';
+        const select = byId(`source-objective-${index}`);
+        select.replaceChildren();
+        const empty = document.createElement('option');
+        empty.value = ''; empty.textContent = 'Choose an objective'; select.append(empty);
+        for (const [number, text] of (planned?.objectives || []).entries()) {
+          const option = document.createElement('option');
+          option.value = String(number); option.textContent = `${number + 1}. ${text}`;
+          select.append(option);
+        }
+      }
+      for (const [index, text] of (planned?.objectives || []).entries()) {
+        const label = document.createElement('label');
+        const input = document.createElement('input');
+        input.type = 'checkbox'; input.value = String(index); input.checked = index === 0;
+        input.addEventListener('change', controls);
+        label.append(input, document.createTextNode(` ${index + 1}. ${text}`));
+        byId('objective-choices').append(label);
+      }
+    }
     const plannedCycle = () => report?.cycles.find(cycle => cycle.status === 'planned');
     function controls() {
       const active = report?.task_status === 'active';
       const running = report?.cycles.some(cycle => cycle.status === 'active');
       const planned = plannedCycle();
       byId('refresh').disabled = busy;
-      byId('run-cycle').disabled = busy || !active || running || !planned;
+      const unavailable = busy || !active || running || !planned;
+      byId('collection').disabled = unavailable;
+      byId('collection').hidden = !!report && !planned;
+      const selected = selectedObjectives();
+      byId('run-cycle').disabled = unavailable || !selected.length || selected.length > 3;
+      for (const input of byId('objective-choices').querySelectorAll('input')) {
+        input.disabled = unavailable || (!input.checked && selected.length >= 3);
+      }
+      const source = sourceSelection();
+      byId('run-sources').disabled = unavailable || !!source.error;
+      byId('source-validation').textContent = source.error || `${source.sources.length} source(s) ready.`;
       byId('plan-cycle').disabled = busy || !active || running || !!planned;
       byId('lifecycle').disabled = busy || !['active', 'paused'].includes(report?.task_status);
       byId('lifecycle').textContent = report?.task_status === 'paused'
@@ -68,6 +159,7 @@
       const response = await fetch(`/investigations/${taskId}${path}`, options);
       if (!response.ok) throw new Error(response.status === 409
         ? 'The investigation changed. Review the refreshed state before continuing.'
+        : response.status === 422 ? 'Check the selected objectives, URLs, and permitted research methods.'
         : `Request failed (${response.status}).`);
       return response.json();
     }
@@ -87,6 +179,7 @@
       byId('title').textContent = report.title;
       byId('summary').textContent = report.summary;
       byId('status').textContent = `Investigation status: ${report.task_status}`;
+      renderSelection();
       byId('cycles').replaceChildren();
       for (const cycle of report.cycles) {
         const article = document.createElement('article');
@@ -109,6 +202,26 @@
           const attempted = document.createElement('ul');
           list(attempted, cycle.attempted_objectives);
           article.append(attempted);
+        }
+        if (cycle.objective_results?.length) {
+          const details = document.createElement('details');
+          const summary = document.createElement('summary');
+          summary.textContent = 'Evidence by objective'; details.append(summary);
+          paragraph(details, 'Collection associations do not establish that an objective is resolved.');
+          for (const result of cycle.objective_results) {
+            paragraph(details, `${result.objective_index + 1}. ${cycle.objectives[result.objective_index]}`);
+            if (!result.source_ids.length) paragraph(details, 'Attempted; no source was retained.');
+            for (const id of result.source_ids) {
+              const source = report.sources.find(item => item.id === id);
+              paragraph(details, `Source: ${source?.title || id}${source?.uri ? ` — ${source.uri}` : ''}`);
+            }
+            for (const id of result.claim_ids) {
+              const claim = report.claims.find(item => item.id === id);
+              paragraph(details, `Claim: ${claim?.statement || id} (${claim?.status || 'status unavailable'})`);
+            }
+            if (!result.claim_ids.length) paragraph(details, 'No claims retained for this objective.');
+          }
+          article.append(details);
         }
         byId('cycles').append(article);
       }
@@ -149,14 +262,34 @@
     byId('run-cycle').addEventListener('click', () => {
       if (byId('run-cycle').disabled) return;
       const number = plannedCycle().number;
+      const objective_indices = selectedObjectives();
       action(async () => {
         const result = await request(`/cycles/${number}/run`, {
           method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ scenario: 'honest', max_agents: 2 })
+          body: JSON.stringify({ scenario: 'honest', max_agents: 2, objective_indices })
         });
         const cycle = result.task.cycles.find(item => item.number === number);
         return `Cycle ${number}: ${cycle.status}. Review its outcome and unresolved objectives.`;
       }, 'Running local agent cycle…');
+    });
+    for (const index of [0, 1]) {
+      byId(`source-url-${index}`).addEventListener('input', controls);
+      byId(`source-objective-${index}`).addEventListener('change', controls);
+    }
+    byId('source-form').addEventListener('submit', event => {
+      event.preventDefault();
+      if (byId('run-sources').disabled) return;
+      const number = plannedCycle().number;
+      const selection = sourceSelection();
+      if (selection.error) { message(selection.error, true); return; }
+      action(async () => {
+        const result = await request(`/cycles/${number}/run-sources`, {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ sources: selection.sources })
+        });
+        const cycle = result.task.cycles.find(item => item.number === number);
+        return `Cycle ${number}: ${cycle.status}. Review retained evidence and unresolved objectives.`;
+      }, 'Collecting web sources…');
     });
     byId('plan-cycle').addEventListener('click', () => {
       if (byId('plan-cycle').disabled) return;

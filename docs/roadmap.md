@@ -75,7 +75,9 @@ and persists per-objective source/claim associations through migration 009. Norm
 failure and pause recovery retain partial mappings; reports expose the same stored
 associations. Validation rejects invalid objectives and provenance references. Historical
 mappings remain unknown, and collection associations do not resolve research objectives.
-Workspace collection controls and explicit evidence-backed objective review remain next.
+Workspace collection controls now support objective selection, explicit source URLs,
+and persisted per-objective evidence inspection. Browser regressions cover successful
+and partial collection, stale state, and reload. Evidence-backed objective review remains next.
 
 ## Phase 2 — Source retrieval and evidence storage
 

@@ -27,5 +27,31 @@ by this command are disposable; Ctrl+C shuts down the server and removes that da
 Verified on 2026-09-13 in the Codex in-app browser against the actual loopback server:
 pause/resume, two cycles, page reload, draft generation, stale-state conflict, active
 cycle guards, blocked outcome display, and unavailable-server handling. The automated
-command separately verifies all seven migrations and report persistence after server
+command separately verifies all nine migrations and report persistence after server
 restart. This is a browser QA procedure, not an automated browser regression suite.
+
+## Source collection and objective selection
+
+For a planned cycle, select one to three local-agent objectives or enter one or two
+HTTP(S) URLs with an objective for each. Source domains must already be enabled through
+the existing registry API. Confirm empty/invalid inputs prevent submission, controls
+disable during collection, and results show source/claim associations under
+"Evidence by objective". Reload to verify persistence; plan another cycle to verify
+old input selections reset. Pause/resume preserves inputs for the same planned cycle.
+
+Automated browser regression tests use headless Edge on Windows (Chromium elsewhere),
+the real FastAPI application and PostgreSQL, and controlled HTTP source responses.
+No live source websites are contacted. Install the optional dependencies and run:
+
+```powershell
+python -m pip install -e ".[dev,browser]"
+# On machines without Edge: python -m playwright install chromium
+# Then set PLAYWRIGHT_CHANNEL=chromium for that browser.
+$env:RUN_BROWSER_TESTS = "1"
+python -m pytest tests/integration/test_workspace_browser.py
+```
+
+Coverage includes exact objective/URL payloads, successful and partial collection,
+busy controls, invalid URLs, stale-state recovery, reload, unavailable reports, and
+narrow-screen layout. Set `WORKSPACE_SCREENSHOT` to an absolute PNG path to capture
+the rendered cycle history. Browser tests are skipped unless explicitly enabled.
