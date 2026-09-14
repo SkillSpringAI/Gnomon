@@ -2,15 +2,14 @@
 
 from uuid import UUID
 
+from conftest import purge_test_tasks
 from fastapi.testclient import TestClient
-from sqlalchemy import delete
 
 from research_agent.adapters.agents.fake import FakeAgentNetwork, FakeScenario
 from research_agent.api.app import create_app
 from research_agent.application.agent_evidence_service import AgentEvidenceService
 from research_agent.domain.agents import AgentQuestion
 from research_agent.persistence.database import SessionFactory, engine
-from research_agent.persistence.models import ResearchTaskRecord
 
 
 def test_prompt_injection_observation_is_persisted_as_inert_agent_evidence() -> None:
@@ -46,9 +45,7 @@ def test_prompt_injection_observation_is_persisted_as_inert_agent_evidence() -> 
             assert report["agent_comparison"]["distinct_agent_count"] == 1
         finally:
             with engine.begin() as connection:
-                connection.execute(
-                    delete(ResearchTaskRecord).where(ResearchTaskRecord.id == task_id)
-                )
+                purge_test_tasks(connection, [task_id])
 
 
 def test_local_agent_cycle_runs_evidence_claims_report_and_next_plan() -> None:
@@ -80,9 +77,7 @@ def test_local_agent_cycle_runs_evidence_claims_report_and_next_plan() -> None:
             assert next_cycle.status_code == 200, next_cycle.text
         finally:
             with engine.begin() as connection:
-                connection.execute(
-                    delete(ResearchTaskRecord).where(ResearchTaskRecord.id == task_id)
-                )
+                purge_test_tasks(connection, [task_id])
 
 
 def test_agent_cycle_respects_lifecycle_and_rejects_retries() -> None:
@@ -123,9 +118,7 @@ def test_agent_cycle_respects_lifecycle_and_rejects_retries() -> None:
             assert rejected.status_code == 409
         finally:
             with engine.begin() as connection:
-                connection.execute(
-                    delete(ResearchTaskRecord).where(ResearchTaskRecord.id == task_id)
-                )
+                purge_test_tasks(connection, [task_id])
 
 
 def test_unresponsive_agent_run_records_a_blocked_cycle() -> None:
@@ -149,6 +142,4 @@ def test_unresponsive_agent_run_records_a_blocked_cycle() -> None:
             assert any(item["event_type"] == "agent.observation_failed" for item in events)
         finally:
             with engine.begin() as connection:
-                connection.execute(
-                    delete(ResearchTaskRecord).where(ResearchTaskRecord.id == task_id)
-                )
+                purge_test_tasks(connection, [task_id])

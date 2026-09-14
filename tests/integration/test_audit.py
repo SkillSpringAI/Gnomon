@@ -3,8 +3,9 @@
 from uuid import UUID, uuid4
 
 import pytest
+from conftest import purge_test_tasks
 from fastapi.testclient import TestClient
-from sqlalchemy import delete, event, func, select
+from sqlalchemy import event, func, select
 
 from research_agent.adapters.web.http import SourceRetrievalError
 from research_agent.api.app import create_app
@@ -24,7 +25,6 @@ from research_agent.persistence.models import (
     ResearchClaimRecord,
     ResearchEventRecord,
     ResearchSourceRecord,
-    ResearchTaskRecord,
 )
 
 
@@ -45,9 +45,7 @@ def audit_task():
             yield app, client, task_id
         finally:
             with engine.begin() as connection:
-                connection.execute(
-                    delete(ResearchTaskRecord).where(ResearchTaskRecord.id == UUID(task_id))
-                )
+                purge_test_tasks(connection, [UUID(task_id)])
 
 
 def create_source(client, task_id):
@@ -113,9 +111,7 @@ def test_audit_survives_fresh_app_and_correlates_extraction(audit_task, monkeypa
             ] == ["task.created"]
         finally:
             with engine.begin() as connection:
-                connection.execute(
-                    delete(ResearchTaskRecord).where(ResearchTaskRecord.id == other_id)
-                )
+                purge_test_tasks(connection, [other_id])
 
 
 def test_failed_extraction_has_failure_event_without_partial_success(audit_task):

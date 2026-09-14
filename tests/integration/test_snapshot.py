@@ -4,12 +4,12 @@ from collections.abc import Iterator
 from uuid import UUID, uuid4
 
 import pytest
+from conftest import purge_test_tasks
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, text
 
 from research_agent.api.app import create_app
 from research_agent.persistence.database import engine
-from research_agent.persistence.models import ResearchTaskRecord
 
 
 @pytest.fixture
@@ -23,11 +23,7 @@ def investigations() -> Iterator[tuple[TestClient, list[str]]]:
             yield client, ids
         finally:
             with engine.begin() as connection:
-                connection.execute(
-                    delete(ResearchTaskRecord).where(
-                        ResearchTaskRecord.id.in_([UUID(task_id) for task_id in ids])
-                    )
-                )
+                purge_test_tasks(connection, [UUID(task_id) for task_id in ids])
 
 
 def create_task(client: TestClient, ids: list[str], *, hypotheses: bool = True) -> dict:

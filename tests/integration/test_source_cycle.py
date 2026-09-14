@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 
 import httpx
 import pytest
+from conftest import purge_test_tasks
 from fastapi.testclient import TestClient
 from sqlalchemy import delete
 
@@ -16,7 +17,7 @@ from research_agent.api.routes.evidence import get_source_retriever
 from research_agent.application.source_registry import SourceRegistryService
 from research_agent.domain.research import ResearchMethod
 from research_agent.persistence.database import SessionFactory, engine
-from research_agent.persistence.models import ResearchTaskRecord, TrustedSourceRecord
+from research_agent.persistence.models import TrustedSourceRecord
 from research_agent.persistence.repositories import SqlAlchemyResearchTaskRepository
 
 
@@ -75,9 +76,7 @@ def source_cycle():
             yield client, task_id, f"https://{domain}", calls, settings
         finally:
             with engine.begin() as connection:
-                connection.execute(
-                    delete(ResearchTaskRecord).where(ResearchTaskRecord.id == task_id)
-                )
+                purge_test_tasks(connection, [task_id])
                 connection.execute(
                     delete(TrustedSourceRecord).where(
                         TrustedSourceRecord.id == UUID(registry.json()["id"])

@@ -222,7 +222,7 @@ class ResearchEventRecord(Base):
     id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
     task_id: Mapped[UUID] = mapped_column(
         PostgreSQLUUID(as_uuid=True),
-        ForeignKey("research_tasks.id", ondelete="CASCADE"),
+        ForeignKey("research_tasks.id", ondelete="RESTRICT"),
         nullable=False,
     )
     event_type: Mapped[str] = mapped_column(Text, nullable=False)

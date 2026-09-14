@@ -27,6 +27,19 @@ reason. Existing cycles default to untracked with no recovery reason. This does 
 reconstruct missing historical mappings. New runner acquisitions enable tracking;
 source/claim associations reuse the cycle's existing progress fields.
 
+Migration `012_persistence_invariants.sql` adds database checks for non-negative
+historical predecessor versions, positive journal versions, and the governed operation
+set. The migration runner records a SHA-256 checksum for every applied migration and
+fails closed if an applied file is modified.
+
+Migration `013_restrict_audit_task_deletion.sql` changes the audit-event task foreign key
+to `ON DELETE RESTRICT`. Tasks with retained audit events must be archived or logically
+deleted through a future governed lifecycle operation; physical deletion is rejected.
+
+Migration `014_task_archive_status.sql` adds `archived` as a terminal task lifecycle
+state. It can be reached from concluded or abandoned investigations through the existing
+compare-and-set status endpoint and preserves all retained history.
+
 The application expects all numbered migrations to be present. Run
 `python -m research_agent.cli migrate` (or `make migrate`) after PostgreSQL is ready.
 The runner creates `research_agent_schema_migrations`, takes a transaction-scoped

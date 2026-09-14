@@ -4,8 +4,8 @@ from datetime import timedelta
 from uuid import UUID, uuid4
 
 import pytest
+from conftest import purge_test_tasks
 from fastapi.testclient import TestClient
-from sqlalchemy import delete
 
 from research_agent.api.app import create_app
 from research_agent.application.memory_service import MemoryService
@@ -14,7 +14,6 @@ from research_agent.domain.research import ClaimCreate, ClaimSourceLink, Support
 from research_agent.persistence.database import SessionFactory, engine
 from research_agent.persistence.models import (
     MemoryChangeRecord,
-    ResearchTaskRecord,
 )
 
 
@@ -60,9 +59,7 @@ def memory_task():
             yield client, task_id, claim_id, source_id, change_id
         finally:
             with engine.begin() as connection:
-                connection.execute(
-                    delete(ResearchTaskRecord).where(ResearchTaskRecord.id == UUID(task_id))
-                )
+                purge_test_tasks(connection, [UUID(task_id)])
 
 
 def test_normal_rollback_creates_new_version_and_preserves_history(memory_task):

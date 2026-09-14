@@ -3,15 +3,14 @@
 from uuid import UUID
 
 import pytest
+from conftest import purge_test_tasks
 from fastapi.testclient import TestClient
-from sqlalchemy import delete
 
 from research_agent.adapters.agents.fake import FakeAgentNetwork, FakeScenario
 from research_agent.api.app import create_app
 from research_agent.application.agent_evidence_service import AgentEvidenceService
 from research_agent.domain.agents import AgentQuestion
 from research_agent.persistence.database import SessionFactory, engine
-from research_agent.persistence.models import ResearchTaskRecord
 
 
 @pytest.fixture
@@ -25,9 +24,7 @@ def investigation():
             yield client, task
         finally:
             with engine.begin() as connection:
-                connection.execute(
-                    delete(ResearchTaskRecord).where(ResearchTaskRecord.id == UUID(task["id"]))
-                )
+                purge_test_tasks(connection, [UUID(task["id"])])
 
 
 def plan(client, task_id):

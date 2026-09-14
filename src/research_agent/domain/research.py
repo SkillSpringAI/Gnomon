@@ -21,6 +21,7 @@ class TaskStatus(StrEnum):
     BLOCKED = "blocked"
     CONCLUDED = "concluded"
     ABANDONED = "abandoned"
+    ARCHIVED = "archived"
 
 
 class CycleStatus(StrEnum):

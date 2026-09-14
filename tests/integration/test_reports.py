@@ -1,13 +1,12 @@
 from uuid import UUID
 
 import pytest
+from conftest import purge_test_tasks
 from fastapi.testclient import TestClient
-from sqlalchemy import delete
 
 from research_agent.api.app import create_app
 from research_agent.config.settings import get_settings
 from research_agent.persistence.database import engine
-from research_agent.persistence.models import ResearchTaskRecord
 
 
 def test_report_is_read_only_and_keeps_provenance_links() -> None:
@@ -54,9 +53,7 @@ def test_report_is_read_only_and_keeps_provenance_links() -> None:
             assert payload["hypotheses"][0]["assessment_status"] is None
         finally:
             with engine.begin() as connection:
-                connection.execute(
-                    delete(ResearchTaskRecord).where(ResearchTaskRecord.id == task_id)
-                )
+                purge_test_tasks(connection, [task_id])
 
 
 def test_report_draft_is_generated_without_persisting_state() -> None:
@@ -85,9 +82,7 @@ def test_report_draft_is_generated_without_persisting_state() -> None:
             assert after == before
         finally:
             with engine.begin() as connection:
-                connection.execute(
-                    delete(ResearchTaskRecord).where(ResearchTaskRecord.id == task_id)
-                )
+                purge_test_tasks(connection, [task_id])
 
 
 def test_report_draft_budget_is_enforced(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -109,9 +104,7 @@ def test_report_draft_budget_is_enforced(monkeypatch: pytest.MonkeyPatch) -> Non
                 assert events[-1]["payload"]["reason"] == "report_budget_exceeded"
             finally:
                 with engine.begin() as connection:
-                    connection.execute(
-                        delete(ResearchTaskRecord).where(ResearchTaskRecord.id == task_id)
-                    )
+                    purge_test_tasks(connection, [task_id])
     finally:
         monkeypatch.delenv("LLM_MAX_DRAFTS_PER_TASK", raising=False)
         get_settings.cache_clear()
@@ -132,9 +125,7 @@ def test_investigation_workspace_is_credential_free() -> None:
         assert "Run local agent cycle" in response.text
         assert "Agent comparisons" in response.text
         with engine.begin() as connection:
-            connection.execute(
-                delete(ResearchTaskRecord).where(ResearchTaskRecord.id == UUID(task_id))
-            )
+            purge_test_tasks(connection, [UUID(task_id)])
 
 
 def test_unknown_investigation_workspace_is_not_served() -> None:

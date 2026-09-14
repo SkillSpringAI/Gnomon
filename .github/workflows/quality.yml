@@ -1,0 +1,34 @@
+name: Quality
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: research_agent
+          POSTGRES_PASSWORD: research_agent
+          POSTGRES_DB: research_agent
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U research_agent -d research_agent"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m ruff check .
+      - run: python -m mypy src
+      - run: python -m research_agent.cli migrate
+      - run: python -m pytest -ra

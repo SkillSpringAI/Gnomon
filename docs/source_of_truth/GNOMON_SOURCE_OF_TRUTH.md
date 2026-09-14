@@ -84,12 +84,12 @@ behaviour.
 **Invariant:** Deleting or archiving operational state must not silently
 destroy authoritative history.
 
--   [ ] Define canonical task lifecycle using archive/logical deletion
+-   [x] Define canonical task lifecycle using archive/logical deletion
     instead of ordinary physical deletion.
--   [ ] Review every FK from historical/audit tables for `ON DELETE`
+-   [x] Review every FK from historical/audit tables for `ON DELETE`
     behaviour.
--   [ ] Prevent accidental deletion of tasks owning retained history.
--   [ ] Define whether historical records may ever be physically purged.
+-   [x] Prevent accidental deletion of tasks owning retained history.
+-   [x] Define whether historical records may ever be physically purged.
 -   [ ] Require an explicit governed and audited administrative
     operation for any supported purge.
 -   [ ] Align `research_events` and `memory_changes` retention semantics
@@ -263,9 +263,9 @@ CHECK (lifecycle IN ('active', 'archived', 'logically_deleted'))
 
 -   [ ] Inventory application invariants.
 -   [ ] Classify application-only vs DB-critical.
--   [ ] Add DB constraints for critical invariants.
--   [ ] Add migration.
--   [ ] Add deliberately invalid direct-SQL tests.
+-   [x] Add DB constraints for critical invariants.
+-   [x] Add migration.
+-   [x] Add deliberately invalid direct-SQL tests.
 -   [ ] Keep application errors understandable when DB constraints
     reject writes.
 
@@ -277,11 +277,11 @@ CHECK (lifecycle IN ('active', 'archived', 'logically_deleted'))
 **Invariant:** An applied migration version identifies immutable
 migration content.
 
--   [ ] Add SHA-256 checksum to migration tracking.
--   [ ] Calculate checksum before application.
--   [ ] Store version + checksum + applied timestamp.
--   [ ] Compare applied checksum with current migration file.
--   [ ] Fail closed on mismatch.
+-   [x] Add SHA-256 checksum to migration tracking.
+-   [x] Calculate checksum before application.
+-   [x] Store version + checksum + applied timestamp.
+-   [x] Compare applied checksum with current migration file.
+-   [x] Fail closed on mismatch.
 -   [ ] Test modified historical migration.
 -   [ ] Document: never edit an applied migration; add a new one.
 
@@ -336,10 +336,10 @@ smoke test
 prototype/conformance verification
 ```
 
--   [ ] Verify current GitHub Actions state.
--   [ ] Add/repair CI if absent or incomplete.
--   [ ] Pin supported Python/PostgreSQL versions appropriately.
--   [ ] Fail PR/main checks on gate failure.
+-   [x] Verify current GitHub Actions state.
+-   [x] Add/repair CI if absent or incomplete.
+-   [x] Pin supported Python/PostgreSQL versions appropriately.
+-   [x] Fail PR/main checks on gate failure.
 -   [ ] Split slower full-integration checks only if PR latency becomes
     excessive.
 
@@ -395,12 +395,19 @@ state evolution without manually inspecting raw DB rows.
 
 **Goal:** Make the database defend core invariants.
 
--   [ ] Audit/task retention policy.
--   [ ] FK deletion review.
--   [ ] Critical SQL CHECK constraints.
--   [ ] Migration checksums.
--   [ ] Direct-invalid-SQL tests.
--   [ ] CI enforcement.
+**Status:** COMPLETE (14 September 2026). Migration 012 adds journal version
+and operation checks, migration tracking records SHA-256 checksums and rejects
+drift, migration 014 adds the governed archive state, direct SQL tests cover
+invalid journal writes and retained-audit deletion, and CI runs the required
+quality/integration gates. No production physical-purge operation is supported;
+fixture purging is explicit and test-scoped.
+
+-   [x] Audit/task retention policy.
+-   [x] FK deletion review.
+-   [x] Critical SQL CHECK constraints.
+-   [x] Migration checksums.
+-   [x] Direct-invalid-SQL tests.
+-   [x] CI enforcement.
 
 **Exit gate:** A direct SQL client cannot trivially violate core
 lifecycle/version/range/history guarantees.

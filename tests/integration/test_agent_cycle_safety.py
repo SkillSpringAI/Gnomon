@@ -5,8 +5,8 @@ from threading import Event
 from uuid import UUID
 
 import pytest
+from conftest import purge_test_tasks
 from fastapi.testclient import TestClient
-from sqlalchemy import delete
 
 from research_agent.adapters.agents.fake import FakeAgentNetwork
 from research_agent.adapters.llm.rule_based import RuleBasedClaimExtractor
@@ -14,7 +14,6 @@ from research_agent.api.app import create_app
 from research_agent.application.audit_service import AuditService
 from research_agent.domain.events import EventType
 from research_agent.persistence.database import SessionFactory, engine
-from research_agent.persistence.models import ResearchTaskRecord
 from research_agent.persistence.repositories import SqlAlchemyResearchTaskRepository
 from research_agent.ports.agent_network import AgentNetworkError
 
@@ -30,9 +29,7 @@ def investigation():
             yield client, task_id
         finally:
             with engine.begin() as connection:
-                connection.execute(
-                    delete(ResearchTaskRecord).where(ResearchTaskRecord.id == task_id)
-                )
+                purge_test_tasks(connection, [task_id])
 
 
 def cycle(client, task_id):

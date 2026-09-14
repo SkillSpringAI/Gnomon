@@ -5,15 +5,16 @@ from threading import Barrier
 from uuid import UUID, uuid4
 
 import pytest
+from conftest import purge_test_tasks
 from fastapi.testclient import TestClient
-from sqlalchemy import delete, func, select
+from sqlalchemy import func, select
 
 from research_agent.adapters.llm.rule_based import RuleBasedClaimExtractor
 from research_agent.api.app import create_app
 from research_agent.application.claim_extraction_service import ClaimExtractionService
 from research_agent.domain.research import ClaimCreate, ClaimSourceLink, SupportType
 from research_agent.persistence.database import SessionFactory, engine
-from research_agent.persistence.models import ResearchClaimRecord, ResearchTaskRecord
+from research_agent.persistence.models import ResearchClaimRecord
 
 
 @pytest.fixture
@@ -23,7 +24,7 @@ def task_ids():
         yield ids
     finally:
         with engine.begin() as connection:
-            connection.execute(delete(ResearchTaskRecord).where(ResearchTaskRecord.id.in_(ids)))
+            purge_test_tasks(connection, ids)
 
 
 def new_task(client, ids):

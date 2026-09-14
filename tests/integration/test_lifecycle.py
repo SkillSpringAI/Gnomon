@@ -5,15 +5,15 @@ from threading import Barrier
 from uuid import UUID, uuid4
 
 import pytest
+from conftest import purge_test_tasks
 from fastapi.testclient import TestClient
-from sqlalchemy import delete, event, select
+from sqlalchemy import event, select
 
 from research_agent.api.app import create_app
 from research_agent.persistence.database import engine
 from research_agent.persistence.models import (
     ResearchCycleRecord,
     ResearchEventRecord,
-    ResearchTaskRecord,
 )
 
 
@@ -29,9 +29,7 @@ def lifecycle_task():
             yield client, task_id
         finally:
             with engine.begin() as connection:
-                connection.execute(
-                    delete(ResearchTaskRecord).where(ResearchTaskRecord.id == UUID(task_id))
-                )
+                purge_test_tasks(connection, [UUID(task_id)])
 
 
 def change(client, task_id, before, after):

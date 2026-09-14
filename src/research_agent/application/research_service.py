@@ -375,8 +375,9 @@ class ResearchService:
                 TaskStatus.CONCLUDED,
                 TaskStatus.ABANDONED,
             },
-            TaskStatus.CONCLUDED: set(),
-            TaskStatus.ABANDONED: set(),
+            TaskStatus.CONCLUDED: {TaskStatus.ARCHIVED},
+            TaskStatus.ABANDONED: {TaskStatus.ARCHIVED},
+            TaskStatus.ARCHIVED: set(),
         }
         with self.repository.edit(task_id) as task:
             if task.status == change.status:

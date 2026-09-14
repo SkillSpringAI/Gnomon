@@ -3,12 +3,11 @@
 from uuid import UUID
 
 import pytest
+from conftest import purge_test_tasks
 from fastapi.testclient import TestClient
-from sqlalchemy import delete
 
 from research_agent.api.app import create_app
 from research_agent.persistence.database import engine
-from research_agent.persistence.models import ResearchTaskRecord
 
 
 @pytest.fixture
@@ -28,9 +27,7 @@ def workspace_task():
             yield client, task
         finally:
             with engine.begin() as connection:
-                connection.execute(
-                    delete(ResearchTaskRecord).where(ResearchTaskRecord.id == task_id)
-                )
+                purge_test_tasks(connection, [task_id])
 
 
 def report(client, task_id):

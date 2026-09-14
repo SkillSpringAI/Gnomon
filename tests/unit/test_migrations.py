@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from research_agent.application.migrations import migration_files
+from research_agent.application.migrations import migration_checksum, migration_files
 
 
 def test_migration_files_are_numbered_and_ordered(tmp_path: Path) -> None:
@@ -13,3 +13,11 @@ def test_migration_files_are_numbered_and_ordered(tmp_path: Path) -> None:
         "001_first.sql",
         "002_second.sql",
     ]
+
+
+def test_migration_checksum_changes_when_content_changes(tmp_path: Path) -> None:
+    migration = tmp_path / "001_first.sql"
+    migration.write_text("select 1", encoding="utf-8")
+    first = migration_checksum(migration)
+    migration.write_text("select 2", encoding="utf-8")
+    assert migration_checksum(migration) != first
