@@ -440,10 +440,10 @@ duplication/loss.
 **Goal:** Make remote-provider use deterministic under
 concurrency/retries.
 
-**Status:** IN PROGRESS. Persistent report-generation reservations now use
+**Status:** COMPLETE (15 September 2026). Persistent report-generation reservations now use
 task-row locking, explicit operation IDs, committed-before-call reservations,
 failure release, and idempotency rejection. Concurrent boundary and provider
-parity tests remain before the slice exit gate.
+parity tests cover both standard and bearer-session Bedrock adapters.
 
 -   [x] Atomic reservation.
 -   [x] Generation attempt state.
@@ -451,7 +451,7 @@ parity tests remain before the slice exit gate.
 -   [x] Timeout/expiry handling.
 -   [x] Retry semantics.
 -   [x] Concurrent integration tests.
--   [ ] Provider adapter parity tests.
+-   [x] Provider adapter parity tests.
 
 **Exit gate:** Concurrency cannot bypass configured provider limits.
 

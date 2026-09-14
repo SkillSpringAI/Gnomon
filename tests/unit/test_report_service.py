@@ -1,4 +1,7 @@
-from research_agent.adapters.llm.bedrock_report import _usage
+import pytest
+
+from research_agent.adapters.llm.bedrock_bearer_report import BedrockBearerReportDraftGenerator
+from research_agent.adapters.llm.bedrock_report import BedrockReportDraftGenerator, _usage
 from research_agent.adapters.llm.rule_based_report import RuleBasedReportDraftGenerator
 from research_agent.application.report_generation_service import (
     ReportGenerationError,
@@ -92,3 +95,59 @@ def test_report_generation_rejects_provider_citations_outside_report() -> None:
         pass
     else:
         raise AssertionError("invalid provider citations must be rejected")
+
+
+@pytest.mark.parametrize("adapter_kind", ["bedrock", "bearer"])
+def test_bedrock_adapters_produce_the_same_validated_contract(
+    monkeypatch: pytest.MonkeyPatch, adapter_kind: str
+) -> None:
+    repository = InMemoryResearchTaskRepository()
+    task = ResearchService(repository).create_task(
+        ResearchBrief(title="Provider parity", objective="Preserve one contract.")
+    )
+    report = ReportService().build(repository.planning_snapshot(task.id))
+    payload = {
+        "output": {
+            "message": {
+                "content": [
+                    {
+                        "text": '{"content":"draft","cited_source_ids":[],'
+                        '"cited_claim_ids":[],"limitations":[]}'
+                    }
+                ]
+            }
+        },
+        "usage": {"inputTokens": 2, "outputTokens": 3, "totalTokens": 5},
+    }
+    if adapter_kind == "bedrock":
+        adapter = BedrockReportDraftGenerator.__new__(BedrockReportDraftGenerator)
+        adapter.model = "test-model"
+        adapter.max_output_tokens = 3000
+
+        class Client:
+            def converse(self, **_: object) -> dict[str, object]:
+                return payload
+
+        adapter.client = Client()
+    else:
+        adapter = BedrockBearerReportDraftGenerator.__new__(BedrockBearerReportDraftGenerator)
+        adapter.token = "test-token"
+        adapter.model = "test-model"
+        adapter.url = "https://example.test/converse"
+        adapter.timeout = None
+
+        class Response:
+            def raise_for_status(self) -> None:
+                return None
+
+            def json(self) -> dict[str, object]:
+                return payload
+
+        monkeypatch.setattr(
+            "research_agent.adapters.llm.bedrock_bearer_report.httpx.post",
+            lambda *args, **kwargs: Response(),
+        )
+    draft = ReportGenerationService(adapter).generate(report)
+    assert draft.provider in {"aws_bedrock", "aws_bedrock_session"}
+    assert draft.task_id == report.task_id
+    assert draft.usage is not None and draft.usage.total_tokens == 5
