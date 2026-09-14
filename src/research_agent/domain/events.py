@@ -73,6 +73,7 @@ class EventPayload(BaseModel):
             "retrieval_rejected",
             "domain_not_enabled",
             "report_generation_failed",
+            "report_input_too_large",
             "report_budget_exceeded",
             "agent_network_failed",
         ]

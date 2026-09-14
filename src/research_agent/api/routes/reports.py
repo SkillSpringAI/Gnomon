@@ -5,7 +5,7 @@ from time import monotonic
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -15,6 +15,11 @@ from research_agent.adapters.llm.bedrock_report import BedrockReportDraftGenerat
 from research_agent.adapters.llm.rule_based_report import RuleBasedReportDraftGenerator
 from research_agent.api.routes.provider import provider_sessions
 from research_agent.application.audit_service import AuditService
+from research_agent.application.provider_budget_service import (
+    ProviderAttemptConflict,
+    ProviderBudgetExceeded,
+    ProviderBudgetService,
+)
 from research_agent.application.report_generation_service import (
     ReportGenerationError,
     ReportGenerationService,
@@ -86,34 +91,32 @@ def generate_report_draft(
     task_id: UUID,
     session: Annotated[Session, Depends(get_session)],
     generator: Annotated[ReportGenerationService, Depends(get_report_generator)],
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> ReportDraft:
     """Generate a local draft from the current structured report without persistence."""
-    operation_id = uuid4()
+    try:
+        operation_id = UUID(idempotency_key) if idempotency_key else uuid4()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Idempotency-Key must be a UUID") from exc
     settings = get_settings()
     try:
+        ProviderBudgetService(session).reserve(
+            task_id,
+            operation_id,
+            settings.llm_max_drafts_per_task,
+            settings.llm_timeout_seconds,
+        )
         session.connection(execution_options={"isolation_level": "REPEATABLE READ"})
         report = ReportService().build(SnapshotService(session).get(task_id))
         audit = AuditService(session)
-        if (
-            audit.count_events(task_id, EventType.REPORT_DRAFT_GENERATED)
-            >= settings.llm_max_drafts_per_task
-        ):
-            audit.record_failure(
-                task_id,
-                EventType.REPORT_DRAFT_FAILED,
-                EventPayload(
-                    operation_id=operation_id,
-                    reason="report_budget_exceeded",
-                ),
-            )
-            raise HTTPException(status_code=429, detail="Report draft limit reached")
         if len(report.model_dump_json()) > settings.llm_max_report_chars:
+            ProviderBudgetService(session).finish(operation_id, "FAILED", "report_input_too_large")
             audit.record_failure(
                 task_id,
                 EventType.REPORT_DRAFT_FAILED,
                 EventPayload(
                     operation_id=operation_id,
-                    reason="report_budget_exceeded",
+                    reason="report_input_too_large",
                 ),
             )
             raise HTTPException(status_code=413, detail="Report input exceeds configured limit")
@@ -135,10 +138,12 @@ def generate_report_draft(
             ),
         )
         session.commit()
+        ProviderBudgetService(session).finish(operation_id, "SUCCEEDED")
         return draft
     except ResearchTaskNotFound as exc:
         raise HTTPException(status_code=404, detail="Investigation not found") from exc
     except ReportGenerationError as exc:
+        ProviderBudgetService(session).finish(operation_id, "FAILED", "report_generation_failed")
         AuditService(session).record_failure(
             task_id,
             EventType.REPORT_DRAFT_FAILED,
@@ -148,3 +153,14 @@ def generate_report_draft(
             ),
         )
         raise HTTPException(status_code=502, detail="Report provider failed validation") from exc
+    except ProviderBudgetExceeded as exc:
+        session.rollback()
+        AuditService(session).record_failure(
+            task_id,
+            EventType.REPORT_DRAFT_FAILED,
+            EventPayload(operation_id=operation_id, reason="report_budget_exceeded"),
+        )
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    except ProviderAttemptConflict as exc:
+        session.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc

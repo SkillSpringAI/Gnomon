@@ -1,3 +1,5 @@
+from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import pytest
@@ -5,8 +7,10 @@ from conftest import purge_test_tasks
 from fastapi.testclient import TestClient
 
 from research_agent.api.app import create_app
+from research_agent.application.provider_budget_service import ProviderBudgetService
 from research_agent.config.settings import get_settings
-from research_agent.persistence.database import engine
+from research_agent.persistence.database import SessionFactory, engine
+from research_agent.persistence.models import ReportGenerationAttemptRecord
 
 
 def test_report_is_read_only_and_keeps_provenance_links() -> None:
@@ -108,6 +112,65 @@ def test_report_draft_budget_is_enforced(monkeypatch: pytest.MonkeyPatch) -> Non
     finally:
         monkeypatch.delenv("LLM_MAX_DRAFTS_PER_TASK", raising=False)
         get_settings.cache_clear()
+
+
+def test_report_budget_allows_only_one_concurrent_reservation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LLM_MAX_DRAFTS_PER_TASK", "1")
+    get_settings.cache_clear()
+    try:
+        with TestClient(create_app()) as client:
+            task = client.post(
+                "/investigations", json={"title": "Concurrent budget", "objective": "Bound usage."}
+            ).json()["task"]
+            task_id = UUID(task["id"])
+            try:
+                operation_ids = iter((UUID(int=4), UUID(int=5)))
+
+                def generate() -> int:
+                    return client.post(
+                        f"/investigations/{task_id}/report/draft",
+                        headers={"Idempotency-Key": str(next(operation_ids))},
+                    ).status_code
+
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    statuses = sorted(pool.map(lambda _: generate(), range(2)))
+                assert statuses == [200, 429]
+            finally:
+                with engine.begin() as connection:
+                    purge_test_tasks(connection, [task_id])
+    finally:
+        monkeypatch.delenv("LLM_MAX_DRAFTS_PER_TASK", raising=False)
+        get_settings.cache_clear()
+
+
+def test_expired_pending_reservation_releases_capacity() -> None:
+    with TestClient(create_app()) as client:
+        task = client.post(
+            "/investigations", json={"title": "Expiry", "objective": "Recover capacity."}
+        ).json()["task"]
+        task_id = UUID(task["id"])
+        try:
+            expired_id = UUID(int=2)
+            with SessionFactory() as session:
+                session.add(
+                    ReportGenerationAttemptRecord(
+                        operation_id=expired_id,
+                        task_id=task_id,
+                        status="PENDING",
+                        started_at=datetime.now(UTC) - timedelta(minutes=10),
+                        expires_at=datetime.now(UTC) - timedelta(minutes=5),
+                    )
+                )
+                session.commit()
+                reserved = ProviderBudgetService(session).reserve(task_id, UUID(int=3), 1, 30)
+                assert reserved.status == "PENDING"
+                expired = session.get(ReportGenerationAttemptRecord, expired_id)
+                assert expired is not None and expired.status == "EXPIRED"
+        finally:
+            with engine.begin() as connection:
+                purge_test_tasks(connection, [task_id])
 
 
 def test_investigation_workspace_is_credential_free() -> None:

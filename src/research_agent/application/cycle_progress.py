@@ -61,6 +61,20 @@ class CycleProgress:
         attempt.stage = stage
         self.session.flush()
 
+    def _record_artifacts(self, source_ids: list[UUID], claim_ids: list[UUID]) -> None:
+        if self.attempt_id is None:
+            raise TaskStateConflict("Cycle attempt has not been started")
+        attempt = self.session.get(ResearchCycleAttemptRecord, self.attempt_id)
+        if attempt is None or attempt.status != "RUNNING":
+            raise TaskStateConflict("Cycle attempt is no longer running")
+        attempt.evidence_ids = list(
+            dict.fromkeys(attempt.evidence_ids + [str(item) for item in source_ids])
+        )
+        attempt.claim_ids = list(
+            dict.fromkeys(attempt.claim_ids + [str(item) for item in claim_ids])
+        )
+        self.session.flush()
+
     def _stage(
         self,
         indices: list[int],
@@ -131,10 +145,12 @@ class CycleProgress:
     def source(self, source: SourceResponse, indices: list[int]) -> None:
         # The caller owns the source transaction, including its rollback on failure.
         self._stage(indices, [source.id], [])
+        self._record_artifacts([source.id], [])
         self.stage("EVIDENCE_RECORDED")
 
     def claims(self, claims: list[ClaimResponse], indices: list[int]) -> None:
         self._stage(indices, [], [claim.id for claim in claims])
+        self._record_artifacts([], [claim.id for claim in claims])
         self.stage("EXTRACTING_CLAIMS")
 
     def finish(self, status: str, reason: str | None = None) -> None:

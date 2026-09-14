@@ -43,6 +43,15 @@ compare-and-set status endpoint and preserves all retained history.
 Migration `015_cycle_attempts.sql` adds durable cycle execution identities and stage/status
 fields for crash recovery and operator inspection.
 
+Migration `016_report_generation_attempts.sql` adds atomic, idempotent provider-budget
+reservations for report drafting.
+
+Migration `017_report_attempt_expiry.sql` adds reservation expiry timestamps so abandoned
+pending provider attempts can be marked `EXPIRED` and safely recover capacity.
+
+Migration `018_cycle_attempt_artifacts.sql` records source and claim identities on the
+durable cycle attempt as those artifacts are committed.
+
 The application expects all numbered migrations to be present. Run
 `python -m research_agent.cli migrate` (or `make migrate`) after PostgreSQL is ready.
 The runner creates `research_agent_schema_migrations`, takes a transaction-scoped

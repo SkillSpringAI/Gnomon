@@ -29,6 +29,8 @@ def test_completed_cycle_has_durable_attempt_identity() -> None:
                 assert attempts[0].status == "COMPLETED"
                 assert attempts[0].stage == "COMPLETED"
                 assert attempts[0].finished_at is not None
+                assert attempts[0].evidence_ids
+                assert attempts[0].claim_ids
         finally:
             with engine.begin() as connection:
                 purge_test_tasks(connection, [task_id])

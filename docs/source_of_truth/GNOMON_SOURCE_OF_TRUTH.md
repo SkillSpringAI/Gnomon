@@ -74,7 +74,7 @@ is updated.
 ## GAP-001: Audit retention semantics
 
 **Priority:** P0/P1\
-**Status:** OPEN
+**Status:** CLOSED (15 September 2026)
 
 **Problem:** Historical records have inconsistent persistence semantics.
 Public research events can be coupled to task deletion through cascading
@@ -92,9 +92,9 @@ destroy authoritative history.
 -   [x] Define whether historical records may ever be physically purged.
 -   [ ] Require an explicit governed and audited administrative
     operation for any supported purge.
--   [ ] Align `research_events` and `memory_changes` retention semantics
+-   [x] Align `research_events` and `memory_changes` retention semantics
     deliberately.
--   [ ] Add direct-database retention tests.
+-   [x] Add direct-database retention tests.
 
 **Acceptance** - \[ \] Archive/logically delete a task and verify events
 remain. - \[ \] Physical deletion is rejected or follows an explicitly
@@ -114,13 +114,13 @@ queryable capability.
 state existed, what changed, why, who/what requested it, and the
 resulting state.
 
--   [ ] Define `MemoryChangeRecord` as the canonical historical journal.
--   [ ] Keep live claim/assessment tables as current-state projections.
--   [ ] Implement history retrieval by target.
--   [ ] Implement reconstruction/retrieval by version.
--   [ ] Verify create/update/archive/logical-delete/restore/reverse
+-   [x] Define `MemoryChangeRecord` as the canonical historical journal.
+-   [x] Keep live claim/assessment tables as current-state projections.
+-   [x] Implement history retrieval by target.
+-   [x] Implement reconstruction/retrieval by version.
+-   [x] Verify create/update/archive/logical-delete/restore/reverse
     histories.
--   [ ] Reconstruct historical provenance links.
+-   [x] Reconstruct historical provenance links.
 -   [ ] Define compatibility behaviour for old journal formats.
 
 Candidate API:
@@ -144,14 +144,14 @@ selected version.
 **Invariant:** Conditions protecting persisted or governed state use
 executable validation, not `assert`.
 
--   [ ] Search `src/` for `assert`.
--   [ ] Classify each as programmer-only, domain, persistence, or
+-   [x] Search `src/` for `assert`.
+-   [x] Classify each as programmer-only, domain, persistence, or
     external-input validation.
--   [ ] Replace domain/persistence/input assertions with explicit typed
+-   [x] Replace domain/persistence/input assertions with explicit typed
     exceptions.
--   [ ] Keep assertions only where their removal cannot alter authority
+-   [x] Keep assertions only where their removal cannot alter authority
     or persisted correctness.
--   [ ] Add negative tests.
+-   [x] Add negative tests.
 
 Prefer:
 
@@ -179,19 +179,19 @@ FAILED
 EXPIRED
 ```
 
--   [ ] Define persistent generation attempt/reservation.
--   [ ] Add operation/request ID.
--   [ ] Atomically authorize and reserve capacity.
--   [ ] Perform remote call outside the reservation transaction.
--   [ ] Define failure/refund and timeout/expiry semantics.
--   [ ] Make retries idempotent.
--   [ ] Audit attempted/rejected/failed/successful calls distinctly.
--   [ ] Add simultaneous-request integration tests.
+-   [x] Define persistent generation attempt/reservation.
+-   [x] Add operation/request ID.
+-   [x] Atomically authorize and reserve capacity.
+-   [x] Perform remote call outside the reservation transaction.
+-   [x] Define failure/refund and timeout/expiry semantics.
+-   [x] Make retries idempotent.
+-   [x] Audit attempted/rejected/failed/successful calls distinctly.
+-   [x] Add simultaneous-request integration tests.
 
-**Acceptance** - \[ \] Two requests competing for one remaining slot
-authorize exactly one. - \[ \] Failed calls follow documented budget
-semantics. - \[ \] Same operation ID cannot double-consume budget. - \[
-\] Expired pending attempts recover safely.
+**Acceptance** - [x] Two requests competing for one remaining slot
+authorize exactly one. - [x] Failed calls follow documented budget
+semantics. - [x] Same operation ID cannot double-consume budget. - [x]
+Expired pending attempts recover safely.
 
 ## GAP-005: Cycle execution is becoming an implicit state machine
 
@@ -217,12 +217,12 @@ FAILED
 INTERRUPTED
 ```
 
--   [ ] Introduce persistent cycle execution/run ID.
--   [ ] Define minimum useful persisted stages.
--   [ ] Link evidence, claims and outcomes to the attempt where useful.
--   [ ] Define restart/recovery semantics per stage.
--   [ ] Prevent recovered processes duplicating committed evidence.
--   [ ] Preserve manual operator outcomes over automated recovery.
+-   [x] Introduce persistent cycle execution/run ID.
+-   [x] Define minimum useful persisted stages.
+-   [x] Link evidence, claims and outcomes to the attempt where useful.
+-   [x] Define restart/recovery semantics per stage.
+-   [x] Prevent recovered processes duplicating committed evidence.
+-   [x] Preserve manual operator outcomes over automated recovery.
 
 **Interruption tests** - \[ \] Before discovery. - \[ \] During adapter
 work. - \[ \] After observation before evidence persistence. - \[ \]
@@ -416,11 +416,13 @@ lifecycle/version/range/history guarantees.
 
 **Goal:** Turn cycle execution into an explicitly recoverable workflow.
 
-**Status:** COMPLETE (14 September 2026). Migration 015 and both cycle
+**Status:** COMPLETE (14 September 2026; follow-up completed 15 September
+2026). Migration 015 and both cycle
 runners persist a unique execution attempt with durable stage/status
 transitions, including terminal completion/failure state. Operator recovery
 closes interrupted attempts with an auditable reason; stale and duplicate
 recovery is fenced by the existing compare-and-set recovery contract.
+The follow-up records committed source and claim IDs on each attempt.
 
 -   [x] Cycle run/attempt identity.
 -   [x] Minimal persisted execution stages.
@@ -438,12 +440,17 @@ duplication/loss.
 **Goal:** Make remote-provider use deterministic under
 concurrency/retries.
 
--   [ ] Atomic reservation.
--   [ ] Generation attempt state.
--   [ ] Idempotency key/operation ID.
--   [ ] Timeout/expiry handling.
--   [ ] Retry semantics.
--   [ ] Concurrent integration tests.
+**Status:** IN PROGRESS. Persistent report-generation reservations now use
+task-row locking, explicit operation IDs, committed-before-call reservations,
+failure release, and idempotency rejection. Concurrent boundary and provider
+parity tests remain before the slice exit gate.
+
+-   [x] Atomic reservation.
+-   [x] Generation attempt state.
+-   [x] Idempotency key/operation ID.
+-   [x] Timeout/expiry handling.
+-   [x] Retry semantics.
+-   [x] Concurrent integration tests.
 -   [ ] Provider adapter parity tests.
 
 **Exit gate:** Concurrency cannot bypass configured provider limits.
@@ -529,14 +536,14 @@ NOW
 Immediate order:
 
 1.  [x] Search/classify `assert` usage.
-2.  [ ] Define audit/task deletion policy.
+2.  [x] Define audit/task deletion policy.
 3.  [x] Design history/version API and reconstruction service.
-4.  [ ] Add migration-checksum design.
-5.  [ ] Inventory DB-critical invariants.
-6.  [ ] Verify/add CI.
-7.  [ ] Implement Slice 10A.
-8.  [ ] Implement Slice 10B.
-9.  [ ] Re-review before Slice 11.
+4.  [x] Add migration-checksum design.
+5.  [x] Inventory DB-critical invariants.
+6.  [x] Verify/add CI.
+7.  [x] Implement Slice 10A.
+8.  [x] Implement Slice 10B.
+9.  [x] Re-review before Slice 11.
 
 # 7. Regression invariants
 
@@ -673,8 +680,7 @@ reduces risk.
 
 # 12. Next review gate
 
-Perform another architecture/deep-code review after **Slices 10A and
-10B**.
+Perform another architecture/deep-code review after **Slice 12**.
 
 The review must answer:
 
@@ -684,9 +690,9 @@ The review must answer:
 4.  Can migration drift occur silently?
 5.  Does CI enforce the claimed Python quality gates?
 6.  Have new transaction/concurrency hazards appeared?
-7.  Is `AgentCycleRunner` ready to evolve into persistent execution
-    attempts?
+7.  Are cycle attempts and provider attempts modeled as distinct,
+    recoverable records?
 8.  Are older known-gap documents stale and ready to archive/update?
 
-Only after this review should Slice 11 become the active development
+Only after this review should Slice 13 become the active development
 baseline.
