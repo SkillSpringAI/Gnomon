@@ -11,8 +11,11 @@ from research_agent.application.memory_service import MemoryService
 from research_agent.application.research_service import ResearchTaskNotFound
 from research_agent.domain.memory import (
     AppliedMemoryChange,
+    HistoricalMemoryState,
     MemoryAuthority,
     MemoryChangeProposal,
+    MemoryConflict,
+    MemoryHistory,
     MemoryReversal,
     MemoryValidation,
 )
@@ -73,6 +76,37 @@ def history(
     if record is None:
         raise HTTPException(404, "Change not found")
     return AppliedMemoryChange.model_validate(record, from_attributes=True)
+
+
+@router.get("/{target_id}/history", response_model=MemoryHistory)
+def target_history(
+    target_id: UUID,
+    session: Annotated[Session, Depends(get_session)],
+    authority: Annotated[MemoryAuthority, Depends(operator_authority)],
+) -> MemoryHistory:
+    if not authority.can_commit or authority.actor != "local_operator":
+        raise HTTPException(403, "History requires operator authority")
+    try:
+        return MemoryService(session).history(authority.task_id, target_id)
+    except ResearchTaskNotFound as exc:
+        raise HTTPException(404, "Target history not found") from exc
+
+
+@router.get("/{target_id}/versions/{version}", response_model=HistoricalMemoryState)
+def target_version(
+    target_id: UUID,
+    version: int,
+    session: Annotated[Session, Depends(get_session)],
+    authority: Annotated[MemoryAuthority, Depends(operator_authority)],
+) -> HistoricalMemoryState:
+    if not authority.can_commit or authority.actor != "local_operator":
+        raise HTTPException(403, "History requires operator authority")
+    try:
+        return MemoryService(session).state_at_version(authority.task_id, target_id, version)
+    except ResearchTaskNotFound as exc:
+        raise HTTPException(404, "Target history not found") from exc
+    except MemoryConflict as exc:
+        raise HTTPException(409, str(exc)) from exc
 
 
 @router.post("/changes/{change_id}/reverse", response_model=AppliedMemoryChange)

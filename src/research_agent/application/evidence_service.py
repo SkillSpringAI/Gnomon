@@ -224,7 +224,8 @@ class EvidenceService:
             MemoryAuthority(actor=self.actor, task_id=task_id, can_commit=True),
         )
         record = self.session.get(ResearchClaimRecord, target_id)
-        assert record is not None
+        if record is None:
+            raise RuntimeError("Claim creation did not produce a governed record")
         AuditService(self.session).stage(
             task_id,
             EventType.CLAIM_CREATED,

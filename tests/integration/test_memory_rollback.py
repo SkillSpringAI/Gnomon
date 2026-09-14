@@ -99,6 +99,53 @@ def test_normal_rollback_creates_new_version_and_preserves_history(memory_task):
     assert current["task"]["id"] == task_id
 
 
+def test_target_history_and_version_reconstruction(memory_task):
+    client, task_id, claim_id, source_id, _ = memory_task
+
+    for operation, version in (("UPDATE", 1), ("ARCHIVE", 2), ("RESTORE", 3)):
+        payload = {
+            "target_type": "claim",
+            "target_id": claim_id,
+            "operation": operation,
+            "expected_version": version,
+            "reason": f"apply {operation.lower()}",
+        }
+        if operation == "UPDATE":
+            payload["claim"] = {
+                "statement": "Reconstructed governed statement.",
+                "confidence": 0.8,
+                "source_links": [{"source_id": source_id, "support_type": "supporting"}],
+            }
+        response = client.post(f"/investigations/{task_id}/memory/changes", json=payload)
+        assert response.status_code == 200, response.text
+
+    history = client.get(f"/investigations/{task_id}/memory/{claim_id}/history")
+    assert history.status_code == 200, history.text
+    body = history.json()
+    assert body["target_type"] == "claim"
+    assert body["current_version"] == 4
+    assert [item["version"] for item in body["changes"]] == [1, 2, 3, 4]
+    assert [item["resulting_state"]["lifecycle"] for item in body["changes"]] == [
+        "active",
+        "active",
+        "archived",
+        "active",
+    ]
+
+    version = client.get(f"/investigations/{task_id}/memory/{claim_id}/versions/3")
+    assert version.status_code == 200, version.text
+    assert version.json()["state"]["lifecycle"] == "archived"
+    assert version.json()["state"]["data"]["statement"] == "Reconstructed governed statement."
+
+
+def test_missing_or_unknown_memory_version_is_rejected(memory_task):
+    client, task_id, claim_id, _, _ = memory_task
+    missing = client.get(f"/investigations/{task_id}/memory/{claim_id}/versions/99")
+    assert missing.status_code == 409
+    unknown_target = client.get(f"/investigations/{task_id}/memory/{uuid4()}/history")
+    assert unknown_target.status_code == 404
+
+
 def test_duplicate_rollback_is_idempotent(memory_task):
     client, task_id, claim_id, source_id, original_id = memory_task
     payload = {

@@ -14,10 +14,12 @@ from research_agent.application.research_service import ResearchTaskNotFound
 from research_agent.domain.events import EventPayload, EventType
 from research_agent.domain.memory import (
     AppliedMemoryChange,
+    HistoricalMemoryState,
     MemoryAuthority,
     MemoryChangeProposal,
     MemoryConflict,
     MemoryDenied,
+    MemoryHistory,
     MemoryOperation,
     MemoryReversal,
     MemoryTarget,
@@ -86,6 +88,55 @@ class MemoryService:
         if kind == MemoryTarget.CLAIM:
             return self.session.get(ResearchClaimRecord, target_id, populate_existing=True)
         return self.session.get(HypothesisAssessmentRecord, target_id, populate_existing=True)
+
+    def history(self, task_id: UUID, target_id: UUID) -> MemoryHistory:
+        """Return and validate the complete append-only history for a target."""
+        changes = self.session.scalars(
+            select(MemoryChangeRecord)
+            .where(
+                MemoryChangeRecord.task_id == task_id,
+                MemoryChangeRecord.target_id == target_id,
+            )
+            .order_by(MemoryChangeRecord.version, MemoryChangeRecord.timestamp)
+        ).all()
+        if not changes:
+            raise ResearchTaskNotFound
+        target_type = MemoryTarget(changes[0].target_type)
+        expected_version = 0
+        for change in changes:
+            if (
+                MemoryTarget(change.target_type) != target_type
+                or change.previous_version != expected_version
+                or change.version != expected_version + 1
+            ):
+                raise MemoryConflict("Memory history has an invalid version chain")
+            expected_version = change.version
+        return MemoryHistory(
+            target_type=target_type,
+            target_id=target_id,
+            current_version=expected_version,
+            changes=[
+                AppliedMemoryChange.model_validate(item, from_attributes=True)
+                for item in changes
+            ],
+        )
+
+    def state_at_version(
+        self, task_id: UUID, target_id: UUID, version: int
+    ) -> HistoricalMemoryState:
+        if version < 1:
+            raise MemoryConflict("Memory versions start at one")
+        history = self.history(task_id, target_id)
+        change = next((item for item in history.changes if item.version == version), None)
+        if change is None:
+            raise MemoryConflict("Requested memory version does not exist")
+        return HistoricalMemoryState(
+            target_type=history.target_type,
+            target_id=target_id,
+            version=version,
+            state=change.resulting_state,
+            change_id=change.change_id,
+        )
 
     def state(self, record: KnowledgeRecord) -> dict[str, Any]:
         if isinstance(record, ResearchClaimRecord):
@@ -217,14 +268,16 @@ class MemoryService:
             if before is not None and before["lifecycle"] != "active":
                 raise MemoryConflict("Restore inactive records before updating")
             payload = proposal.claim or proposal.assessment
-            assert payload is not None
+            if payload is None:
+                raise MemoryConflict("CREATE or UPDATE requires governed memory data")
             after: dict[str, Any] = {"data": payload.model_dump(mode="json"), "lifecycle": "active"}
             if proposal.target_type == MemoryTarget.ASSESSMENT:
                 after["hypothesis_id"] = (
                     str(proposal.hypothesis_id) if before is None else before["hypothesis_id"]
                 )
         else:
-            assert before is not None
+            if before is None:
+                raise MemoryConflict("Lifecycle operation requires an existing target")
             required = {
                 MemoryOperation.ARCHIVE: {"active"},
                 MemoryOperation.LOGICAL_DELETE: {"active", "archived"},
@@ -330,7 +383,8 @@ class MemoryService:
                     id=target_id, task_id=authority.task_id, created_at=now
                 )
                 self.session.add(record)
-            assert isinstance(record, ResearchClaimRecord)
+            if not isinstance(record, ResearchClaimRecord):
+                raise MemoryConflict("Claim target resolved to an invalid record")
             record.statement, record.confidence, record.status = (
                 data["statement"],
                 data["confidence"],
@@ -344,7 +398,8 @@ class MemoryService:
                     hypothesis_id=UUID(after["hypothesis_id"]),
                 )
                 self.session.add(record)
-            assert isinstance(record, HypothesisAssessmentRecord)
+            if not isinstance(record, HypothesisAssessmentRecord):
+                raise MemoryConflict("Assessment target resolved to an invalid record")
             record.summary, record.confidence, record.status = (
                 data["summary"],
                 data["confidence"],

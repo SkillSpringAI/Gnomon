@@ -89,6 +89,25 @@ class AppliedMemoryChange(BaseModel):
     reverses_change_id: UUID | None = None
 
 
+class MemoryHistory(BaseModel):
+    """Reconstructable journal history for one governed target."""
+
+    target_type: MemoryTarget
+    target_id: UUID
+    current_version: int
+    changes: list[AppliedMemoryChange]
+
+
+class HistoricalMemoryState(BaseModel):
+    """The governed state reconstructed at a target version."""
+
+    target_type: MemoryTarget
+    target_id: UUID
+    version: int
+    state: dict[str, Any]
+    change_id: UUID
+
+
 class MemoryReversal(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

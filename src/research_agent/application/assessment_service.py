@@ -57,7 +57,8 @@ class AssessmentService:
                 proposal, MemoryAuthority("local_operator", task_id, can_commit=True)
             )
             record = self.session.get(HypothesisAssessmentRecord, target_id)
-            assert record is not None
+            if record is None:
+                raise RuntimeError("Assessment creation did not produce a governed record")
             response = HypothesisAssessmentResponse.model_validate(
                 {
                     **assessment.model_dump(),
