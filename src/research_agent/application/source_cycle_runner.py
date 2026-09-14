@@ -63,6 +63,7 @@ class SourceCycleRunner:
         results: dict[int, CycleObjectiveResult] = {}
         evidence_ids: list[UUID] = []
         claim_ids: list[UUID] = []
+        progress.start()
 
         def guard() -> None:
             current = repository.get(task_id, for_update=True)
@@ -77,6 +78,7 @@ class SourceCycleRunner:
                 self.session.rollback()
 
         def outcome(status: str) -> ResearchTask:
+            progress.finish(status)
             return research.record_cycle_outcome(
                 task_id,
                 cycle_number,

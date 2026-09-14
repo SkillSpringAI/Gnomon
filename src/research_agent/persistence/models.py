@@ -89,6 +89,29 @@ class ResearchCycleRecord(Base):
     task: Mapped[ResearchTaskRecord] = relationship(back_populates="cycles")
 
 
+class ResearchCycleAttemptRecord(Base):
+    """Durable identity and stage for one externally meaningful cycle run."""
+
+    __tablename__ = "research_cycle_attempts"
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    task_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("research_tasks.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    cycle_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("research_cycles.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="RUNNING")
+    stage: Mapped[str] = mapped_column(String(32), nullable=False, default="CREATED")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    recovery_reason: Mapped[str | None] = mapped_column(Text)
+
+
 class ResearchSourceRecord(Base):
     """Database record for raw source evidence."""
 

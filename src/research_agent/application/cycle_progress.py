@@ -14,7 +14,11 @@ from research_agent.domain.research import (
     SourceResponse,
     utc_now,
 )
-from research_agent.persistence.models import ResearchCycleRecord, ResearchTaskRecord
+from research_agent.persistence.models import (
+    ResearchCycleAttemptRecord,
+    ResearchCycleRecord,
+    ResearchTaskRecord,
+)
 
 
 class CycleProgress:
@@ -22,6 +26,40 @@ class CycleProgress:
         self.session = session
         self.task_id = task_id
         self.cycle_number = cycle_number
+        self.attempt_id: UUID | None = None
+
+    def start(self) -> UUID:
+        """Create the durable attempt before adapter work begins."""
+        cycle = self.session.scalar(
+            select(ResearchCycleRecord).where(
+                ResearchCycleRecord.task_id == self.task_id,
+                ResearchCycleRecord.cycle_number == self.cycle_number,
+            )
+        )
+        if cycle is None:
+            raise TaskStateConflict("Cycle does not exist")
+        self.attempt_id = uuid4()
+        self.session.add(
+            ResearchCycleAttemptRecord(
+                id=self.attempt_id,
+                task_id=self.task_id,
+                cycle_id=cycle.id,
+                status="RUNNING",
+                stage="STARTED",
+                started_at=utc_now(),
+            )
+        )
+        self.session.commit()
+        return self.attempt_id
+
+    def stage(self, stage: str) -> None:
+        if self.attempt_id is None:
+            raise TaskStateConflict("Cycle attempt has not been started")
+        attempt = self.session.get(ResearchCycleAttemptRecord, self.attempt_id)
+        if attempt is None or attempt.status != "RUNNING":
+            raise TaskStateConflict("Cycle attempt is no longer running")
+        attempt.stage = stage
+        self.session.flush()
 
     def _stage(
         self,
@@ -81,7 +119,10 @@ class CycleProgress:
     def attempt(self, indices: list[int]) -> None:
         """Reserve an attempt before adapter dispatch; release the task lock immediately."""
         try:
+            if self.attempt_id is None:
+                self.start()
             self._stage(indices, [], [])
+            self.stage("QUESTIONING")
             self.session.commit()
         except Exception:
             self.session.rollback()
@@ -90,6 +131,19 @@ class CycleProgress:
     def source(self, source: SourceResponse, indices: list[int]) -> None:
         # The caller owns the source transaction, including its rollback on failure.
         self._stage(indices, [source.id], [])
+        self.stage("EVIDENCE_RECORDED")
 
     def claims(self, claims: list[ClaimResponse], indices: list[int]) -> None:
         self._stage(indices, [], [claim.id for claim in claims])
+        self.stage("EXTRACTING_CLAIMS")
+
+    def finish(self, status: str, reason: str | None = None) -> None:
+        if self.attempt_id is None:
+            return
+        attempt = self.session.get(ResearchCycleAttemptRecord, self.attempt_id)
+        if attempt is not None and attempt.status == "RUNNING":
+            attempt.status = status.upper()
+            attempt.stage = status.upper()
+            attempt.finished_at = utc_now()
+            attempt.recovery_reason = reason
+            self.session.flush()

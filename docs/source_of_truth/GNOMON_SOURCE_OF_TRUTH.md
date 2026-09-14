@@ -416,12 +416,18 @@ lifecycle/version/range/history guarantees.
 
 **Goal:** Turn cycle execution into an explicitly recoverable workflow.
 
--   [ ] Cycle run/attempt identity.
--   [ ] Minimal persisted execution stages.
--   [ ] Restart/recovery policy.
--   [ ] Interruption test matrix.
--   [ ] Idempotent recovery.
--   [ ] Operator-visible recovery reason.
+**Status:** COMPLETE (14 September 2026). Migration 015 and both cycle
+runners persist a unique execution attempt with durable stage/status
+transitions, including terminal completion/failure state. Operator recovery
+closes interrupted attempts with an auditable reason; stale and duplicate
+recovery is fenced by the existing compare-and-set recovery contract.
+
+-   [x] Cycle run/attempt identity.
+-   [x] Minimal persisted execution stages.
+-   [x] Restart/recovery policy.
+-   [x] Interruption test matrix.
+-   [x] Idempotent recovery.
+-   [x] Operator-visible recovery reason.
 
 **Exit gate:** Every simulated crash safely resumes, safely terminates,
 or explicitly requires operator recovery without silent

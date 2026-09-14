@@ -5,6 +5,9 @@ from contextlib import contextmanager
 from threading import RLock
 from uuid import UUID
 
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
 from research_agent.application.cycle_planner import (
     objective_basis,
     plan_cycle_objectives,
@@ -29,6 +32,7 @@ from research_agent.domain.research import (
     utc_now,
 )
 from research_agent.domain.snapshot import HypothesisSnapshot, InvestigationSnapshot
+from research_agent.persistence.models import ResearchCycleAttemptRecord, ResearchCycleRecord
 from research_agent.ports.research_repository import ResearchTaskRepository
 
 
@@ -245,6 +249,26 @@ class ResearchService:
                 raise TaskStateConflict("Only an active cycle can be recovered")
             if request.expected_fingerprint != recovery_fingerprint(task.status, cycle):
                 raise TaskStateConflict("Cycle progress changed; refresh before recovery")
+            session = getattr(self.repository, "session", None)
+            if isinstance(session, Session):
+                attempt = session.scalar(
+                    select(ResearchCycleAttemptRecord)
+                    .join(
+                        ResearchCycleRecord,
+                        ResearchCycleAttemptRecord.cycle_id == ResearchCycleRecord.id,
+                    )
+                    .where(
+                        ResearchCycleAttemptRecord.task_id == task_id,
+                        ResearchCycleRecord.cycle_number == cycle_number,
+                        ResearchCycleAttemptRecord.status == "RUNNING",
+                    )
+                    .order_by(ResearchCycleAttemptRecord.started_at.desc())
+                )
+                if attempt is not None:
+                    attempt.status = "INTERRUPTED"
+                    attempt.stage = "INTERRUPTED"
+                    attempt.finished_at = utc_now()
+                    attempt.recovery_reason = request.reason
             cycle.status = CycleStatus.FAILED
             cycle.result_summary = "Operator recovery: " + request.reason
             cycle.recovery_reason = request.reason

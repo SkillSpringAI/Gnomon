@@ -17,6 +17,7 @@ from research_agent.application.evidence_service import EvidenceService
 from research_agent.domain.events import EventType
 from research_agent.domain.research import SourceCreate, SourceType
 from research_agent.persistence.database import SessionFactory
+from research_agent.persistence.models import ResearchCycleAttemptRecord
 
 
 def state(client, task_id):
@@ -222,3 +223,14 @@ def test_agent_recovery_rejects_late_evidence_after_resume(request, monkeypatch)
         assert future.result(timeout=10).status_code == 200
     assert state(client, task_id)["sources"] == []
     assert state(client, task_id)["cycles"][0]["status"] == "failed"
+    with SessionFactory() as session:
+        attempt = (
+            session.query(ResearchCycleAttemptRecord)
+            .filter_by(task_id=task_id)
+            .order_by(ResearchCycleAttemptRecord.started_at.desc())
+            .first()
+        )
+        assert attempt is not None
+        assert attempt.status == "INTERRUPTED"
+        assert attempt.stage == "INTERRUPTED"
+        assert attempt.recovery_reason

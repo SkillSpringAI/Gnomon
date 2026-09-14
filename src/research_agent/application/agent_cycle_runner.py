@@ -66,6 +66,7 @@ class AgentCycleRunner:
         claim_ids: list[UUID] = []
         results: dict[int, CycleObjectiveResult] = {}
         progress = CycleProgress(self.session, task_id, cycle_number)
+        progress.start()
 
         def mark_attempted() -> None:
             progress.attempt(selected_indices)
@@ -87,6 +88,7 @@ class AgentCycleRunner:
 
         def finish_failure(status: str) -> ResearchTask:
             self.session.rollback()
+            progress.finish("blocked" if status != "failed" else "failed", "runner failure")
             # A manual outcome may have stopped this run. Never overwrite it.
             try:
                 return research.record_cycle_outcome(
@@ -153,6 +155,7 @@ class AgentCycleRunner:
                     result.claim_ids.extend(
                         claim.id for claim in claims if claim.id not in result.claim_ids
                     )
+            progress.finish("completed")
             return research.record_cycle_outcome(
                 task_id,
                 cycle_number,
