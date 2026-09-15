@@ -604,7 +604,7 @@ not silently reset an existing installation to `NORMAL`.
 
 ### Increment 13.3: Controlled compare-and-set transitions
 
-**Status:** IN REVIEW. The transition service locks the singleton row, checks an
+**Status:** COMPLETE. The transition service locks the singleton row, checks an
 exact expected version, enforces structural legality and trusted actor/reason
 codes, then commits the new state and append-only transition audit record
 together. Same-state requests are version-checked idempotent no-ops.
@@ -613,7 +613,22 @@ together. Same-state requests are version-checked idempotent no-ops.
 -   [x] Atomic state/version plus transition-audit persistence.
 -   [x] Stale-version and concurrent-transition protection.
 -   [x] PostgreSQL transition and authorization tests.
--   [ ] Review and approve the transition contract before 13.4.
+-   [x] Review and approve the transition contract before 13.4.
+
+### Increment 13.4: Centralized capability policy
+
+**Status:** IN REVIEW. `SecurityCapability` and its explicit baseline policy
+derive decisions from the persisted security state. Provider dispatch, source
+retrieval, agent-cycle execution, and governed memory mutation are denied in
+restrictive states; reads, diagnostics, containment, and recovery actions
+remain available. Missing or invalid state denies capability access.
+
+-   [x] Centralized capability names and state policy.
+-   [x] Provider dispatch guard.
+-   [x] Source retrieval and cycle execution guards.
+-   [x] Governed memory mutation guard.
+-   [x] Restrictive-state and fail-closed policy tests.
+-   [ ] Reviewer confirms boundary coverage before 13.5.
 
 -   [ ] Exact transition rules.
 -   [ ] Allowed capabilities per state.

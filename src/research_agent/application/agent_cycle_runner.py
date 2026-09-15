@@ -9,6 +9,10 @@ from research_agent.application.agent_evidence_service import AgentEvidenceServi
 from research_agent.application.claim_extraction_service import ClaimExtractionService
 from research_agent.application.cycle_progress import CycleProgress
 from research_agent.application.research_service import ResearchService, TaskStateConflict
+from research_agent.application.security_capability import (
+    SecurityCapability,
+    require_capability,
+)
 from research_agent.domain.agents import AgentQuestion
 from research_agent.domain.research import (
     CycleObjectiveResult,
@@ -38,6 +42,7 @@ class AgentCycleRunner:
         max_agents: int = 2,
         objective_indices: list[int] | None = None,
     ) -> ResearchTask:
+        require_capability(self.session, SecurityCapability.AGENT_DISPATCH)
         network = FakeAgentNetwork(scenario)
         policy = AgentRunPolicy(max_agents=max_agents)
         repository = SqlAlchemyResearchTaskRepository(self.session)

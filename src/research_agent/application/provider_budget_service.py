@@ -10,6 +10,10 @@ from sqlalchemy.orm import Session
 
 from research_agent.application.audit_service import AuditService
 from research_agent.application.research_service import ResearchTaskNotFound
+from research_agent.application.security_capability import (
+    SecurityCapability,
+    require_capability,
+)
 from research_agent.domain.events import EventPayload, EventType
 from research_agent.persistence.models import ReportGenerationAttemptRecord, ResearchTaskRecord
 
@@ -128,6 +132,7 @@ class ProviderBudgetService:
     def dispatch(self, operation_id: UUID) -> None:
         """Commit authorization before remote work; expired admission cannot dispatch."""
         try:
+            require_capability(self.session, SecurityCapability.PROVIDER_DISPATCH)
             attempt = self._lock_attempt(operation_id)
             if attempt.status != "PENDING":
                 raise ProviderAttemptConflict("Provider attempt is no longer dispatchable")

@@ -12,6 +12,10 @@ from research_agent.application.claim_extraction_service import ClaimExtractionS
 from research_agent.application.cycle_progress import CycleProgress
 from research_agent.application.evidence_service import EvidenceService
 from research_agent.application.research_service import ResearchService, TaskStateConflict
+from research_agent.application.security_capability import (
+    SecurityCapability,
+    require_capability,
+)
 from research_agent.application.source_registry import UntrustedSourceError
 from research_agent.domain.events import EventPayload, EventType
 from research_agent.domain.research import (
@@ -47,6 +51,7 @@ class SourceCycleRunner:
         self.retriever = retriever
 
     def run(self, task_id: UUID, cycle_number: int, request: SourceCycleRequest) -> ResearchTask:
+        require_capability(self.session, SecurityCapability.SOURCE_RETRIEVAL)
         repository = SqlAlchemyResearchTaskRepository(self.session)
         research = ResearchService(repository)
         attempt_id = uuid4()

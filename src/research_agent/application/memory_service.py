@@ -11,6 +11,10 @@ from sqlalchemy.orm import Session
 
 from research_agent.application.audit_service import AuditService
 from research_agent.application.research_service import ResearchTaskNotFound
+from research_agent.application.security_capability import (
+    SecurityCapability,
+    require_capability,
+)
 from research_agent.domain.events import EventPayload, EventType
 from research_agent.domain.memory import (
     AppliedMemoryChange,
@@ -332,6 +336,7 @@ class MemoryService:
         authority: MemoryAuthority,
     ) -> AppliedMemoryChange:
         """Caller owns atomic transaction, including extraction batches."""
+        require_capability(self.session, SecurityCapability.MEMORY_MUTATION)
         self._authorize(authority)
         self._task(authority.task_id)
         request = proposal.model_dump(mode="json")

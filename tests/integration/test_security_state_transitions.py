@@ -4,6 +4,11 @@ from threading import Barrier
 import pytest
 from sqlalchemy import delete, event, select, text
 
+from research_agent.application.security_capability import (
+    SecurityCapability,
+    SecurityCapabilityDenied,
+    require_capability,
+)
 from research_agent.application.security_state_service import (
     SecurityStateConflict,
     SecurityStateTransitionService,
@@ -153,3 +158,17 @@ def test_state_and_audit_roll_back_together_on_audit_failure() -> None:
         audits = session.scalars(select(SecurityTransitionRecord)).all()
     assert state is not None and state.state == "normal" and state.version == 1
     assert audits == []
+
+
+def test_lockdown_denies_provider_dispatch_but_allows_diagnostics() -> None:
+    transition(
+        expected_version=1,
+        requested_state=SecurityState.LOCKDOWN,
+        actor_type=SecurityActor.LOCAL_OPERATOR,
+        actor_id="operator-1",
+        reason_code=SecurityReasonCode.OPERATOR_LOCKDOWN,
+    )
+    with SessionFactory() as session:
+        with pytest.raises(SecurityCapabilityDenied):
+            require_capability(session, SecurityCapability.PROVIDER_DISPATCH)
+        assert require_capability(session, SecurityCapability.DIAGNOSTICS) is SecurityState.LOCKDOWN

@@ -14,6 +14,10 @@ from research_agent.application.claim_extraction_service import (
 )
 from research_agent.application.evidence_service import EvidenceService
 from research_agent.application.research_service import ResearchTaskNotFound
+from research_agent.application.security_capability import (
+    SecurityCapability,
+    require_capability,
+)
 from research_agent.application.source_registry import (
     SourceRegistryService,
     UntrustedSourceError,
@@ -96,6 +100,7 @@ def fetch_source(
     """Fetch an approved HTTP(S) source and persist it as evidence."""
     try:
         evidence_service.require_task(task_id)
+        require_capability(evidence_service.session, SecurityCapability.SOURCE_RETRIEVAL)
         retrieved = retriever.fetch(SourceTarget(uri=request.uri, source_type=request.source_type))
         return evidence_service.create_source_from_retrieval(
             task_id,
