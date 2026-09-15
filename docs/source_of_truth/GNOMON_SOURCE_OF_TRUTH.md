@@ -560,15 +560,33 @@ expand live agent networking.
 
 **Goal:** Implement explicit operational security states.
 
+The canonical state names and structural transition table are defined in
+[Slice 13 Security State Model and Transition Table](Slice%2013%20Security%20State%20Model%20and%20Transition%20Table.md).
+Slice 13 is decomposed into independently reviewable increments; 13.1 covers
+only the pure domain model and transition legality, before persistence,
+authorization, or API behavior changes.
+
 Candidate states:
 
 ``` text
 NORMAL
 DEGRADED
-ISOLATED
-SAFE
-RECOVERY
+COMPROMISED_SUSPECTED
+LOCKDOWN
+RECOVERY_REQUIRED
 ```
+
+### Increment 13.1: Canonical state model and transition table
+
+**Status:** IN REVIEW. `SecurityState`, `VALID_TRANSITIONS`, and exhaustive
+positive/negative structural tests are implemented in `domain/security.py` and
+`tests/unit/test_security_state.py`. No state is persisted and no capability
+behavior changes in this increment.
+
+-   [x] Canonical state enum.
+-   [x] Explicit valid transition map.
+-   [x] Exhaustive valid/invalid transition tests.
+-   [ ] Review and approve the structural model before persistence work.
 
 -   [ ] Exact transition rules.
 -   [ ] Allowed capabilities per state.
