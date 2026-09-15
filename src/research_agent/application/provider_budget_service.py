@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from research_agent.application.research_service import ResearchTaskNotFound
 from research_agent.persistence.models import ReportGenerationAttemptRecord, ResearchTaskRecord
 
 
@@ -30,7 +31,7 @@ class ProviderBudgetService:
             .with_for_update()
         )
         if task is None:
-            raise LookupError("Investigation not found")
+            raise ResearchTaskNotFound("Investigation not found")
         existing = self.session.get(ReportGenerationAttemptRecord, operation_id)
         if existing is not None:
             if existing.task_id != task_id:
@@ -52,7 +53,7 @@ class ProviderBudgetService:
         used = self.session.scalar(
             select(func.count(ReportGenerationAttemptRecord.operation_id)).where(
                 ReportGenerationAttemptRecord.task_id == task_id,
-                ReportGenerationAttemptRecord.status.in_(("PENDING", "SUCCEEDED")),
+                ReportGenerationAttemptRecord.status.in_(("PENDING", "DISPATCHED", "SUCCEEDED")),
             )
         ) or 0
         if used >= limit:
@@ -68,9 +69,24 @@ class ProviderBudgetService:
         self.session.commit()
         return attempt
 
+    def dispatch(self, operation_id: UUID) -> None:
+        """Fence an admitted request before remote work begins."""
+        attempt = self.session.scalar(
+            select(ReportGenerationAttemptRecord)
+            .where(
+                ReportGenerationAttemptRecord.operation_id == operation_id,
+                ReportGenerationAttemptRecord.status == "PENDING",
+            )
+            .with_for_update()
+        )
+        if attempt is None:
+            raise ProviderAttemptConflict("Provider attempt is no longer dispatchable")
+        attempt.status = "DISPATCHED"
+        self.session.commit()
+
     def finish(self, operation_id: UUID, status: str, reason: str | None = None) -> None:
         attempt = self.session.get(ReportGenerationAttemptRecord, operation_id)
-        if attempt is None or attempt.status != "PENDING":
+        if attempt is None or attempt.status not in {"PENDING", "DISPATCHED"}:
             return
         attempt.status = status
         attempt.finished_at = datetime.now(UTC)

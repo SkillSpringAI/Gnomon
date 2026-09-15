@@ -135,6 +135,7 @@ def test_bedrock_adapters_produce_the_same_validated_contract(
         adapter.model = "test-model"
         adapter.url = "https://example.test/converse"
         adapter.timeout = None
+        adapter.max_output_tokens = 3000
 
         class Response:
             def raise_for_status(self) -> None:

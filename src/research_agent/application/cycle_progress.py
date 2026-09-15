@@ -31,10 +31,15 @@ class CycleProgress:
     def start(self) -> UUID:
         """Create the durable attempt before adapter work begins."""
         cycle = self.session.scalar(
-            select(ResearchCycleRecord).where(
+            select(ResearchCycleRecord)
+            .join(ResearchTaskRecord, ResearchCycleRecord.task_id == ResearchTaskRecord.id)
+            .where(
                 ResearchCycleRecord.task_id == self.task_id,
                 ResearchCycleRecord.cycle_number == self.cycle_number,
+                ResearchCycleRecord.status == "active",
+                ResearchTaskRecord.status == "active",
             )
+            .with_for_update()
         )
         if cycle is None:
             raise TaskStateConflict("Cycle does not exist")

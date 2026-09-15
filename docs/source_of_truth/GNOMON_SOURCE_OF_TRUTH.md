@@ -74,7 +74,7 @@ is updated.
 ## GAP-001: Audit retention semantics
 
 **Priority:** P0/P1\
-**Status:** CLOSED (15 September 2026)
+**Status:** OPEN (15 September 2026 review follow-up)
 
 **Problem:** Historical records have inconsistent persistence semantics.
 Public research events can be coupled to task deletion through cascading
@@ -187,6 +187,9 @@ EXPIRED
 -   [x] Make retries idempotent.
 -   [x] Audit attempted/rejected/failed/successful calls distinctly.
 -   [x] Add simultaneous-request integration tests.
+-   [x] Fence dispatched in-flight attempts from expiry refunds.
+-   [ ] Reconcile uncertain late provider outcomes.
+-   [ ] Add controlled live-expiry/finalization interleaving tests.
 
 **Acceptance** - [x] Two requests competing for one remaining slot
 authorize exactly one. - [x] Failed calls follow documented budget
@@ -419,13 +422,15 @@ lifecycle/version/range/history guarantees.
 
 **Goal:** Turn cycle execution into an explicitly recoverable workflow.
 
-**Status:** COMPLETE (14 September 2026; follow-up completed 15 September
-2026). Migration 015 and both cycle
+**Status:** IN PROGRESS (initial implementation 14 September 2026; artifact
+linkage follow-up completed 15 September 2026). Migration 015 and both cycle
 runners persist a unique execution attempt with durable stage/status
 transitions, including terminal completion/failure state. Operator recovery
 closes interrupted attempts with an auditable reason; stale and duplicate
 recovery is fenced by the existing compare-and-set recovery contract.
 The follow-up records committed source and claim IDs on each attempt.
+The architecture review identified startup and manual-outcome races that
+still require transactional lifecycle tests and reconciliation.
 
 -   [x] Cycle run/attempt identity.
 -   [x] Minimal persisted execution stages.
@@ -433,6 +438,8 @@ The follow-up records committed source and claim IDs on each attempt.
 -   [x] Interruption test matrix.
 -   [x] Idempotent recovery.
 -   [x] Operator-visible recovery reason.
+-   [ ] Atomic activation and attempt creation boundary.
+-   [ ] Manual outcome closes a still-running attempt.
 
 **Exit gate:** Every simulated crash safely resumes, safely terminates,
 or explicitly requires operator recovery without silent
@@ -443,10 +450,11 @@ duplication/loss.
 **Goal:** Make remote-provider use deterministic under
 concurrency/retries.
 
-**Status:** COMPLETE (15 September 2026). Persistent report-generation reservations now use
+**Status:** IN PROGRESS (15 September 2026). Persistent report-generation reservations now use
 task-row locking, explicit operation IDs, committed-before-call reservations,
-failure release, and idempotency rejection. Concurrent boundary and provider
-parity tests cover both standard and bearer-session Bedrock adapters.
+failure release, dispatch fencing, idempotency rejection, and provider parity
+coverage for both standard and bearer-session Bedrock adapters. Controlled
+expiry/finalization interleavings remain before the slice exit gate.
 
 -   [x] Atomic reservation.
 -   [x] Generation attempt state.

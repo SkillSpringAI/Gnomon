@@ -15,9 +15,17 @@ class BedrockBearerReportDraftGenerator:
 
     provider = "aws_bedrock_session"
 
-    def __init__(self, token: str, model_id: str, region: str, timeout_seconds: int = 30) -> None:
+    def __init__(
+        self,
+        token: str,
+        model_id: str,
+        region: str,
+        timeout_seconds: int = 30,
+        max_output_tokens: int = 3000,
+    ) -> None:
         self.token = token
         self.model = model_id
+        self.max_output_tokens = max_output_tokens
         self.url = (
             f"https://bedrock-runtime.{region}.amazonaws.com/model/{model_id}/converse"
         )
@@ -44,7 +52,10 @@ class BedrockBearerReportDraftGenerator:
                         "content": [{"text": _prompt(report)}],
                     }
                 ],
-                "inferenceConfig": {"maxTokens": 3000, "temperature": 0.1},
+                "inferenceConfig": {
+                    "maxTokens": self.max_output_tokens,
+                    "temperature": 0.1,
+                },
             },
             timeout=self.timeout,
         )

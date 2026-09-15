@@ -368,6 +368,25 @@ class ResearchService:
             cycle.unresolved_objectives = list(outcome.unresolved_objectives)
             cycle.attempted_objectives = list(outcome.attempted_objectives)
             cycle.completed_at = utc_now()
+            session = getattr(self.repository, "session", None)
+            if isinstance(session, Session):
+                running_attempts = session.scalars(
+                    select(ResearchCycleAttemptRecord)
+                    .join(
+                        ResearchCycleRecord,
+                        ResearchCycleAttemptRecord.cycle_id == ResearchCycleRecord.id,
+                    )
+                    .where(
+                        ResearchCycleAttemptRecord.task_id == task_id,
+                        ResearchCycleRecord.cycle_number == cycle_number,
+                        ResearchCycleAttemptRecord.status == "RUNNING",
+                    )
+                ).all()
+                for attempt in running_attempts:
+                    attempt.status = outcome.status.upper()
+                    attempt.stage = outcome.status.upper()
+                    attempt.finished_at = utc_now()
+                    attempt.recovery_reason = "cycle_outcome_recorded"
             task.updated_at = utc_now()
         return task
 

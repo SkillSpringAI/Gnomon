@@ -52,6 +52,9 @@ pending provider attempts can be marked `EXPIRED` and safely recover capacity.
 Migration `018_cycle_attempt_artifacts.sql` records source and claim identities on the
 durable cycle attempt as those artifacts are committed.
 
+Migration `019_provider_attempt_dispatched.sql` adds a non-expirable dispatched
+state so in-flight provider work is not refunded by reservation expiry.
+
 The application expects all numbered migrations to be present. Run
 `python -m research_agent.cli migrate` (or `make migrate`) after PostgreSQL is ready.
 The runner creates `research_agent_schema_migrations`, takes a transaction-scoped

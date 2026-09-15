@@ -14,6 +14,7 @@ from research_agent.api.app import create_app
 from research_agent.application.audit_service import AuditService
 from research_agent.domain.events import EventType
 from research_agent.persistence.database import SessionFactory, engine
+from research_agent.persistence.models import ResearchCycleAttemptRecord
 from research_agent.persistence.repositories import SqlAlchemyResearchTaskRepository
 from research_agent.ports.agent_network import AgentNetworkError
 
@@ -183,6 +184,11 @@ def test_manual_outcome_stops_runner_without_being_overwritten(investigation, mo
     result = cycle(client, task_id)
     assert result["result_summary"] == "Operator stopped this cycle."
     assert client.get(f"/investigations/{task_id}/snapshot").json()["sources"] == []
+    with SessionFactory() as session:
+        attempts = session.query(ResearchCycleAttemptRecord).filter_by(task_id=task_id).all()
+        assert len(attempts) == 1
+        assert attempts[0].status == "FAILED"
+        assert attempts[0].stage == "FAILED"
 
 
 def test_extraction_write_failure_rolls_back_claims_and_recovers(investigation, monkeypatch):

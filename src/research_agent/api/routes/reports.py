@@ -61,6 +61,7 @@ def get_report_generator(request: Request) -> ReportGenerationService:
                     model_id=settings.model_id,
                     region=settings.aws_region,
                     timeout_seconds=settings.llm_timeout_seconds,
+                    max_output_tokens=settings.llm_max_output_tokens,
                 )
             )
         return ReportGenerationService(
@@ -106,6 +107,7 @@ def generate_report_draft(
             settings.llm_max_drafts_per_task,
             settings.llm_timeout_seconds,
         )
+        ProviderBudgetService(session).dispatch(operation_id)
         session.connection(execution_options={"isolation_level": "REPEATABLE READ"})
         report = ReportService().build(SnapshotService(session).get(task_id))
         audit = AuditService(session)
