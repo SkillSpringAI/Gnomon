@@ -395,12 +395,15 @@ state evolution without manually inspecting raw DB rows.
 
 **Goal:** Make the database defend core invariants.
 
-**Status:** COMPLETE (14 September 2026). Migration 012 adds journal version
+**Status:** COMPLETE (14 September 2026; CI dependency-path repair completed
+15 September 2026). Migration 012 adds journal version
 and operation checks, migration tracking records SHA-256 checksums and rejects
 drift, migration 014 adds the governed archive state, direct SQL tests cover
 invalid journal writes and retained-audit deletion, and CI runs the required
-quality/integration gates. No production physical-purge operation is supported;
-fixture purging is explicit and test-scoped.
+quality/integration gates with the AWS optional dependencies available to
+strict mypy. A separate minimal-install job verifies the base package without
+optional AWS dependencies. No production physical-purge operation is
+supported; fixture purging is explicit and test-scoped.
 
 -   [x] Audit/task retention policy.
 -   [x] FK deletion review.
