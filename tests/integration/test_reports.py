@@ -191,6 +191,13 @@ def test_dispatched_attempt_cannot_be_expired_or_refunded() -> None:
                     ProviderBudgetService(second).reserve(task_id, second_id, 1, 1)
                 current = first.get(ReportGenerationAttemptRecord, first_id)
                 assert current is not None and current.status == "DISPATCHED"
+                current.expires_at = datetime.now(UTC) - timedelta(minutes=5)
+                first.commit()
+                with pytest.raises(ProviderBudgetExceeded):
+                    ProviderBudgetService(second).reserve(task_id, second_id, 1, 1)
+                ProviderBudgetService(first).finish(first_id, "SUCCEEDED")
+                finished = first.get(ReportGenerationAttemptRecord, first_id)
+                assert finished is not None and finished.status == "SUCCEEDED"
         finally:
             with engine.begin() as connection:
                 purge_test_tasks(connection, [task_id])
