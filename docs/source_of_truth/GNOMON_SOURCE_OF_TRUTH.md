@@ -617,7 +617,7 @@ together. Same-state requests are version-checked idempotent no-ops.
 
 ### Increment 13.4: Centralized capability policy
 
-**Status:** COMPLETE. `SecurityCapability` and its explicit baseline policy
+**Status:** IN REVIEW (hardening pass). `SecurityCapability` and its explicit baseline policy
 derive decisions from the persisted security state. Provider dispatch, source
 retrieval, agent-cycle execution, and governed memory mutation are denied in
 restrictive states; reads, diagnostics, containment, and recovery actions
@@ -628,7 +628,8 @@ remain available. Missing or invalid state denies capability access.
 -   [x] Source retrieval and cycle execution guards.
 -   [x] Governed memory mutation guard.
 -   [x] Restrictive-state and fail-closed policy tests.
--   [x] Reviewer confirms boundary coverage before 13.5.
+-   [x] Lifecycle and provider-admission preflight guards.
+-   [ ] Reviewer confirms boundary coverage before 13.5.
 
 ### Increment 13.5: Operator visibility and bounded API enforcement
 

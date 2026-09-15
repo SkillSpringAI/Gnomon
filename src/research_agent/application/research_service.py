@@ -14,6 +14,10 @@ from research_agent.application.cycle_planner import (
     reference_fingerprint,
     review_evidence_fingerprint,
 )
+from research_agent.application.security_capability import (
+    SecurityCapability,
+    require_capability,
+)
 from research_agent.domain.research import (
     CycleObjectiveResult,
     CycleOutcomeCreate,
@@ -129,6 +133,7 @@ class ResearchService:
         return self.repository.get(task_id)
 
     def plan_next_cycle(self, task_id: UUID) -> ResearchTask:
+        self._require_database_capability(SecurityCapability.START_CYCLE)
         with self.repository.edit(task_id) as task:
             if task.status != TaskStatus.ACTIVE:
                 raise TaskStateConflict("New cycles require an active investigation")
@@ -156,6 +161,7 @@ class ResearchService:
         objective_index: int,
         request: ObjectiveReviewCreate,
     ) -> ResearchTask:
+        self._require_database_capability(SecurityCapability.MEMORY_MUTATION)
         with self.repository.edit(task_id) as task:
             cycle = self._cycle(task, cycle_number)
             if (
@@ -210,6 +216,7 @@ class ResearchService:
         track_progress: bool = False,
         attempt_id: UUID | None = None,
     ) -> ResearchTask:
+        self._require_database_capability(SecurityCapability.START_CYCLE)
         with self.repository.edit(task_id) as task:
             if task.status != TaskStatus.ACTIVE:
                 raise TaskStateConflict("Cycles require an active investigation")
@@ -266,6 +273,7 @@ class ResearchService:
     def recover_cycle(
         self, task_id: UUID, cycle_number: int, request: CycleRecoveryCreate
     ) -> ResearchTask:
+        self._require_database_capability(SecurityCapability.MEMORY_MUTATION)
         with self.repository.edit(task_id) as task:
             cycle = self._cycle(task, cycle_number)
             if cycle.status != CycleStatus.ACTIVE:
@@ -421,6 +429,7 @@ class ResearchService:
         raise CycleNotFound
 
     def change_status(self, task_id: UUID, change: TaskStatusChange) -> ResearchTask:
+        self._require_database_capability(SecurityCapability.MEMORY_MUTATION)
         allowed = {
             TaskStatus.PLANNED: {TaskStatus.ACTIVE, TaskStatus.BLOCKED, TaskStatus.ABANDONED},
             TaskStatus.ACTIVE: {
@@ -455,3 +464,8 @@ class ResearchService:
             task.status = change.status
             task.updated_at = utc_now()
         return task
+
+    def _require_database_capability(self, capability: SecurityCapability) -> None:
+        session = getattr(self.repository, "session", None)
+        if isinstance(session, Session):
+            require_capability(session, capability)

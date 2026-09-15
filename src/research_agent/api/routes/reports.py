@@ -29,6 +29,10 @@ from research_agent.application.report_generation_service import (
 )
 from research_agent.application.report_service import ReportService
 from research_agent.application.research_service import ResearchTaskNotFound
+from research_agent.application.security_capability import (
+    SecurityCapability,
+    require_capability,
+)
 from research_agent.application.snapshot_service import SnapshotService
 from research_agent.config.settings import get_settings
 from research_agent.domain.events import EventPayload, EventType
@@ -63,6 +67,7 @@ def get_report_generator(
     session.rollback()
     if exists is None:
         raise HTTPException(status_code=404, detail="Investigation not found")
+    require_capability(session, SecurityCapability.PROVIDER_DISPATCH)
     settings = get_settings()
     if settings.llm_provider.lower() == "bedrock":
         session_token = provider_sessions.get(request.cookies.get("provider_session"))
@@ -113,6 +118,7 @@ def generate_report_draft(
         raise HTTPException(status_code=400, detail="Idempotency-Key must be a UUID") from exc
     settings = get_settings()
     try:
+        require_capability(session, SecurityCapability.PROVIDER_DISPATCH)
         ProviderBudgetService(session).reserve(
             task_id,
             operation_id,

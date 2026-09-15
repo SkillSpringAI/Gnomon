@@ -72,3 +72,29 @@ def test_same_state_api_request_is_idempotent_without_new_history() -> None:
         assert response.status_code == 200
         assert response.json()["transition_id"] is None
         assert client.get("/security/transitions").json() == []
+
+
+def test_lockdown_blocks_lifecycle_start_and_provider_admission() -> None:
+    with TestClient(create_app()) as client:
+        created = client.post(
+            "/investigations",
+            json={
+                "title": "Security boundary test",
+                "objective": "Verify restrictive capability enforcement.",
+                "questions": [{"question": "Can work begin?"}],
+            },
+        )
+        assert created.status_code == 201
+        task_id = created.json()["task"]["id"]
+        lockdown = client.post(
+            "/security/transitions",
+            json={
+                "expected_version": 1,
+                "requested_state": "lockdown",
+                "reason_code": "OPERATOR_LOCKDOWN",
+            },
+        )
+        assert lockdown.status_code == 200
+        assert client.post(f"/investigations/{task_id}/cycles").status_code == 403
+        assert client.post(f"/investigations/{task_id}/cycles/1/start").status_code == 403
+        assert client.post(f"/investigations/{task_id}/report/draft").status_code == 403
