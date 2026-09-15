@@ -7,6 +7,10 @@ from sqlalchemy.orm import Session
 
 from research_agent.application.audit_service import AuditService
 from research_agent.application.evidence_service import EvidenceService
+from research_agent.application.security_capability import (
+    SecurityCapability,
+    require_capability,
+)
 from research_agent.domain.agents import AgentObservation, AgentQuestion
 from research_agent.domain.events import EventPayload, EventType
 from research_agent.domain.research import SourceCreate, SourceResponse, SourceType
@@ -37,6 +41,7 @@ class AgentEvidenceService:
         evidence = EvidenceService(self.session, self.operation_id)
         evidence.require_task(question.task_id)
         try:
+            require_capability(self.session, SecurityCapability.AGENT_DISPATCH)
             if before_ask is not None:
                 before_ask()
             observation = self.network.ask(question)

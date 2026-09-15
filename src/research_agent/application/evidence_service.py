@@ -12,6 +12,10 @@ from sqlalchemy.orm import Session
 from research_agent.application.audit_service import AuditService
 from research_agent.application.memory_service import MemoryService
 from research_agent.application.research_service import ResearchTaskNotFound
+from research_agent.application.security_capability import (
+    SecurityCapability,
+    require_capability,
+)
 from research_agent.domain.events import EventPayload, EventType
 from research_agent.domain.memory import (
     MemoryAuthority,
@@ -70,6 +74,9 @@ class EvidenceService:
         after_write: Callable[[SourceResponse], None] | None = None,
     ) -> SourceResponse:
         try:
+            # Re-check immediately before governed persistence so an in-flight
+            # retrieval/agent response cannot bypass a restrictive transition.
+            require_capability(self.session, SecurityCapability.MEMORY_MUTATION)
             self.require_task(task_id, lock=True)
             if before_write is not None:
                 before_write()

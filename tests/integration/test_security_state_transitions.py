@@ -1,9 +1,11 @@
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import delete, event, select, text
 
+from research_agent.application.evidence_service import EvidenceService
 from research_agent.application.security_capability import (
     SecurityCapability,
     SecurityCapabilityDenied,
@@ -14,9 +16,15 @@ from research_agent.application.security_state_service import (
     SecurityStateTransitionService,
     SecurityTransitionDenied,
 )
+from research_agent.application.security_state_store import SecurityStateStore
+from research_agent.domain.research import SourceCreate, SourceType
 from research_agent.domain.security import SecurityActor, SecurityReasonCode, SecurityState
 from research_agent.persistence.database import SessionFactory, engine
-from research_agent.persistence.models import SecurityStateRecord, SecurityTransitionRecord
+from research_agent.persistence.models import (
+    ResearchSourceRecord,
+    SecurityStateRecord,
+    SecurityTransitionRecord,
+)
 
 
 def reset_security_state() -> None:
@@ -172,3 +180,62 @@ def test_lockdown_denies_provider_dispatch_but_allows_diagnostics() -> None:
         with pytest.raises(SecurityCapabilityDenied):
             require_capability(session, SecurityCapability.PROVIDER_DISPATCH)
         assert require_capability(session, SecurityCapability.DIAGNOSTICS) is SecurityState.LOCKDOWN
+
+
+def test_restrictive_transition_blocks_in_flight_result_persistence() -> None:
+    transition(
+        expected_version=1,
+        requested_state=SecurityState.LOCKDOWN,
+        actor_type=SecurityActor.LOCAL_OPERATOR,
+        actor_id="operator-1",
+        reason_code=SecurityReasonCode.OPERATOR_LOCKDOWN,
+    )
+    with SessionFactory() as session:
+        before = len(session.scalars(select(ResearchSourceRecord)).all())
+        with pytest.raises(SecurityCapabilityDenied):
+            EvidenceService(session).create_source(
+                uuid4(),
+                SourceCreate(
+                    source_type=SourceType.WEB_PAGE,
+                    title="Result returned after lockdown",
+                    content="This must not be persisted.",
+                ),
+            )
+        assert len(session.scalars(select(ResearchSourceRecord)).all()) == before
+
+
+def test_recovery_requires_explicit_path_and_survives_reload() -> None:
+    transition(
+        expected_version=1,
+        requested_state=SecurityState.LOCKDOWN,
+        actor_type=SecurityActor.LOCAL_OPERATOR,
+        actor_id="operator-1",
+        reason_code=SecurityReasonCode.OPERATOR_LOCKDOWN,
+    )
+    transition(
+        expected_version=2,
+        requested_state=SecurityState.RECOVERY_REQUIRED,
+        actor_type=SecurityActor.SECURITY_RECOVERY_SERVICE,
+        actor_id="recovery-1",
+        reason_code=SecurityReasonCode.RECOVERY_STARTED,
+    )
+    with SessionFactory() as session:
+        persisted = SecurityStateStore(session).load()
+    assert persisted.state is SecurityState.RECOVERY_REQUIRED
+    assert persisted.version == 3
+    with pytest.raises(SecurityTransitionDenied):
+        transition(
+            expected_version=3,
+            requested_state=SecurityState.NORMAL,
+            actor_type=SecurityActor.SECURITY_DETECTOR,
+            actor_id="detector-1",
+            reason_code=SecurityReasonCode.RECOVERY_VERIFIED,
+        )
+    result = transition(
+        expected_version=3,
+        requested_state=SecurityState.NORMAL,
+        actor_type=SecurityActor.SECURITY_RECOVERY_SERVICE,
+        actor_id="recovery-1",
+        reason_code=SecurityReasonCode.RECOVERY_VERIFIED,
+    )
+    assert result.state is SecurityState.NORMAL and result.version == 4

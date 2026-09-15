@@ -633,7 +633,7 @@ remain available. Missing or invalid state denies capability access.
 
 ### Increment 13.5: Operator visibility and bounded API enforcement
 
-**Status:** IN REVIEW. The API exposes the persisted security state and bounded
+**Status:** COMPLETE. The API exposes the persisted security state and bounded
 transition history, accepts only explicit operator transition requests, and
 maps unavailable state, stale versions, and denied transitions to bounded HTTP
 responses. No endpoint infers recovery from elapsed time, restart, or error
@@ -644,7 +644,20 @@ disappearance.
 -   [x] Explicit operator transition endpoint.
 -   [x] Bounded capability-denial HTTP handling.
 -   [x] API tests for state visibility and denied transitions.
--   [ ] Reviewer confirms operator visibility and API boundary behavior.
+-   [x] Reviewer confirms operator visibility and API boundary behavior.
+
+### Slice 13 exit-gate hardening pass
+
+**Status:** IN REVIEW. Final boundary checks re-read security state immediately
+before governed persistence, including results returned by in-flight external
+work. Explicit recovery-path and restrictive-state durability tests cover the
+remaining transition invariants.
+
+-   [x] In-flight external results cannot persist after lockdown.
+-   [x] Recovery-required state survives reload.
+-   [x] Direct detector restoration to `NORMAL` is denied.
+-   [x] Full regression suite retains prior Slice 11/12 behavior.
+-   [ ] Complete final Slice 13 exit-gate audit and reviewer approval.
 
 -   [ ] Exact transition rules.
 -   [ ] Allowed capabilities per state.
