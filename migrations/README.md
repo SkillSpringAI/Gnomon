@@ -55,6 +55,12 @@ durable cycle attempt as those artifacts are committed.
 Migration `019_provider_attempt_dispatched.sql` adds a non-expirable dispatched
 state so in-flight provider work is not refunded by reservation expiry.
 
+Migration `020_provider_attempt_unknown.sql` adds conservative recovery for
+provider outcomes that cannot be established after dispatch.
+
+Migration `021_security_state.sql` adds the singleton versioned operational
+security state and seeds a normal state for new installations.
+
 Migration `020_provider_attempt_unknown.sql` adds `UNKNOWN` for unresolved remote
 outcomes. It retains capacity, has no terminal timestamp, and may accept a late
 known result. Existing attempt rows and their recorded history are unchanged.

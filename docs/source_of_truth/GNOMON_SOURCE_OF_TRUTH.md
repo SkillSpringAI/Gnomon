@@ -588,6 +588,20 @@ behavior changes in this increment.
 -   [x] Exhaustive valid/invalid transition tests.
 -   [ ] Review and approve the structural model before persistence work.
 
+### Increment 13.2: Versioned security-state persistence
+
+**Status:** IN REVIEW. Migration 021 persists one constrained security-state
+record with version and timestamp, seeds `NORMAL` only for a new installation,
+and loads the existing record during default application startup. Missing,
+invalid, or non-positive-version state raises a fail-closed error; startup does
+not silently reset an existing installation to `NORMAL`.
+
+-   [x] Singleton persisted state record.
+-   [x] Version and database constraints.
+-   [x] Restart loading of persisted state.
+-   [x] Missing/invalid state fails closed.
+-   [ ] Review and approve the persistence boundary before 13.3.
+
 -   [ ] Exact transition rules.
 -   [ ] Allowed capabilities per state.
 -   [ ] Fail-closed invalid transitions.

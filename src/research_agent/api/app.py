@@ -23,8 +23,10 @@ from research_agent.application.research_service import (
     InMemoryResearchTaskRepository,
     ResearchService,
 )
+from research_agent.application.security_state_store import SecurityStateStore
 from research_agent.config.settings import get_settings
 from research_agent.domain.memory import MemoryConflict, MemoryDenied
+from research_agent.persistence.database import SessionFactory
 from research_agent.persistence.repositories import SqlAlchemyResearchTaskRepository
 
 
@@ -40,6 +42,13 @@ def create_app(
         version=__version__,
         description="A provenance-aware research intelligence agent.",
     )
+
+    @application.on_event("startup")
+    def load_security_state() -> None:
+        if repository is not None:
+            return
+        with SessionFactory() as session:
+            SecurityStateStore(session).load()
     application.include_router(health_router)
     application.include_router(memory_router)
 
