@@ -366,7 +366,7 @@ Source: [Gnomon — Agent Runtime & Tool Authority.docx](../Gnomon%20—%20Agent
 | AUTH-05-14 | §14 Tool Results Are Observations | PARTIALLY_IMPLEMENTED | S01,S02,B17 | Data separation exists for source extraction/reporting; generalized tool/agent trust labels absent. Slice 5/6. |
 | AUTH-05-15 | §15 Prompt Injection Boundary | PARTIALLY_IMPLEMENTED | S01,S02,B17 | Data separation exists for source extraction/reporting; generalized tool/agent trust labels absent. Slice 5/6. |
 | AUTH-05-16 | §16 Tool Output Separation | PARTIALLY_IMPLEMENTED | S01,S02,B17 | Data separation exists for source extraction/reporting; generalized tool/agent trust labels absent. Slice 5/6. |
-| AUTH-05-17 | §17 Budgets | PARTIALLY_IMPLEMENTED | B14,B24 | HTTP limits/timeouts implemented; hierarchical budgets and provider deadline parity incomplete. Slice 5. |
+| AUTH-05-17 | §17 Budgets | PARTIALLY_IMPLEMENTED | B14,B24 | HTTP limits/timeouts and per-task provider reservations implemented; hierarchical budgets and monetary cost accounting remain incomplete. Slice 5/12. |
 | AUTH-05-18 | §18 Timeouts | PARTIALLY_IMPLEMENTED | B14,B24 | HTTP limits/timeouts implemented; hierarchical budgets and provider deadline parity incomplete. Slice 5. |
 | AUTH-05-19 | §19 Cancellation | DESIGNED_NOT_IMPLEMENTED | B09,N05 | Runtime cancellation and independent stop/continue controls absent. Slice 5/9. |
 | AUTH-05-20 | §20 Stop Conditions | DESIGNED_NOT_IMPLEMENTED | B09,N05 | Runtime cancellation and independent stop/continue controls absent. Slice 5/9. |

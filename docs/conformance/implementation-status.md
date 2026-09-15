@@ -1,8 +1,8 @@
 # Gnomon implementation status
 
-## Implementation status updated on 2026-09-13
+## Implementation status updated on 2026-09-15
 
-Repository commit: `2d786916f707f9d6eda89c4003d73942da4dc2d2`.
+Repository commit: `6f0d3b0` (documentation reconciliation follows in `b69025f`).
 The working tree was clean before this conformance documentation was added. The
 user then supplied ten authority documents in `docs`; they are retained unchanged.
 Slices 2–6 subsequently changed runtime code, migrations, audit behavior, boundary tests,
@@ -27,12 +27,12 @@ revision rules and semantic evaluation remain absent or partial.
 
 | Command | Result |
 | --- | --- |
-| `python -m pytest -ra` | Full suite passes; includes PostgreSQL integration suites and Slice 2–5 governance, recovery, audit, and boundary tests |
+| `python -m pytest -ra` | 255 passed, 5 skipped; includes PostgreSQL integration suites and governance, recovery, audit, provider-budget, and boundary tests |
 | `python -m ruff check .` | All checks passed |
-| `python -m mypy src` | Success; 60 source files |
+| `python -m mypy src` | Success; 72 source files |
 | `python scripts/check_conformance.py` | Source hashes, all 395 Documents 01–07 section groups, and evidence references pass |
 | Traceability negative checks on temporary copies | Missing section, invalid evidence reference, and changed source revision correctly rejected |
-| Final `python -m ruff check .` / `python -m mypy src scripts/check_conformance.py` | Pass; 60 source files checked by mypy |
+| Final `python -m ruff check .` / `python -m mypy src` | Pass; 72 source files checked by mypy |
 | `git diff --check` | Pass |
 
 These results establish the current regression baseline, not missing capability
@@ -60,7 +60,9 @@ code. Slices 2–5 have executable evidence; no v0.1 conformance is claimed.
 | 8 | Fake/adversarial network | Partial: bounded deterministic fake covers required adversarial scenarios; integration and audit pipeline absent |
 | 9 | Moltbook adapter | Not implemented; depends on fake-network gate |
 | 10 | Research-loop integration | Local fake-agent acquisition is connected to one bounded cycle runner; long-running and live acquisition remain absent |
-| 11 | Conformance/release gate | Not satisfied |
+| 11 | Persistent execution attempts and recovery | Implemented with durable attempt IDs, stages, artifact links, and operator reconciliation; startup interleaving remains open |
+| 12 | Provider budget and concurrency governance | Implemented with persistent reservations, idempotency, dispatch fencing, expiry handling, and adapter parity; uncertain late outcomes remain open |
+| 13 | Conformance/release gate | Not satisfied |
 
 ## Gate evidence required before v0.1 candidate
 
