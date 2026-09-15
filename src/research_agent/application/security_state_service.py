@@ -6,6 +6,11 @@ from uuid import UUID, uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from research_agent.application.security_capability import (
+    SecurityCapability,
+    SecurityCapabilityDenied,
+    allows,
+)
 from research_agent.domain.research import utc_now
 from research_agent.domain.security import (
     SecurityActor,
@@ -67,6 +72,20 @@ class SecurityStateTransitionService:
         if requested_state == current:
             self.session.rollback()
             return SecurityTransitionResult(current, record.version, None)
+        capability = (
+            SecurityCapability.SECURITY_CONTAINMENT
+            if requested_state
+            in {
+                SecurityState.DEGRADED,
+                SecurityState.COMPROMISED_SUSPECTED,
+                SecurityState.LOCKDOWN,
+            }
+            else SecurityCapability.RECOVERY_ACTION
+        )
+        if not allows(current, capability):
+            raise SecurityCapabilityDenied(
+                f"Capability {capability.value} is denied in security state {current.value}"
+            )
         if not is_valid_transition(current, requested_state):
             raise SecurityTransitionDenied(f"Invalid transition {current} -> {requested_state}")
         if not self._authorized(current, requested_state, actor_type, reason_code):

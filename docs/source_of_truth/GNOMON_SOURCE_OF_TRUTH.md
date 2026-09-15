@@ -657,6 +657,7 @@ remaining transition invariants.
 -   [x] Recovery-required state survives reload.
 -   [x] Direct detector restoration to `NORMAL` is denied.
 -   [x] Full regression suite retains prior Slice 11/12 behavior.
+-   [x] Transition service applies centralized containment/recovery capability policy.
 -   [ ] Complete final Slice 13 exit-gate audit and reviewer approval.
 
 -   [ ] Exact transition rules.

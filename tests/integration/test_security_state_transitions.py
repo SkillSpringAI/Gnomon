@@ -239,3 +239,21 @@ def test_recovery_requires_explicit_path_and_survives_reload() -> None:
         reason_code=SecurityReasonCode.RECOVERY_VERIFIED,
     )
     assert result.state is SecurityState.NORMAL and result.version == 4
+
+
+def test_transition_service_applies_centralized_recovery_capability_policy() -> None:
+    transition(
+        expected_version=1,
+        requested_state=SecurityState.DEGRADED,
+        actor_type=SecurityActor.SECURITY_DETECTOR,
+        actor_id="detector-1",
+        reason_code=SecurityReasonCode.SECURITY_DEPENDENCY_DEGRADED,
+    )
+    result = transition(
+        expected_version=2,
+        requested_state=SecurityState.NORMAL,
+        actor_type=SecurityActor.SECURITY_RECOVERY_SERVICE,
+        actor_id="recovery-1",
+        reason_code=SecurityReasonCode.RECOVERY_VERIFIED,
+    )
+    assert result.state is SecurityState.NORMAL
