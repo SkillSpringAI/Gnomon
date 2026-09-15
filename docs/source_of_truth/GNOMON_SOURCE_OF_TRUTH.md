@@ -617,7 +617,7 @@ together. Same-state requests are version-checked idempotent no-ops.
 
 ### Increment 13.4: Centralized capability policy
 
-**Status:** IN REVIEW. `SecurityCapability` and its explicit baseline policy
+**Status:** COMPLETE. `SecurityCapability` and its explicit baseline policy
 derive decisions from the persisted security state. Provider dispatch, source
 retrieval, agent-cycle execution, and governed memory mutation are denied in
 restrictive states; reads, diagnostics, containment, and recovery actions
@@ -628,7 +628,22 @@ remain available. Missing or invalid state denies capability access.
 -   [x] Source retrieval and cycle execution guards.
 -   [x] Governed memory mutation guard.
 -   [x] Restrictive-state and fail-closed policy tests.
--   [ ] Reviewer confirms boundary coverage before 13.5.
+-   [x] Reviewer confirms boundary coverage before 13.5.
+
+### Increment 13.5: Operator visibility and bounded API enforcement
+
+**Status:** IN REVIEW. The API exposes the persisted security state and bounded
+transition history, accepts only explicit operator transition requests, and
+maps unavailable state, stale versions, and denied transitions to bounded HTTP
+responses. No endpoint infers recovery from elapsed time, restart, or error
+disappearance.
+
+-   [x] Current state and version visibility.
+-   [x] Bounded transition history visibility.
+-   [x] Explicit operator transition endpoint.
+-   [x] Bounded capability-denial HTTP handling.
+-   [x] API tests for state visibility and denied transitions.
+-   [ ] Reviewer confirms operator visibility and API boundary behavior.
 
 -   [ ] Exact transition rules.
 -   [ ] Allowed capabilities per state.

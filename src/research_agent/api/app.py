@@ -17,12 +17,14 @@ from research_agent.api.routes.investigations import (
 from research_agent.api.routes.memory import router as memory_router
 from research_agent.api.routes.provider import router as provider_router
 from research_agent.api.routes.reports import router as reports_router
+from research_agent.api.routes.security import router as security_router
 from research_agent.api.routes.snapshots import router as snapshots_router
 from research_agent.api.routes.source_registry import router as source_registry_router
 from research_agent.application.research_service import (
     InMemoryResearchTaskRepository,
     ResearchService,
 )
+from research_agent.application.security_capability import SecurityCapabilityDenied
 from research_agent.application.security_state_store import SecurityStateStore
 from research_agent.config.settings import get_settings
 from research_agent.domain.memory import MemoryConflict, MemoryDenied
@@ -60,6 +62,14 @@ def create_app(
     async def memory_denied(request: Request, exc: MemoryDenied) -> JSONResponse:
         return JSONResponse(status_code=403, content={"detail": str(exc)})
 
+    @application.exception_handler(SecurityCapabilityDenied)
+    async def security_capability_denied(
+        request: Request, exc: SecurityCapabilityDenied
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=403, content={"detail": "Security policy denied capability"}
+        )
+
     application.include_router(events_router)
     application.include_router(investigations_router)
     application.include_router(evidence_router)
@@ -68,6 +78,7 @@ def create_app(
     application.include_router(snapshots_router)
     application.include_router(reports_router)
     application.include_router(provider_router)
+    application.include_router(security_router)
     if repository is not None:
         application.dependency_overrides[get_research_service] = lambda: ResearchService(repository)
     return application
