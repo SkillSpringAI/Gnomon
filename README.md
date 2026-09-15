@@ -56,9 +56,12 @@ settings, prompts, reports, database records, or audit events. AWS documents thi
 environment-variable flow and recommends short-term keys for ongoing use.
 
 Draft generation is bounded by `LLM_MAX_OUTPUT_TOKENS`, `LLM_MAX_REPORT_CHARS`, and
-`LLM_MAX_DRAFTS_PER_TASK` (defaults: 3000, 100000, and 20). The per-task limit is
-counted from successful generation audit events; rejected requests record a redacted
-budget failure event and do not call the provider.
+`LLM_MAX_DRAFTS_PER_TASK` (defaults: 3000, 100000, and 20). Per-task reservations are
+persisted with an operation ID and protected by a task-row lock. Reservations are
+committed before provider work, failed attempts release capacity, and dispatched
+attempts are not expired while provider work may still be in flight. Reusing an
+operation ID is rejected; rejected requests record a redacted budget failure event
+and do not call the provider.
 
 `GET /provider/status` exposes the active provider, model, region, credential mode, and
 limits for a UI status panel. Credential mode is reported only as `stub`,
@@ -127,12 +130,15 @@ A changed progress snapshot or already-closed cycle returns 409. Recovery and it
 events are atomic. Closing a cycle rejects subsequent writes from its old runner even
 if the investigation is resumed; an adapter call already in flight may still finish.
 
-Migration 011 identifies runs with durable progress tracking. New agent/source runners
-record dispatch intent before the adapter call and save each evidence association in the
-same transaction as the source or claims. Dispatch intent does not prove a remote call
-finished. Legacy and manually started cycles are labeled untracked; their known progress
-is retained, but missing historical associations are not inferred from timestamps or
-other task evidence. After a database outage, restore connectivity before recovery.
+Migration 011 identifies runs with durable progress tracking. Migration 015 adds a
+durable attempt identity and stage/status, migration 018 records committed source
+and claim IDs on that attempt, and migration 019 fences dispatched provider attempts
+from expiry refunds. New agent/source runners record dispatch intent before
+the adapter call and save each evidence association in the same transaction as the
+source or claims. Dispatch intent does not prove a remote call finished. Legacy and
+manually started cycles are labeled untracked; their known progress is retained, but
+missing historical associations are not inferred from timestamps or other task evidence.
+After a database outage, restore connectivity before recovery.
 
 Agent comparisons match subjects by exact question text within an investigation.
 Different or unknown subjects cannot produce agreement or contradiction; explicit
@@ -441,7 +447,9 @@ the request fails rather than claiming successful audit persistence. Unknown-tas
 pre-route request-validation failures are not stored as task events. Task creation,
 assessment edits, source registry edits, and rejected manual claim submissions are
 outside this slice's event coverage. Events are not a complete rollback log or a
-tamper-resistant ledger, and deleting a task cascades to its events.
+tamper-resistant ledger. Retained task events are protected from ordinary physical
+task deletion by the restricted audit foreign key; logical archive remains the normal
+lifecycle path.
 
 ## Retry-safe evidence writes
 
@@ -543,7 +551,7 @@ traceability check does not establish behavioral or release conformance.
 - Dependent reassessment propagation, backup/restore drills, and migration recovery procedures.
 - Moltbook integration and long-running research orchestration.
 
-Later-stage circle-backs: add migration checksum and downgrade handling; replace the
+Later-stage circle-backs: add migration downgrade handling; replace the
 local provider session bridge with authenticated identity and encrypted shared storage;
 add configured provider rate cards for monetary cost estimates; and deepen semantic
 synthesis only after corroboration and stopping-criteria evaluation are implemented.

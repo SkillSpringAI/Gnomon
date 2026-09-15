@@ -1,5 +1,10 @@
 # Gnomon known gaps and implementation priorities
 
+> Historical document. Baseline statements below are retained for traceability;
+> current implementation status is maintained in `docs/source_of_truth/GNOMON_SOURCE_OF_TRUTH.md`
+> and the dated architecture review. The corrections below supersede stale claims
+> about assessment history, audit deletion, migration checksums, and provider budgets.
+
 Baseline: `2d786916f707f9d6eda89c4003d73942da4dc2d2`, 2026-09-13.
 Findings below are code-review observations unless a passing test is explicitly
 identified in the [matrix](authority-matrix.md). They are not demonstrated exploits.
@@ -16,8 +21,8 @@ their review does not imply full behavioral conformance or individual section ma
 ## Governance and recovery — Slices 2/3
 
 - Slice 2 provides MemoryChangeProposal, deterministic validation, an append-only accepted-change journal, versions, actor context, and lifecycle operations for claims and hypothesis assessments. Slice 3 adds optimistic versions and 48-hour governed reversal with immutable journal entries; broader dependent-state propagation remains open.
-- Assessment updates overwrite summary/status/confidence and delete previous links.
-  Prior assessment state cannot be recovered through the application.
+- Assessment updates now retain prior governed state in the versioned memory journal;
+  broader dependent reassessment propagation remains open.
 - Task status compare-and-set is vulnerable to the conceptual ABA limitation:
   returning to the same status cannot distinguish intervening revisions. Use an
   explicit version for memory rather than reusing expected_status.
@@ -46,19 +51,19 @@ supplied by application code, never accepted as authoritative from model output.
   returning raw historical state through the public event API.
 - Actor values are application roles rather than authenticated user identities, and
   security events remain task-scoped until a broader identity/audit stream exists.
-- The schema permits deletion of audit history through task ON DELETE CASCADE.
-  No public task-delete endpoint was found, but database deletion still destroys
-  history; preserve this distinction when designing retention protection.
+- Migration 013 restricts physical deletion of tasks with retained audit history.
+  Logical archive remains the normal lifecycle path; backup/restore verification is
+  still open.
 - Existing tests prove atomic rollback on audit failures for source/lifecycle writes,
   not for broader dependent-state recovery or backup/restore paths.
 
 ## External boundaries — Slice 5`n`n- Shared boundary guards now validate bounded external text, explicit provider data delimiters, and capability allowlists. HTTP retrieval retains redirect, private-network, content-type, byte, and deadline controls. Prompt-injection resistance is enforced by treating retrieved material as delimited data; provider/tool and agent adapters still need equivalent integration tests.
 
-- Draft limits count successful prior events without atomic reservations. Concurrent
-  requests may pass the same budget check; failed provider attempts are not charged
-  to that count. Add a reservation/attempt policy and concurrent boundary tests.
-- The session-bearer adapter construction does not receive the configured maximum
-  output-token value passed to the standard Bedrock adapter. Check adapter parity.
+- Draft limits now use persistent atomic reservations, idempotency keys, dispatch
+  fencing, expiry handling, and concurrent boundary tests. Uncertain late-provider
+  outcome reconciliation remains open.
+- The session-bearer adapter now receives the configured maximum output-token value;
+  adapter parity coverage exists for standard and bearer-session transports.
 - Bedrock uses connection/read timeouts and retries, but there is no shared total
   deadline equivalent to the HTTP retrieval transport's deadline.
 - Draft secret filtering checks only `api_key=`, `api-key=`, `password=`, and
@@ -98,8 +103,8 @@ implementing or testing an adapter does not require sending messages to real age
 - Identity deduplication relies on all writers taking the application lock; direct
   SQL writers can bypass it. Exact duplicates do not measure independent evidence.
 - Snapshot responses include all stored source text without pagination.
-- Migrations have no checksum or downgrade support; avoid conflating schema rollback
-  with governed memory rollback.
+- Migrations record immutable checksums and reject drift; downgrade support remains
+  deferred. Avoid conflating schema rollback with governed memory rollback.
 - In-memory task storage is a development implementation without durable audit.
 - Raw bytes/object storage, entity canonicalization and cross-task memory retrieval
   remain open. Do not claim reproducibility or Phase 4 completion beyond stored data.
