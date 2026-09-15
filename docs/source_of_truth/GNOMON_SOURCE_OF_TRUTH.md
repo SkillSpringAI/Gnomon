@@ -429,8 +429,8 @@ transitions, including terminal completion/failure state. Operator recovery
 closes interrupted attempts with an auditable reason; stale and duplicate
 recovery is fenced by the existing compare-and-set recovery contract.
 The follow-up records committed source and claim IDs on each attempt.
-The architecture review identified startup and manual-outcome races that
-still require transactional lifecycle tests and reconciliation.
+The architecture review identified startup and manual-outcome races; both are
+now transactionally reconciled and covered by PostgreSQL integration tests.
 
 -   [x] Cycle run/attempt identity.
 -   [x] Minimal persisted execution stages.
@@ -438,8 +438,8 @@ still require transactional lifecycle tests and reconciliation.
 -   [x] Interruption test matrix.
 -   [x] Idempotent recovery.
 -   [x] Operator-visible recovery reason.
--   [ ] Atomic activation and attempt creation boundary.
--   [ ] Manual outcome closes a still-running attempt.
+-   [x] Atomic activation and attempt creation boundary.
+-   [x] Manual outcome closes a still-running attempt.
 
 **Exit gate:** Every simulated crash safely resumes, safely terminates,
 or explicitly requires operator recovery without silent

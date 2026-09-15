@@ -4,9 +4,11 @@ import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
+from uuid import uuid4
 
 import httpx
 import pytest
+from sqlalchemy.orm import Session
 from test_agent_cycle_safety import investigation  # noqa: F401
 from test_source_cycle import source_cycle  # noqa: F401
 
@@ -14,10 +16,12 @@ from research_agent.adapters.agents.fake import FakeAgentNetwork
 from research_agent.application.audit_service import AuditService
 from research_agent.application.cycle_progress import CycleProgress
 from research_agent.application.evidence_service import EvidenceService
+from research_agent.application.research_service import ResearchService
 from research_agent.domain.events import EventType
 from research_agent.domain.research import SourceCreate, SourceType
 from research_agent.persistence.database import SessionFactory
-from research_agent.persistence.models import ResearchCycleAttemptRecord
+from research_agent.persistence.models import ResearchCycleAttemptRecord, ResearchCycleRecord
+from research_agent.persistence.repositories import SqlAlchemyResearchTaskRepository
 
 
 def state(client, task_id):
@@ -155,6 +159,31 @@ def test_stale_recovery_and_audit_failure_leave_cycle_active(request, monkeypatc
         recover(client, task_id, token)
     current = state(client, task_id)
     assert current["task_status"] == "active" and current["cycles"][0]["status"] == "active"
+
+
+def test_cycle_activation_rolls_back_if_attempt_creation_fails(request, monkeypatch):
+    client, task_id = request.getfixturevalue("investigation")
+    original_add = Session.add
+
+    def fail_attempt_add(session, value):
+        if isinstance(value, ResearchCycleAttemptRecord):
+            raise RuntimeError("attempt creation unavailable")
+        original_add(session, value)
+
+    monkeypatch.setattr(Session, "add", fail_attempt_add)
+    with SessionFactory() as session:
+        with pytest.raises(RuntimeError, match="attempt creation unavailable"):
+            ResearchService(SqlAlchemyResearchTaskRepository(session)).start_cycle(
+                task_id,
+                1,
+                track_progress=True,
+                attempt_id=uuid4(),
+            )
+    with SessionFactory() as session:
+        cycle = session.query(ResearchCycleRecord).filter_by(task_id=task_id).one()
+        attempts = session.query(ResearchCycleAttemptRecord).filter_by(task_id=task_id).all()
+        assert cycle.status == "planned"
+        assert attempts == []
 
 
 def test_source_and_progress_commit_or_rollback_together(request, monkeypatch):

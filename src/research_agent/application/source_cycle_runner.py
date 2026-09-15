@@ -1,7 +1,7 @@
 """Acquire operator-selected web sources for a bounded research cycle."""
 
 from functools import partial
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
@@ -49,6 +49,7 @@ class SourceCycleRunner:
     def run(self, task_id: UUID, cycle_number: int, request: SourceCycleRequest) -> ResearchTask:
         repository = SqlAlchemyResearchTaskRepository(self.session)
         research = ResearchService(repository)
+        attempt_id = uuid4()
         task = research.start_cycle(
             task_id,
             cycle_number,
@@ -56,6 +57,7 @@ class SourceCycleRunner:
             track_progress=True,
             objective_indices=[source.objective_index for source in request.sources],
             required_method=ResearchMethod.WEB_RESEARCH,
+            attempt_id=attempt_id,
         )
         cycle = next(item for item in task.cycles if item.number == cycle_number)
         progress = CycleProgress(self.session, task_id, cycle_number)
@@ -63,7 +65,7 @@ class SourceCycleRunner:
         results: dict[int, CycleObjectiveResult] = {}
         evidence_ids: list[UUID] = []
         claim_ids: list[UUID] = []
-        progress.start()
+        progress.attach(attempt_id)
 
         def guard() -> None:
             current = repository.get(task_id, for_update=True)

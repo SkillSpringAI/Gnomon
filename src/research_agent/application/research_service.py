@@ -208,6 +208,7 @@ class ResearchService:
         objective_indices: list[int] | None = None,
         required_method: ResearchMethod | None = None,
         track_progress: bool = False,
+        attempt_id: UUID | None = None,
     ) -> ResearchTask:
         with self.repository.edit(task_id) as task:
             if task.status != TaskStatus.ACTIVE:
@@ -238,6 +239,28 @@ class ResearchService:
             cycle.started_at = utc_now()
             cycle.progress_tracked = track_progress
             task.updated_at = utc_now()
+            if attempt_id is not None:
+                session = getattr(self.repository, "session", None)
+                if not isinstance(session, Session):
+                    raise TaskStateConflict("Durable attempts require the PostgreSQL repository")
+                cycle_record = session.scalar(
+                    select(ResearchCycleRecord).where(
+                        ResearchCycleRecord.task_id == task_id,
+                        ResearchCycleRecord.cycle_number == cycle_number,
+                    )
+                )
+                if cycle_record is None:
+                    raise CycleNotFound
+                session.add(
+                    ResearchCycleAttemptRecord(
+                        id=attempt_id,
+                        task_id=task_id,
+                        cycle_id=cycle_record.id,
+                        status="RUNNING",
+                        stage="STARTED",
+                        started_at=utc_now(),
+                    )
+                )
         return task
 
     def recover_cycle(

@@ -57,6 +57,14 @@ class CycleProgress:
         self.session.commit()
         return self.attempt_id
 
+    def attach(self, attempt_id: UUID) -> UUID:
+        """Attach to an attempt created with cycle activation."""
+        attempt = self.session.get(ResearchCycleAttemptRecord, attempt_id)
+        if attempt is None or attempt.task_id != self.task_id or attempt.status != "RUNNING":
+            raise TaskStateConflict("Cycle attempt is not available")
+        self.attempt_id = attempt_id
+        return attempt_id
+
     def stage(self, stage: str) -> None:
         if self.attempt_id is None:
             raise TaskStateConflict("Cycle attempt has not been started")

@@ -1,6 +1,6 @@
 """Run one bounded local agent-research cycle end to end."""
 
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
 
@@ -60,13 +60,20 @@ class AgentCycleRunner:
         ):
             raise ValueError("Objective selection must contain unique cycle objective indexes")
         selected_objectives = [planned_cycle.objectives[index] for index in selected_indices]
-        task = research.start_cycle(task_id, cycle_number, exclusive=True, track_progress=True)
+        attempt_id = uuid4()
+        task = research.start_cycle(
+            task_id,
+            cycle_number,
+            exclusive=True,
+            track_progress=True,
+            attempt_id=attempt_id,
+        )
         cycle = next(cycle for cycle in task.cycles if cycle.number == cycle_number)
         evidence_ids: list[UUID] = []
         claim_ids: list[UUID] = []
         results: dict[int, CycleObjectiveResult] = {}
         progress = CycleProgress(self.session, task_id, cycle_number)
-        progress.start()
+        progress.attach(attempt_id)
 
         def mark_attempted() -> None:
             progress.attempt(selected_indices)
