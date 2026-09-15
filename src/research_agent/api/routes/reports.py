@@ -1,5 +1,6 @@
 """Read-only evidence-aware investigation reports."""
 
+from datetime import datetime
 from pathlib import Path
 from time import monotonic
 from typing import Annotated
@@ -7,6 +8,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -23,6 +25,7 @@ from research_agent.application.provider_budget_service import (
 from research_agent.application.report_generation_service import (
     ReportGenerationError,
     ReportGenerationService,
+    ReportGenerationUncertain,
 )
 from research_agent.application.report_service import ReportService
 from research_agent.application.research_service import ResearchTaskNotFound
@@ -31,7 +34,7 @@ from research_agent.config.settings import get_settings
 from research_agent.domain.events import EventPayload, EventType
 from research_agent.domain.report import InvestigationReport, ReportDraft
 from research_agent.persistence.database import get_session
-from research_agent.persistence.models import ResearchTaskRecord
+from research_agent.persistence.models import ReportGenerationAttemptRecord, ResearchTaskRecord
 
 router = APIRouter(prefix="/investigations", tags=["reports"])
 
@@ -50,7 +53,16 @@ def investigation_workspace(
     return template.replace("__TASK_ID__", str(task_id))
 
 
-def get_report_generator(request: Request) -> ReportGenerationService:
+def get_report_generator(
+    request: Request,
+    task_id: UUID,
+    session: Annotated[Session, Depends(get_session)],
+) -> ReportGenerationService:
+    # Reject missing tasks before credential discovery or optional provider construction.
+    exists = session.scalar(select(ResearchTaskRecord.id).where(ResearchTaskRecord.id == task_id))
+    session.rollback()
+    if exists is None:
+        raise HTTPException(status_code=404, detail="Investigation not found")
     settings = get_settings()
     if settings.llm_provider.lower() == "bedrock":
         session_token = provider_sessions.get(request.cookies.get("provider_session"))
@@ -107,28 +119,29 @@ def generate_report_draft(
             settings.llm_max_drafts_per_task,
             settings.llm_timeout_seconds,
         )
-        ProviderBudgetService(session).dispatch(operation_id)
         session.connection(execution_options={"isolation_level": "REPEATABLE READ"})
         report = ReportService().build(SnapshotService(session).get(task_id))
-        audit = AuditService(session)
+        # Fully materialized read model: no transaction spans provider execution.
+        session.rollback()
         if len(report.model_dump_json()) > settings.llm_max_report_chars:
-            ProviderBudgetService(session).finish(operation_id, "FAILED", "report_input_too_large")
-            audit.record_failure(
-                task_id,
-                EventType.REPORT_DRAFT_FAILED,
-                EventPayload(
+            ProviderBudgetService(session).finish(
+                operation_id,
+                "FAILED",
+                "report_input_too_large",
+                payload=EventPayload(
                     operation_id=operation_id,
                     reason="report_input_too_large",
                 ),
             )
             raise HTTPException(status_code=413, detail="Report input exceeds configured limit")
+        ProviderBudgetService(session).dispatch(operation_id)
         started_at = monotonic()
         draft = generator.generate(report)
         latency_ms = max(0, round((monotonic() - started_at) * 1000))
-        audit.stage(
-            task_id,
-            EventType.REPORT_DRAFT_GENERATED,
-            EventPayload(
+        ProviderBudgetService(session).finish(
+            operation_id,
+            "SUCCEEDED",
+            payload=EventPayload(
                 operation_id=operation_id,
                 provider=draft.provider,
                 model=draft.model,
@@ -139,17 +152,23 @@ def generate_report_draft(
                 latency_ms=latency_ms,
             ),
         )
-        session.commit()
-        ProviderBudgetService(session).finish(operation_id, "SUCCEEDED")
         return draft
     except ResearchTaskNotFound as exc:
         raise HTTPException(status_code=404, detail="Investigation not found") from exc
+    except ReportGenerationUncertain as exc:
+        ProviderBudgetService(session).finish(
+            operation_id,
+            "UNKNOWN",
+            "provider_outcome_unknown",
+            payload=EventPayload(operation_id=operation_id, reason="provider_outcome_unknown"),
+        )
+        raise HTTPException(status_code=502, detail="Provider outcome is unknown") from exc
     except ReportGenerationError as exc:
-        ProviderBudgetService(session).finish(operation_id, "FAILED", "report_generation_failed")
-        AuditService(session).record_failure(
-            task_id,
-            EventType.REPORT_DRAFT_FAILED,
-            EventPayload(
+        ProviderBudgetService(session).finish(
+            operation_id,
+            "FAILED",
+            "report_generation_failed",
+            payload=EventPayload(
                 operation_id=operation_id,
                 reason="report_generation_failed",
             ),
@@ -165,4 +184,43 @@ def generate_report_draft(
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     except ProviderAttemptConflict as exc:
         session.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+class ProviderAttemptResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    operation_id: UUID
+    task_id: UUID
+    status: str
+    started_at: datetime
+    expires_at: datetime
+    finished_at: datetime | None
+    error_reason: str | None
+
+
+@router.get("/{task_id}/report/attempts/{operation_id}", response_model=ProviderAttemptResponse)
+def get_provider_attempt(
+    task_id: UUID,
+    operation_id: UUID,
+    session: Annotated[Session, Depends(get_session)],
+) -> ProviderAttemptResponse:
+    attempt = session.get(ReportGenerationAttemptRecord, operation_id)
+    if attempt is None or attempt.task_id != task_id:
+        raise HTTPException(status_code=404, detail="Provider attempt not found")
+    return ProviderAttemptResponse.model_validate(attempt)
+
+
+@router.post("/{task_id}/report/attempts/{operation_id}/recover", status_code=204)
+def recover_provider_attempt(
+    task_id: UUID,
+    operation_id: UUID,
+    session: Annotated[Session, Depends(get_session)],
+) -> None:
+    """Local operator records uncertainty; this never releases provider capacity."""
+    get_provider_attempt(task_id, operation_id, session)
+    session.rollback()
+    try:
+        ProviderBudgetService(session).recover(task_id, operation_id)
+    except ProviderAttemptConflict as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc

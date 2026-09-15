@@ -14,7 +14,6 @@ from research_agent.api.routes.evidence import get_source_retriever
 from research_agent.application.agent_cycle_runner import AgentCycleRunner
 from research_agent.application.research_service import (
     CycleNotFound,
-    InMemoryResearchTaskRepository,
     InvalidCycleSelection,
     ResearchService,
     ResearchTaskNotFound,
@@ -52,8 +51,7 @@ def get_research_service() -> Generator[ResearchService, None, None]:
     """Provide the configured research service and close database sessions."""
     settings = get_settings()
     if settings.persistence_backend == "memory":
-        yield ResearchService(InMemoryResearchTaskRepository())
-        return
+        raise RuntimeError("Memory storage must be scoped by create_app")
 
     session = SessionFactory()
     try:

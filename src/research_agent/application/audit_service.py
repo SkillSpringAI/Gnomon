@@ -71,9 +71,27 @@ class AuditService:
             .limit(limit)
             .offset(offset)
         )
-        return [
-            ResearchEventResponse.model_validate(record, from_attributes=True) for record in records
-        ]
+        events = []
+        for record in records:
+            # Legacy rows may contain arbitrary operator prose. Project categories
+            # without rewriting retained audit rows or the authoritative journal.
+            payload = dict(record.payload)
+            if record.event_type == EventType.MEMORY_CHANGED:
+                payload["change_reason"] = "operator_memory_change"
+            elif record.event_type == EventType.MEMORY_REVERSED:
+                payload["change_reason"] = "operator_memory_reversal"
+            elif payload.get("change_reason") != "unauthorized_memory_mutation":
+                payload.pop("change_reason", None)
+            events.append(
+                ResearchEventResponse(
+                    id=record.id,
+                    task_id=record.task_id,
+                    event_type=record.event_type,
+                    payload=EventPayload.model_validate(payload),
+                    created_at=record.created_at,
+                )
+            )
+        return events
 
     def count_events(self, task_id: UUID, event_type: EventType) -> int:
         """Count task-scoped events for bounded operational guardrails."""

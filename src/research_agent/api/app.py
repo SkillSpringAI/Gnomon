@@ -33,6 +33,8 @@ def create_app(
 ) -> FastAPI:
     """Create the HTTP application."""
     settings = get_settings()
+    if repository is None and settings.persistence_backend == "memory":
+        repository = InMemoryResearchTaskRepository()
     application = FastAPI(
         title=settings.app_name,
         version=__version__,

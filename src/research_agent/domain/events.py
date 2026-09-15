@@ -32,6 +32,10 @@ class EventType(StrEnum):
     RETRIEVAL_FAILED = "retrieval.failed"
     REPORT_DRAFT_GENERATED = "report.draft_generated"
     REPORT_DRAFT_FAILED = "report.draft_failed"
+    REPORT_DRAFT_UNCERTAIN = "report.draft_uncertain"
+    REPORT_DRAFT_RESERVED = "report.draft_reserved"
+    REPORT_DRAFT_DISPATCHED = "report.draft_dispatched"
+    REPORT_DRAFT_EXPIRED = "report.draft_expired"
     SECURITY_EVENT = "security.event"
 
 
@@ -66,7 +70,12 @@ class EventPayload(BaseModel):
     new_state_digest: str | None = None
     provenance: list[UUID] | None = None
     result: Literal["accepted", "reused", "rejected", "committed", "failed"] | None = None
-    change_reason: str | None = Field(default=None, max_length=1000)
+    change_reason: (
+        Literal[
+            "operator_memory_change", "operator_memory_reversal", "unauthorized_memory_mutation"
+        ]
+        | None
+    ) = None
     reason: (
         Literal[
             "extraction_failed",
@@ -75,6 +84,8 @@ class EventPayload(BaseModel):
             "report_generation_failed",
             "report_input_too_large",
             "report_budget_exceeded",
+            "provider_outcome_unknown",
+            "reservation_expired",
             "agent_network_failed",
         ]
         | None

@@ -7,7 +7,7 @@ from sqlalchemy import delete
 
 from research_agent.api.app import create_app
 from research_agent.persistence.database import engine
-from research_agent.persistence.models import ResearchTaskRecord
+from research_agent.persistence.models import ResearchEventRecord, ResearchTaskRecord
 
 
 def main() -> None:
@@ -39,6 +39,10 @@ def main() -> None:
             assert report.json()["agent_comparison"]["distinct_agent_count"] == 2
         finally:
             with engine.begin() as connection:
+                # Explicit fixture-only purge; ordinary task deletion retains audit history.
+                connection.execute(
+                    delete(ResearchEventRecord).where(ResearchEventRecord.task_id == task_id)
+                )
                 connection.execute(
                     delete(ResearchTaskRecord).where(ResearchTaskRecord.id == task_id)
                 )

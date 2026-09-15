@@ -55,9 +55,20 @@ durable cycle attempt as those artifacts are committed.
 Migration `019_provider_attempt_dispatched.sql` adds a non-expirable dispatched
 state so in-flight provider work is not refunded by reservation expiry.
 
+Migration `020_provider_attempt_unknown.sql` adds `UNKNOWN` for unresolved remote
+outcomes. It retains capacity, has no terminal timestamp, and may accept a late
+known result. Existing attempt rows and their recorded history are unchanged.
+
+The canonical SQL files are now in `src/research_agent/migrations/` and ship as
+Python package resources. This directory retains migration documentation only.
+The move preserves original filenames and byte-for-byte checksums. Never edit an
+applied migration: add a new numbered SQL resource. Missing or empty resource
+directories fail explicitly, including in installed wheels.
+
 The application expects all numbered migrations to be present. Run
 `python -m research_agent.cli migrate` (or `make migrate`) after PostgreSQL is ready.
 The runner creates `research_agent_schema_migrations`, takes a transaction-scoped
 PostgreSQL advisory lock, applies pending files in filename order, and records each
-completed filename. Each migration runs in its own transaction; a failure rolls back
+completed filename. Tracking-table bootstrap also holds the advisory lock so two
+fresh installers cannot race its creation. Each migration runs in its own transaction; a failure rolls back
 that migration and stops the command. The numbered SQL remains additive and repeatable.

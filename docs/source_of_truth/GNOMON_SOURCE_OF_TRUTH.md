@@ -1,7 +1,7 @@
 # Gnomon Hardening and Development Source of Truth
 
 **Repository:** `SkillSpringAI/Gnomon`\
-**Baseline reviewed:** `main`, 14 September 2026\
+**Baseline reviewed:** `928e80b` plus Slice 12A/12B working changes, 15 September 2026\
 **Purpose:** Canonical plan for closing identified gaps, preventing
 regressions, and sequencing the next development slices.
 
@@ -71,15 +71,38 @@ is updated.
 
 # 3. Gap register
 
+## Current closure ledger (Slice 12B reconciliation)
+
+This table distinguishes implementation from executable evidence and remaining
+work. Working-tree closures are not commit IDs or claims of hosted CI success.
+
+| Gap | Current implementation/evidence | Remaining work | Closure reference |
+| --- | --- | --- | --- |
+| 001 retention | Archive retains audit and attributable memory; direct SQL rejects retained-task deletion | Production physical purge is unsupported, not a missing feature | `63da8b0`; archive verification in 12B working changes |
+| 002 reconstruction | Target/version history, reversal and provenance tests pass | Compatibility policy for future/older journal formats remains open | Core implementation `f3fbaa8`; no full closure |
+| 003 assertions | Governed persistence validation uses explicit exceptions; two derived-fingerprint assertions remain programmer-only | None in reviewed invariant paths | `f3fbaa8` |
+| 004 provider lifecycle | Controlled PostgreSQL contention, terminal audit atomicity and UNKNOWN recovery pass | Unknown outcomes retain capacity; no monetary cap or automatic retry | 12A working changes |
+| 005 cycle attempts | Startup rollback, operator closure, process interruption and late evidence tests pass | Future live networks need their own recovery evidence | `928e80b` plus 12A tests |
+| 006 workflow boundaries | README documents short provider transactions and retained cycle artifacts; interruption/transaction tests pass | Explicit retained-evidence UI presentation remains an observability follow-up | Partial; no full closure |
+| 007 DB enforcement | SQL constraints, checksums and direct-invalid-SQL tests exist | Complete invariant inventory and consistent database-error translation | `63da8b0`; no full closure |
+| 008 migration integrity | Installed wheel: resource hashes, concurrent bootstrap, populated upgrade, rerun and historical drift rejection pass | Migration downgrades remain deferred | `63da8b0` plus 12B working changes |
+| 009 backup/restore | Not implemented | Backup/restore fixture and state/history comparison (Slice 14) | Open |
+| 010 CI | Quality, PostgreSQL, smoke, prototype, traceability and clean-wheel commands are configured and locally verified | Hosted execution of the working changes still pending; browser suite opt-in | `ff77cc8` plus 12B workflow |
+
+Architecture-review findings F1–F8 are now addressed in code: F1 in `ff77cc8`,
+F2/F3 in `928e80b` plus 12A, and F4/F5/F8 in 12B. F6/F7 were repaired in
+`6f0d3b0`; 12B adds real configuration-path tests and rejects unknown tasks before
+provider construction. The dated review remains historical evidence, not the
+current defect list.
+
 ## GAP-001: Audit retention semantics
 
 **Priority:** P0/P1\
-**Status:** OPEN (15 September 2026 review follow-up)
+**Status:** CLOSED for supported archive/retention policy (15 September 2026)
 
-**Problem:** Historical records have inconsistent persistence semantics.
-Public research events can be coupled to task deletion through cascading
-foreign-key behaviour, while the memory journal has different retention
-behaviour.
+**Original problem:** Event retention was coupled to task deletion. Migration 013
+now rejects deletion of tasks with retained audit events, and migration 014 adds
+the archive lifecycle. The governed memory journal remains attributable by task ID.
 
 **Invariant:** Deleting or archiving operational state must not silently
 destroy authoritative history.
@@ -90,25 +113,24 @@ destroy authoritative history.
     behaviour.
 -   [x] Prevent accidental deletion of tasks owning retained history.
 -   [x] Define whether historical records may ever be physically purged.
--   [ ] Require an explicit governed and audited administrative
-    operation for any supported purge.
+-   Not applicable: no production physical purge is supported. Any future purge
+    requires a separately reviewed governed/audited operation. Fixture cleanup is test-scoped.
 -   [x] Align `research_events` and `memory_changes` retention semantics
     deliberately.
 -   [x] Add direct-database retention tests.
 
-**Acceptance** - \[ \] Archive/logically delete a task and verify events
-remain. - \[ \] Physical deletion is rejected or follows an explicitly
-documented retention policy. - \[ \] Memory history remains attributable
-to the investigation.
+**Acceptance:** archive retains events and attributable memory
+(`test_task_archive_retains_events_and_attributable_memory`); direct SQL deletion
+of a task with retained events is rejected (`test_persistence_invariants.py`).
 
 ## GAP-002: Historical epistemic-state reconstruction
 
 **Priority:** P0/P1\
-**Status:** OPEN
+**Status:** PARTIAL — historical APIs implemented; journal-format compatibility remains open
 
-**Problem:** The memory journal records previous/proposed/resulting
-state and versions, but historical state is not yet a first-class
-queryable capability.
+**Original problem:** Historical state was not queryable. Target history and
+version APIs now exist; compatibility across future journal-format changes is
+still an explicit outstanding requirement.
 
 **Invariant:** For every governed mutation, Gnomon can explain what
 state existed, what changed, why, who/what requested it, and the
@@ -139,7 +161,7 @@ selected version.
 ## GAP-003: Python assertions used for persistence/domain invariants
 
 **Priority:** P1/P2\
-**Status:** OPEN
+**Status:** CLOSED for reviewed governed paths (`f3fbaa8`)
 
 **Invariant:** Conditions protecting persisted or governed state use
 executable validation, not `assert`.
@@ -165,15 +187,17 @@ over `assert record is not None` when correctness depends on it.
 ## GAP-004: Concurrent provider/report budget race
 
 **Priority:** P1\
-**Status:** OPEN
+**Status:** CLOSED for the documented draft-count policy (Slice 12A, 15 September 2026)
 
 **Invariant:** Provider budget authorization and reservation are atomic.
 Concurrent requests cannot collectively exceed the configured limit.
 
-Proposed attempt states:
+Implemented attempt states:
 
 ``` text
 PENDING
+DISPATCHED
+UNKNOWN
 SUCCEEDED
 FAILED
 EXPIRED
@@ -188,8 +212,16 @@ EXPIRED
 -   [x] Audit attempted/rejected/failed/successful calls distinctly.
 -   [x] Add simultaneous-request integration tests.
 -   [x] Fence dispatched in-flight attempts from expiry refunds.
--   [ ] Reconcile uncertain late provider outcomes.
--   [ ] Add controlled live-expiry/finalization interleaving tests.
+-   [x] Reconcile uncertain late provider outcomes.
+-   [x] Add controlled live-expiry/finalization interleaving tests.
+
+All writers lock task then attempt and refresh state. Terminal attempt/audit writes
+are atomic; identical finalizations are no-ops and conflicting outcomes are rejected.
+`UNKNOWN` retains capacity after transport/adapter errors or operator recovery of
+an overdue dispatch. A late known result may finalize it; no timeout-only refund or
+automatic retry is supported. This counts successful drafts plus outstanding or
+uncertain work, not monetary spend or every dispatch. Known validation failures
+and undispatched expiry release capacity. See `tests/integration/test_provider_lifecycle.py`.
 
 **Acceptance** - [x] Two requests competing for one remaining slot
 authorize exactly one. - [x] Failed calls follow documented budget
@@ -199,7 +231,7 @@ Expired pending attempts recover safely.
 ## GAP-005: Cycle execution is becoming an implicit state machine
 
 **Priority:** P1\
-**Status:** OPEN
+**Status:** CLOSED for the bounded runners (Slice 12A verification, 15 September 2026)
 
 **Invariant:** Every externally meaningful cycle execution has an
 identifiable attempt and recoverable persisted stage.
@@ -227,10 +259,12 @@ INTERRUPTED
 -   [x] Prevent recovered processes duplicating committed evidence.
 -   [x] Preserve manual operator outcomes over automated recovery.
 
-**Interruption tests** - \[ \] Before discovery. - \[ \] During adapter
-work. - \[ \] After observation before evidence persistence. - \[ \]
-After evidence commit. - \[ \] After claim extraction. - \[ \] Before
-final outcome commit.
+**Interruption evidence:** `test_cycle_recovery.py` covers operator closure before
+attachment, startup rollback, process death after source/claim commit, and late
+results after recovery. `test_agent_cycle_safety.py` and `test_source_cycle.py`
+cover adapter interruption, guards before evidence persistence, retained partial
+results, and failed final-outcome writes. These establish the bounded-runner
+policy; they do not claim recovery for future live agent networks.
 
 ## GAP-006: Workflow atomicity must remain explicit
 
@@ -240,10 +274,10 @@ final outcome commit.
 **Invariant:** Successfully persisted evidence is not discarded merely
 because a later cycle phase fails.
 
--   [ ] Document transaction boundaries.
--   [ ] Document why network/provider work must not hold long DB locks.
--   [ ] Document which intermediate artifacts survive failure.
--   [ ] Add regression tests preventing a future giant-transaction
+-   [x] Document transaction boundaries.
+-   [x] Document why network/provider work must not hold long DB locks.
+-   [x] Document which intermediate artifacts survive failure.
+-   [x] Add regression tests preventing a future giant-transaction
     refactor.
 -   [ ] Clearly identify retained evidence in failed-cycle responses/UI.
 
@@ -275,22 +309,26 @@ CHECK (lifecycle IN ('active', 'archived', 'logically_deleted'))
 ## GAP-008: Migration immutability/checksums
 
 **Priority:** P1/P2\
-**Status:** OPEN
+**Status:** CLOSED for forward migrations (Slice 12B)
 
 **Invariant:** An applied migration version identifies immutable
 migration content.
+
+**Slice 12B repair:** tracking-table initialization now takes the same advisory
+lock as migration application. The installed-wheel check verifies two simultaneous
+first-time installers, preserving exactly one application of every migration.
 
 -   [x] Add SHA-256 checksum to migration tracking.
 -   [x] Calculate checksum before application.
 -   [x] Store version + checksum + applied timestamp.
 -   [x] Compare applied checksum with current migration file.
 -   [x] Fail closed on mismatch.
--   [ ] Test modified historical migration.
--   [ ] Document: never edit an applied migration; add a new one.
+-   [x] Test modified historical migration.
+-   [x] Document: never edit an applied migration; add a new one.
 
-**Acceptance** - \[ \] Clean DB applies all migrations. - \[ \] Second
-run is idempotent. - \[ \] Modified applied migration is rejected. - \[
-\] Concurrent migration runners remain serialized.
+**Acceptance:** clean schema, populated upgrade, idempotent rerun, modified-file
+rejection, and concurrent runners are verified by `scripts/verify_wheel.py --database`.
+Fresh application HTTP/restart checks additionally use `scripts/verify_prototype.py`.
 
 ## GAP-009: Backup and restore conformance
 
@@ -324,7 +362,13 @@ construct investigation
 ## GAP-010: CI must enforce repository guarantees
 
 **Priority:** P1\
-**Status:** VERIFY / IMPLEMENT IF ABSENT
+**Status:** IMPLEMENTED and locally verified; hosted CI for working changes pending
+
+**15 September Slice 12A verification finding (P2):** `scripts/smoke_test.py`
+completed its workflow but failed fixture cleanup against migration 013's audit
+retention FK. Its isolated test history must be explicitly removed before its
+fixture task; production retention must remain enforced. Repair and rerun are
+complete and the smoke check passes. Slice 12B adds the expanded verification commands to CI.
 
 Required gates:
 
@@ -343,8 +387,7 @@ prototype/conformance verification
 -   [x] Add/repair CI if absent or incomplete.
 -   [x] Pin supported Python/PostgreSQL versions appropriately.
 -   [x] Fail PR/main checks on gate failure.
--   [ ] Split slower full-integration checks only if PR latency becomes
-    excessive.
+-   Deferred unless PR latency becomes excessive: split slower integration checks.
 
 # 4. Python-specific review checklist
 
@@ -422,7 +465,7 @@ lifecycle/version/range/history guarantees.
 
 **Goal:** Turn cycle execution into an explicitly recoverable workflow.
 
-**Status:** IN PROGRESS (initial implementation 14 September 2026; artifact
+**Status:** COMPLETE (Slice 12A verification, 15 September 2026; artifact
 linkage follow-up completed 15 September 2026). Migration 015 and both cycle
 runners persist a unique execution attempt with durable stage/status
 transitions, including terminal completion/failure state. Operator recovery
@@ -431,6 +474,10 @@ recovery is fenced by the existing compare-and-set recovery contract.
 The follow-up records committed source and claim IDs on each attempt.
 The architecture review identified startup and manual-outcome races; both are
 now transactionally reconciled and covered by PostgreSQL integration tests.
+Both runner entry points now have failure-injection coverage for attempt insertion
+and controlled operator recovery/manual outcome between activation and attachment.
+Existing interrupted-process and late-evidence tests verify retained artifacts and
+fencing after recovery/resume.
 
 -   [x] Cycle run/attempt identity.
 -   [x] Minimal persisted execution stages.
@@ -450,11 +497,13 @@ duplication/loss.
 **Goal:** Make remote-provider use deterministic under
 concurrency/retries.
 
-**Status:** IN PROGRESS (15 September 2026). Persistent report-generation reservations now use
-task-row locking, explicit operation IDs, committed-before-call reservations,
-failure release, dispatch fencing, idempotency rejection, and provider parity
-coverage for both standard and bearer-session Bedrock adapters. Controlled
-expiry/finalization interleavings remain before the slice exit gate.
+**Status:** Slices 12A and 12B COMPLETE (15 September 2026), with hosted CI pending
+for the working changes. Provider lifecycle writes now share task-first lock ordering,
+refresh state under lock, and commit final state and audit together. Migration 020
+adds conservative `UNKNOWN` recovery. Report reads end before dispatch/provider
+execution. Controlled PostgreSQL tests cover expiry/dispatch ordering, competing
+finalizers, late completion after recovery, invalid results, transport failures,
+audit rollback, and cross-task operation-ID collisions.
 
 -   [x] Atomic reservation.
 -   [x] Generation attempt state.
@@ -465,6 +514,47 @@ expiry/finalization interleavings remain before the slice exit gate.
 -   [x] Provider adapter parity tests.
 
 **Exit gate:** Concurrency cannot bypass configured provider limits.
+
+### Slice 12A completion evidence
+
+- Full suite: **278 passed, 5 skipped** (opt-in browser suite).
+- Ruff and strict mypy: pass (72 source files).
+- Existing database: migration 020 applied; rerun applies zero migrations.
+- Fresh database: all 20 migrations applied; rerun is a no-op.
+- Prototype HTTP lifecycle/restart verification, smoke test, and authority
+  traceability: pass. Traceability is not full behavioral/release conformance.
+- No live provider calls were made. Verification is local, based on `928e80b`
+  plus the Slice 12A working changes; hosted CI for these changes is not claimed.
+
+### Slice 12B completion evidence
+
+- Canonical migrations are package resources in `src/research_agent/migrations/`.
+  All 20 files retain their bytes/checksums. No new SQL migration was needed for 12B.
+- `scripts/verify_wheel.py --database` passes from a clean base virtual environment
+  outside the checkout: installed import identity, resource inventory/checksums,
+  memory API isolation without AWS, concurrent migration bootstrap, populated
+  upgrade, rerun, modified-history rejection, workspace resources and stub drafting.
+- `tests/unit/test_configuration_contracts.py` covers configured task lifetime,
+  app isolation, startup bounds/provider validation, and disabled-budget status.
+- `tests/integration/test_provider_configuration.py` verifies outgoing token limits
+  of 1 and 100 for both credential transports, and missing-task 404s before any
+  provider construction or attempt insertion.
+- Public memory events now contain controlled reason categories and correlation
+  IDs. Full reasons remain in governed history. New writes reject arbitrary public
+  reason prose; the public read projection sanitizes legacy reasons without
+  rewriting retained rows. Existing DB files/backups can retain historical text.
+- Full suite: **296 passed, 5 skipped**, with two Pydantic alias warnings in
+  concurrency tests. Ruff and strict mypy pass (72 source files).
+- Existing-database migration rerun, smoke, fresh 20-migration database,
+  real HTTP lifecycle/restart, and authority traceability pass.
+- CI now invokes smoke, prototype, traceability and clean-wheel verification.
+  Hosted results remain pending until these working changes are committed/pushed.
+
+The exit review closes the eight dated architecture findings for their reviewed
+scope and preserves the remaining gaps in the current ledger. The next planned
+development slice is **Slice 13: Security state machine**, subject to the review
+gate below. This is not full authority/release conformance or authorization to
+expand live agent networking.
 
 ## Slice 13: Security state machine
 

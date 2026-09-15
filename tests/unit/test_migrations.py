@@ -21,3 +21,12 @@ def test_migration_checksum_changes_when_content_changes(tmp_path: Path) -> None
     first = migration_checksum(migration)
     migration.write_text("select 2", encoding="utf-8")
     assert migration_checksum(migration) != first
+
+
+def test_migration_discovery_rejects_missing_or_empty_resources(tmp_path):
+    import pytest
+
+    with pytest.raises(RuntimeError, match="missing"):
+        migration_files(tmp_path / "absent")
+    with pytest.raises(RuntimeError, match="empty"):
+        migration_files(tmp_path)

@@ -1,11 +1,17 @@
 """Application service for provider-backed report draft generation."""
 
+from pydantic import ValidationError
+
 from research_agent.domain.report import InvestigationReport, ReportDraft
 from research_agent.ports.reporting import ReportDraftGenerator
 
 
 class ReportGenerationError(Exception):
     """Provider output was unavailable or failed the report contract."""
+
+
+class ReportGenerationUncertain(ReportGenerationError):
+    """Transport/adapter failure does not establish remote non-execution."""
 
 
 class ReportGenerationService:
@@ -16,8 +22,12 @@ class ReportGenerationService:
 
     def generate(self, report: InvestigationReport) -> ReportDraft:
         try:
-            draft = ReportDraft.model_validate(self.generator.generate(report))
+            output = self.generator.generate(report)
         except Exception as exc:
+            raise ReportGenerationUncertain from exc
+        try:
+            draft = ReportDraft.model_validate(output)
+        except ValidationError as exc:
             raise ReportGenerationError from exc
         if draft.task_id != report.task_id:
             raise ReportGenerationError

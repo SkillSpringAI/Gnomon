@@ -2,7 +2,8 @@
 
 > Historical document. Baseline statements below are retained for traceability;
 > current implementation status is maintained in `docs/source_of_truth/GNOMON_SOURCE_OF_TRUTH.md`
-> and the dated architecture review. The corrections below supersede stale claims
+> (including its Slice 12B closure ledger). The dated architecture review is historical,
+> pinned to its original commit. The corrections below supersede stale claims
 > about assessment history, audit deletion, migration checksums, and provider budgets.
 
 Baseline: `2d786916f707f9d6eda89c4003d73942da4dc2d2`, 2026-09-13.

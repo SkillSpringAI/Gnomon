@@ -18,7 +18,7 @@ class ProviderStatusResponse(BaseModel):
     ]
     max_output_tokens: int = Field(ge=1)
     max_report_chars: int = Field(ge=1)
-    max_drafts_per_task: int = Field(ge=1)
+    max_drafts_per_task: int = Field(ge=0)
 
 
 class ProviderSessionCreate(BaseModel):

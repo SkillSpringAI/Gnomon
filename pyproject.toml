@@ -37,7 +37,7 @@ research-agent = "research_agent.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-research_agent = ["api/routes/*.html"]
+research_agent = ["api/routes/*.html", "migrations/*.sql"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

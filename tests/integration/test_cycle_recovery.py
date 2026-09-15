@@ -263,3 +263,85 @@ def test_agent_recovery_rejects_late_evidence_after_resume(request, monkeypatch)
         assert attempt.status == "INTERRUPTED"
         assert attempt.stage == "INTERRUPTED"
         assert attempt.recovery_reason
+
+
+@pytest.mark.parametrize("runner", ["agent", "source"])
+@pytest.mark.parametrize("operator_action", ["recover", "outcome"])
+def test_operator_closure_between_activation_and_attachment_fences_runner(
+    request,
+    monkeypatch,
+    runner,
+    operator_action,
+):
+    if runner == "source":
+        client, task_id, url, calls, settings = request.getfixturevalue("source_cycle")
+        endpoint, body = "run-sources", {"sources": [{"uri": url, "objective_index": 0}]}
+    else:
+        client, task_id = request.getfixturevalue("investigation")
+        endpoint, body = "run", {}
+    entered, release = Event(), Event()
+    original = CycleProgress.attach
+
+    def attach(progress, attempt_id):
+        entered.set()
+        assert release.wait(10)
+        return original(progress, attempt_id)
+
+    monkeypatch.setattr(CycleProgress, "attach", attach)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(
+            client.post, f"/investigations/{task_id}/cycles/1/{endpoint}", json=body
+        )
+        try:
+            assert entered.wait(10)
+            before = state(client, task_id)["cycles"][0]
+            with SessionFactory() as session:
+                attempt = session.query(ResearchCycleAttemptRecord).filter_by(task_id=task_id).one()
+                assert attempt.status == "RUNNING"
+            if operator_action == "recover":
+                assert recover(client, task_id, before["recovery_fingerprint"]).status_code == 200
+            else:
+                response = client.post(
+                    f"/investigations/{task_id}/cycles/1/outcome",
+                    json={
+                        "status": "failed",
+                        "result_summary": "Operator stopped before dispatch.",
+                        "unresolved_objectives": before["objectives"],
+                    },
+                )
+                assert response.status_code == 200, response.text
+        finally:
+            release.set()
+        assert future.result(timeout=10).status_code == 409
+    current = state(client, task_id)
+    assert current["sources"] == []
+    assert current["cycles"][0]["status"] == "failed"
+    with SessionFactory() as session:
+        attempt = session.query(ResearchCycleAttemptRecord).filter_by(task_id=task_id).one()
+        assert attempt.status == ("INTERRUPTED" if operator_action == "recover" else "FAILED")
+    if runner == "source":
+        assert calls == []
+
+
+@pytest.mark.parametrize("runner", ["agent", "source"])
+def test_runner_startup_attempt_failure_preserves_planned_cycle(request, monkeypatch, runner):
+    if runner == "source":
+        client, task_id, url, calls, settings = request.getfixturevalue("source_cycle")
+        endpoint, body = "run-sources", {"sources": [{"uri": url, "objective_index": 0}]}
+    else:
+        client, task_id = request.getfixturevalue("investigation")
+        endpoint, body = "run", {}
+    original = Session.add
+
+    def fail(session, value):
+        if isinstance(value, ResearchCycleAttemptRecord):
+            raise RuntimeError("attempt insert failed")
+        original(session, value)
+
+    monkeypatch.setattr(Session, "add", fail)
+    with pytest.raises(RuntimeError, match="attempt insert failed"):
+        client.post(f"/investigations/{task_id}/cycles/1/{endpoint}", json=body)
+    current = state(client, task_id)
+    assert current["cycles"][0]["status"] == "planned" and current["sources"] == []
+    with SessionFactory() as session:
+        assert session.query(ResearchCycleAttemptRecord).filter_by(task_id=task_id).all() == []

@@ -9,7 +9,7 @@ concept docs/
 ├── .env.example
 ├── docker-compose.yml
 ├── Makefile
-├── migrations/                  # Six ordered SQL scripts; no migration runner yet
+├── migrations/                  # Migration documentation; SQL is packaged under src
 ├── src/research_agent/
 │   ├── api/
 │   │   ├── app.py               # Application composition

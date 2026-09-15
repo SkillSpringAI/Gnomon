@@ -1,29 +1,50 @@
 """Apply ordered PostgreSQL migrations and record their completion."""
 
 import hashlib
+import re
+from importlib.resources import files
+from importlib.resources.abc import Traversable
 from pathlib import Path
 
 from sqlalchemy import Engine, text
 
-MIGRATIONS_DIR = Path(__file__).resolve().parents[3] / "migrations"
 MIGRATIONS_TABLE = "research_agent_schema_migrations"
 
 
-def migration_files(directory: Path = MIGRATIONS_DIR) -> list[Path]:
+def migration_files(directory: Path | None = None) -> list[Traversable]:
     """Return numbered SQL migrations in deterministic order."""
-    return sorted(path for path in directory.glob("[0-9][0-9][0-9]_*.sql") if path.is_file())
+    resource = (
+        directory if directory is not None else files("research_agent").joinpath("migrations")
+    )
+    if not resource.is_dir():
+        raise RuntimeError("Migration resources are missing")
+    migrations = sorted(
+        (
+            path
+            for path in resource.iterdir()
+            if path.is_file() and re.fullmatch(r"[0-9]{3}_.+\.sql", path.name)
+        ),
+        key=lambda path: path.name,
+    )
+    if not migrations:
+        raise RuntimeError("Migration resources are empty")
+    return migrations
 
 
-def migration_checksum(path: Path) -> str:
+def migration_checksum(path: Traversable) -> str:
     """Return the stable digest recorded for an applied migration."""
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def run_migrations(engine: Engine, directory: Path = MIGRATIONS_DIR) -> list[str]:
+def run_migrations(engine: Engine, directory: Path | None = None) -> list[str]:
     """Apply pending migrations and return the versions applied this run."""
     files = migration_files(directory)
     applied: list[str] = []
     with engine.begin() as connection:
+        # Bootstrap must serialize too: CREATE TABLE IF NOT EXISTS alone can race.
+        connection.execute(
+            text("SELECT pg_advisory_xact_lock(hashtext('research-agent-migrations'))")
+        )
         connection.execute(
             text(
                 f"CREATE TABLE IF NOT EXISTS {MIGRATIONS_TABLE} ("
@@ -33,10 +54,7 @@ def run_migrations(engine: Engine, directory: Path = MIGRATIONS_DIR) -> list[str
             )
         )
         connection.execute(
-            text(
-                f"ALTER TABLE {MIGRATIONS_TABLE} "
-                "ADD COLUMN IF NOT EXISTS checksum TEXT"
-            )
+            text(f"ALTER TABLE {MIGRATIONS_TABLE} ADD COLUMN IF NOT EXISTS checksum TEXT")
         )
     for path in files:
         version = path.name

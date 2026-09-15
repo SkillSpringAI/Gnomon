@@ -475,7 +475,9 @@ class MemoryService:
                         "previous_state_digest": self._digest(before),
                         "new_state_digest": self._digest(after),
                         "provenance": [UUID(item) for item in provenance],
-                        "change_reason": reason,
+                        "change_reason": (
+                            "operator_memory_reversal" if reverses else "operator_memory_change"
+                        ),
                         "result": "committed",
                     }
                 ),

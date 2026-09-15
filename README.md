@@ -58,10 +58,31 @@ environment-variable flow and recommends short-term keys for ongoing use.
 Draft generation is bounded by `LLM_MAX_OUTPUT_TOKENS`, `LLM_MAX_REPORT_CHARS`, and
 `LLM_MAX_DRAFTS_PER_TASK` (defaults: 3000, 100000, and 20). Per-task reservations are
 persisted with an operation ID and protected by a task-row lock. Reservations are
-committed before provider work, failed attempts release capacity, and dispatched
-attempts are not expired while provider work may still be in flight. Reusing an
-operation ID is rejected; rejected requests record a redacted budget failure event
-and do not call the provider.
+committed before provider work. `PENDING`, `DISPATCHED`, `UNKNOWN`, and `SUCCEEDED`
+consume capacity. Undispatched expiry and known validation failures release it;
+transport/adapter exceptions retain capacity as `UNKNOWN` because remote work may
+have executed. This limits successful drafts plus outstanding/uncertain work, not
+monetary spend or all dispatches. Reusing an operation ID returns 409 without a
+provider call; budget rejection returns 429 and records a redacted failure event.
+
+Supply a UUID `Idempotency-Key` on draft requests to retain the operation identity
+even if the worker disconnects. `GET /investigations/{task_id}/report/attempts/{operation_id}`
+exposes status and timestamps. The local operator can use
+`POST /investigations/{task_id}/report/attempts/{operation_id}/recover` (no body) to
+mark an overdue `DISPATCHED` attempt `UNKNOWN`, with an atomic audit event. Repeated
+recovery is a no-op; fresh or terminal attempts return 409 and a foreign/missing
+attempt returns 404. Recovery never refunds unknown work or automatically retries
+it. A late known result can finalize the same attempt; without such a result the
+slot stays charged. There is no operator override to assume remote non-execution.
+
+Provider transactions are short: reserve; materialize a consistent report and end
+its read transaction; validate input; commit dispatch; call the provider without a
+database transaction; commit final state and its audit together. Every lifecycle
+writer locks the task before the attempt and refreshes its state. Repeated terminal
+finalization is idempotent and a conflicting terminal result is rejected. A crash
+before dispatch leaves an expirable reservation; a crash after dispatch or between
+provider return and finalization retains the slot for explicit recovery. Draft
+prose is not persisted or replayed by this recovery mechanism.
 
 `GET /provider/status` exposes the active provider, model, region, credential mode, and
 limits for a UI status panel. Credential mode is reported only as `stub`,
@@ -132,8 +153,9 @@ if the investigation is resumed; an adapter call already in flight may still fin
 
 Migration 011 identifies runs with durable progress tracking. Migration 015 adds a
 durable attempt identity and stage/status, migration 018 records committed source
-and claim IDs on that attempt, and migration 019 fences dispatched provider attempts
-from expiry refunds. New agent/source runners record dispatch intent before
+and claim IDs on that attempt, migration 019 fences dispatched provider attempts
+from expiry refunds, and migration 020 records uncertain provider outcomes.
+Cycle activation and attempt creation commit together. New agent/source runners record dispatch intent before
 the adapter call and save each evidence association in the same transaction as the
 source or claims. Dispatch intent does not prove a remote call finished. Legacy and
 manually started cycles are labeled untracked; their known progress is retained, but
@@ -232,7 +254,14 @@ the [workspace verification guide](docs/workspace-verification.md).
 Configuration defaults work with the included Compose service; see `.env.example`
 for overrides. The health endpoint and unit tests do not require PostgreSQL.
 Evidence, assessments, and snapshots require PostgreSQL, including when the task
-service is configured to use its development in-memory backend.
+service is configured to use its development in-memory backend. With
+`PERSISTENCE_BACKEND=memory`, task storage lasts for one application instance:
+separate requests share tasks, separate applications do not, and a restart loses
+them. Reports, audit retrieval and governed-memory services also require PostgreSQL.
+
+Provider names are validated at startup (`stub` or `bedrock`, case-insensitive).
+Timeout, output-token and report-size limits must be positive. The draft-count
+limit must be non-negative; zero disables new draft generation.
 
 Interactive API documentation is available at <http://127.0.0.1:8000/docs>.
 
@@ -240,6 +269,25 @@ The migration runner records applied filenames in `research_agent_schema_migrati
 serializes concurrent runs with a PostgreSQL advisory lock, and applies each pending
 file in its own transaction. It is safe to rerun; production deployments should run it
 as an explicit release step before starting application workers.
+
+SQL resources now live in `src/research_agent/migrations/` and are included in the
+wheel. Loading uses `importlib.resources`; missing or empty resources fail explicitly.
+The move preserves every filename and byte, so existing database checksums remain
+valid. Never edit an applied migration; add a new numbered file instead.
+
+Run `python scripts/verify_wheel.py --database` to build and install a base wheel
+in a clean virtual environment outside the checkout. It verifies package/resource
+identity, API composition without AWS extras, concurrent installation, populated
+upgrade, rerun, checksum-drift rejection and a draft against a disposable local DB.
+Omit `--database` for the independent minimal-install check. CI runs both installation
+checks plus Ruff, mypy, pytest, smoke, fresh-database HTTP/restart verification and
+authority traceability. Browser regressions remain opt-in.
+
+Public memory audit events expose `change_reason` as a fixed category
+(`operator_memory_change`, `operator_memory_reversal`, or the existing denial
+category), together with change IDs. Full operator reasons stay in governed memory
+history. The public read projection also replaces legacy free-text reasons without
+rewriting stored audit rows; existing database backups may still contain that text.
 
 ## Investigation snapshot
 

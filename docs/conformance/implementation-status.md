@@ -2,7 +2,8 @@
 
 ## Implementation status updated on 2026-09-15
 
-Repository commit: `6f0d3b0` (documentation reconciliation follows in `b69025f`).
+Latest verification: `928e80b` plus Slice 12A/12B working changes (15 September 2026).
+The earlier documentation baseline was `6f0d3b0` (reconciled in `b69025f`).
 The working tree was clean before this conformance documentation was added. The
 user then supplied ten authority documents in `docs`; they are retained unchanged.
 Slices 2–6 subsequently changed runtime code, migrations, audit behavior, boundary tests,
@@ -24,6 +25,15 @@ does not: entity models, raw-source storage, cross-task retrieval, general claim
 revision rules and semantic evaluation remain absent or partial.
 
 ## Checks actually executed
+
+Slice 12B local verification: **296 passed, 5 skipped** (opt-in browser tests),
+with two Pydantic alias warnings in concurrency tests. Ruff and strict mypy pass.
+All 20 packaged migrations apply to a fresh database and rerun idempotently.
+Clean-wheel verification passes outside the checkout, without AWS dependencies,
+including concurrent bootstrap, populated upgrade and checksum-drift rejection.
+Smoke, real HTTP lifecycle/restart, and authority traceability checks pass.
+No hosted CI result is claimed for the working changes. The table below preserves
+the earlier baseline's check results.
 
 | Command | Result |
 | --- | --- |
@@ -60,8 +70,8 @@ code. Slices 2–5 have executable evidence; no v0.1 conformance is claimed.
 | 8 | Fake/adversarial network | Partial: bounded deterministic fake covers required adversarial scenarios; integration and audit pipeline absent |
 | 9 | Moltbook adapter | Not implemented; depends on fake-network gate |
 | 10 | Research-loop integration | Local fake-agent acquisition is connected to one bounded cycle runner; long-running and live acquisition remain absent |
-| 11 | Persistent execution attempts and recovery | Implemented with durable attempt IDs, stages, artifact links, and operator reconciliation; startup interleaving remains open |
-| 12 | Provider budget and concurrency governance | Implemented with persistent reservations, idempotency, dispatch fencing, expiry handling, and adapter parity; uncertain late outcomes remain open |
+| 11 | Persistent execution attempts and recovery | Implemented; atomic startup, operator closure before attachment, interrupted processes and late evidence are covered for bounded runners |
+| 12 | Provider budget and concurrency governance | Slices 12A/12B complete for the reviewed scope: lifecycle closure, clean-wheel resources, configured memory lifetime, provider settings/limits and public reason categories; remaining broader gaps are in the canonical ledger |
 | 13 | Conformance/release gate | Not satisfied |
 
 ## Gate evidence required before v0.1 candidate
