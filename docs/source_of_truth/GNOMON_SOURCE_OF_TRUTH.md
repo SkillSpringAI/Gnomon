@@ -646,9 +646,9 @@ disappearance.
 -   [x] API tests for state visibility and denied transitions.
 -   [x] Reviewer confirms operator visibility and API boundary behavior.
 
-### Slice 13 exit-gate hardening pass
+### Slice 13 exit-gate hardening pass — COMPLETE (15 September 2026)
 
-**Status:** IN REVIEW. Final boundary checks re-read security state immediately
+**Status:** COMPLETE. Final boundary checks re-read security state immediately
 before governed persistence, including results returned by in-flight external
 work. Explicit recovery-path and restrictive-state durability tests cover the
 remaining transition invariants.
@@ -658,7 +658,7 @@ remaining transition invariants.
 -   [x] Direct detector restoration to `NORMAL` is denied.
 -   [x] Full regression suite retains prior Slice 11/12 behavior.
 -   [x] Transition service applies centralized containment/recovery capability policy.
--   [ ] Complete final Slice 13 exit-gate audit and reviewer approval.
+-   [x] Complete final Slice 13 exit-gate audit and reviewer approval.
 
 -   [ ] Exact transition rules.
 -   [ ] Allowed capabilities per state.
