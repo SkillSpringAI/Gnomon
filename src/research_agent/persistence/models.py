@@ -25,6 +25,22 @@ class SecurityStateRecord(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class SecurityTransitionRecord(Base):
+    """Append-only authoritative audit record for a security transition."""
+
+    __tablename__ = "security_state_transitions"
+
+    transition_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    previous_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    new_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    reason_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    actor_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    actor_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    security_state_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    related_event_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+
+
 class ResearchTaskRecord(Base):
     """Database record for an open-ended research task."""
 

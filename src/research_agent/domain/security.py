@@ -13,6 +13,30 @@ class SecurityState(StrEnum):
     RECOVERY_REQUIRED = "recovery_required"
 
 
+class SecurityActor(StrEnum):
+    """Trusted principals permitted to request security-state transitions."""
+
+    LOCAL_OPERATOR = "local_operator"
+    SECURITY_DETECTOR = "security_detector"
+    SECURITY_RECOVERY_SERVICE = "security_recovery_service"
+
+
+class SecurityReasonCode(StrEnum):
+    """Bounded, non-content-bearing reasons for a security transition."""
+
+    OPERATOR_LOCKDOWN = "OPERATOR_LOCKDOWN"
+    SECURITY_INVARIANT_VIOLATION = "SECURITY_INVARIANT_VIOLATION"
+    INTEGRITY_CHECK_FAILED = "INTEGRITY_CHECK_FAILED"
+    CREDENTIAL_COMPROMISE_SUSPECTED = "CREDENTIAL_COMPROMISE_SUSPECTED"
+    AUTHORITY_BOUNDARY_VIOLATION = "AUTHORITY_BOUNDARY_VIOLATION"
+    SECURITY_DEPENDENCY_DEGRADED = "SECURITY_DEPENDENCY_DEGRADED"
+    RECOVERY_STARTED = "RECOVERY_STARTED"
+    RECOVERY_VERIFIED = "RECOVERY_VERIFIED"
+    RECOVERY_PARTIAL = "RECOVERY_PARTIAL"
+    RECOVERY_FAILED = "RECOVERY_FAILED"
+    OPERATOR_DEGRADED_MODE = "OPERATOR_DEGRADED_MODE"
+
+
 VALID_TRANSITIONS: dict[SecurityState, frozenset[SecurityState]] = {
     SecurityState.NORMAL: frozenset(
         {

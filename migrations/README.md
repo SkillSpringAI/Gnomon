@@ -61,6 +61,9 @@ provider outcomes that cannot be established after dispatch.
 Migration `021_security_state.sql` adds the singleton versioned operational
 security state and seeds a normal state for new installations.
 
+Migration `022_security_state_transitions.sql` adds the append-only authoritative
+audit record for compare-and-set security-state transitions.
+
 Migration `020_provider_attempt_unknown.sql` adds `UNKNOWN` for unresolved remote
 outcomes. It retains capacity, has no terminal timestamp, and may accept a late
 known result. Existing attempt rows and their recorded history are unchanged.

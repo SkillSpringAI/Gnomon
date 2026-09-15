@@ -578,7 +578,7 @@ RECOVERY_REQUIRED
 
 ### Increment 13.1: Canonical state model and transition table
 
-**Status:** IN REVIEW. `SecurityState`, `VALID_TRANSITIONS`, and exhaustive
+**Status:** COMPLETE. `SecurityState`, `VALID_TRANSITIONS`, and exhaustive
 positive/negative structural tests are implemented in `domain/security.py` and
 `tests/unit/test_security_state.py`. No state is persisted and no capability
 behavior changes in this increment.
@@ -586,11 +586,11 @@ behavior changes in this increment.
 -   [x] Canonical state enum.
 -   [x] Explicit valid transition map.
 -   [x] Exhaustive valid/invalid transition tests.
--   [ ] Review and approve the structural model before persistence work.
+-   [x] Review and approve the structural model before persistence work.
 
 ### Increment 13.2: Versioned security-state persistence
 
-**Status:** IN REVIEW. Migration 021 persists one constrained security-state
+**Status:** COMPLETE. Migration 021 persists one constrained security-state
 record with version and timestamp, seeds `NORMAL` only for a new installation,
 and loads the existing record during default application startup. Missing,
 invalid, or non-positive-version state raises a fail-closed error; startup does
@@ -600,7 +600,20 @@ not silently reset an existing installation to `NORMAL`.
 -   [x] Version and database constraints.
 -   [x] Restart loading of persisted state.
 -   [x] Missing/invalid state fails closed.
--   [ ] Review and approve the persistence boundary before 13.3.
+-   [x] Review and approve the persistence boundary before 13.3.
+
+### Increment 13.3: Controlled compare-and-set transitions
+
+**Status:** IN REVIEW. The transition service locks the singleton row, checks an
+exact expected version, enforces structural legality and trusted actor/reason
+codes, then commits the new state and append-only transition audit record
+together. Same-state requests are version-checked idempotent no-ops.
+
+-   [x] Bounded trusted actor and reason-code model.
+-   [x] Atomic state/version plus transition-audit persistence.
+-   [x] Stale-version and concurrent-transition protection.
+-   [x] PostgreSQL transition and authorization tests.
+-   [ ] Review and approve the transition contract before 13.4.
 
 -   [ ] Exact transition rules.
 -   [ ] Allowed capabilities per state.
