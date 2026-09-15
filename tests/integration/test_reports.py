@@ -7,7 +7,10 @@ from conftest import purge_test_tasks
 from fastapi.testclient import TestClient
 
 from research_agent.api.app import create_app
-from research_agent.application.provider_budget_service import ProviderBudgetService
+from research_agent.application.provider_budget_service import (
+    ProviderBudgetExceeded,
+    ProviderBudgetService,
+)
 from research_agent.config.settings import get_settings
 from research_agent.persistence.database import SessionFactory, engine
 from research_agent.persistence.models import ReportGenerationAttemptRecord
@@ -168,6 +171,26 @@ def test_expired_pending_reservation_releases_capacity() -> None:
                 assert reserved.status == "PENDING"
                 expired = session.get(ReportGenerationAttemptRecord, expired_id)
                 assert expired is not None and expired.status == "EXPIRED"
+        finally:
+            with engine.begin() as connection:
+                purge_test_tasks(connection, [task_id])
+
+
+def test_dispatched_attempt_cannot_be_expired_or_refunded() -> None:
+    with TestClient(create_app()) as client:
+        task = client.post(
+            "/investigations", json={"title": "Dispatched", "objective": "Keep in-flight work."}
+        ).json()["task"]
+        task_id = UUID(task["id"])
+        try:
+            first_id, second_id = UUID(int=6), UUID(int=7)
+            with SessionFactory() as first, SessionFactory() as second:
+                ProviderBudgetService(first).reserve(task_id, first_id, 1, 1)
+                ProviderBudgetService(first).dispatch(first_id)
+                with pytest.raises(ProviderBudgetExceeded):
+                    ProviderBudgetService(second).reserve(task_id, second_id, 1, 1)
+                current = first.get(ReportGenerationAttemptRecord, first_id)
+                assert current is not None and current.status == "DISPATCHED"
         finally:
             with engine.begin() as connection:
                 purge_test_tasks(connection, [task_id])
