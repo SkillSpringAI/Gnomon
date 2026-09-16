@@ -1,8 +1,19 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from research_agent.api.app import create_app
 from research_agent.application.provider_session import ProviderSessionStore
 from research_agent.config.settings import get_settings
+
+
+@pytest.fixture(autouse=True)
+def use_memory_backend(monkeypatch):
+    # Provider status/session tests do not require PostgreSQL. Avoid invoking
+    # the production security-state startup load against a local database.
+    monkeypatch.setenv("PERSISTENCE_BACKEND", "memory")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 def test_provider_status_does_not_expose_bearer_token(monkeypatch):

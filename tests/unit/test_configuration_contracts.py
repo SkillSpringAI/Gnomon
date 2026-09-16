@@ -10,7 +10,10 @@ from research_agent.domain.events import EventPayload
 
 
 @pytest.fixture(autouse=True)
-def clear_settings():
+def clear_settings(monkeypatch):
+    # Configuration contract tests exercise composition and HTTP metadata, not
+    # PostgreSQL startup. Keep the lifespan deterministic and self-contained.
+    monkeypatch.setenv("PERSISTENCE_BACKEND", "memory")
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()

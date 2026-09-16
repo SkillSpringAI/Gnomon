@@ -2,7 +2,7 @@
 
 Reviewed 15 September 2026 at local HEAD `928e80b52eb49bd74405244d856ed39a037a928e`.
 
-This is a proposed follow-up plan to `GNOMON_SOURCE_OF_TRUTH.md`, not a silent replacement of its slice numbering or authority. The architecture review beside it is historical evidence pinned to `8a22052` and remains unchanged.
+This is a proposed follow-up plan to the superseded source-of-truth document, not a silent replacement of its slice numbering or authority. The architecture review is historical evidence pinned to `8a22052` and remains unchanged.
 
 ## Current assessment
 

@@ -1,6 +1,6 @@
 # Database migrations
 
-The first schema is in [`001_initial.sql`](001_initial.sql). It stores investigation briefs and plans as JSONB while keeping research cycles and audit events queryable as separate records. Evidence and provenance tables are in [`002_evidence.sql`](002_evidence.sql). The controlled source registry is in [`003_trusted_sources.sql`](003_trusted_sources.sql). Hypothesis assessments are in [`004_hypothesis_assessments.sql`](004_hypothesis_assessments.sql).
+The first schema is in [`001_initial.sql`](../src/research_agent/migrations/001_initial.sql). It stores investigation briefs and plans as JSONB while keeping research cycles and audit events queryable as separate records. Evidence and provenance tables are in [`002_evidence.sql`](../src/research_agent/migrations/002_evidence.sql). The controlled source registry is in [`003_trusted_sources.sql`](../src/research_agent/migrations/003_trusted_sources.sql). Hypothesis assessments are in [`004_hypothesis_assessments.sql`](../src/research_agent/migrations/004_hypothesis_assessments.sql).
 
 The initial service does not require a database connection to expose its health endpoint or run unit tests. The PostgreSQL service is available through `docker compose` for integration work.
 

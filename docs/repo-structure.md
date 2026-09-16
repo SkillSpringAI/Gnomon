@@ -1,54 +1,44 @@
 # Repository Structure
 
-The current implementation uses these boundaries:
+The repository is organized around a small Python application and a documentation split between maintained architecture/governance material, operational procedures, development truth, and historical archive.
 
 ```text
 concept docs/
 ├── README.md
 ├── pyproject.toml
-├── .env.example
-├── docker-compose.yml
-├── Makefile
-├── migrations/                  # Migration documentation; SQL is packaged under src
+├── scripts/                         # verification and maintenance commands
+├── migrations/                      # migration notes; SQL is packaged under src
 ├── src/research_agent/
-│   ├── api/
-│   │   ├── app.py               # Application composition
-│   │   └── routes/              # Investigations, evidence, assessments, reports, provider, events, snapshots, registry, health
-│   ├── cli.py                  # API startup guidance
-│   ├── config/                 # Environment-backed settings and provider secrets
-│   ├── domain/
-│   │   ├── research.py         # Investigation, evidence, lifecycle, and cycle-planning models
-│   │   ├── events.py           # Allowlisted audit event types and payloads
-│   │   └── snapshot.py         # Snapshot response models
-│   ├── application/            # Research, evidence, extraction, assessment, registry, snapshot, audit, planning services
-│   ├── ports/                  # Task repository, retrieval, extraction, and LLM protocols
-│   ├── adapters/
-│   │   ├── llm/                # Rule-based extractor, report providers, AWS Bedrock adapters
-│   │   └── web/                # HTTP retriever and public-address transport
-│   ├── persistence/            # SQLAlchemy models, engine/session factory, task repository
-│   └── security/               # Placeholder; dedicated security services are not implemented
+│   ├── api/                         # application factory and HTTP routes
+│   ├── config/                      # environment-backed settings and secrets
+│   ├── domain/                      # business concepts and response models
+│   ├── application/                 # research, evidence, planning, audit services
+│   ├── ports/                       # replaceable repository/provider protocols
+│   ├── adapters/                    # LLM and web integrations
+│   ├── persistence/                 # SQLAlchemy models, sessions, repositories
+│   └── security/                    # security boundaries under active development
 ├── tests/
 │   ├── unit/
-│   └── integration/            # PostgreSQL API, persistence, audit, lifecycle, and planning contracts
+│   └── integration/                 # API, persistence, audit, lifecycle, planning
 └── docs/
+    ├── architecture/                # current implementation-facing architecture
+    ├── governance/                  # maintained normative principles and limits
+    ├── operations/                  # provider, migration, and workspace procedures
+    ├── development/                 # source truth, roadmap, conformance, history
+    ├── conformance/                 # evidence and verification records
+    ├── source_of_truth/              # cleanup artifacts and current slice evidence
+    └── archive/                      # historical, non-authoritative material
 ```
 
-## Boundary rules and current compromises
+## Boundary rules
 
-- `domain` defines business concepts and response models without provider or database imports.
-- `ports` defines replaceable interfaces. `ResearchService` accepts the task repository protocol,
-  implemented by both PostgreSQL and the in-memory test repository.
-- `adapters` integrates external systems and contains the local deterministic extractor.
-- `persistence` owns database mapping and task repository implementation.
-- Evidence, assessment, registry, and snapshot services currently query SQLAlchemy directly.
-  Extract additional repository ports when another implementation is needed, rather than
-  adding empty abstractions for every table now.
-- The snapshot route owns a consistent read transaction; its service bulk-loads task-scoped
-  evidence and assembles the response. It does not generate or update research conclusions.
-- The cycle planner is deterministic and consumes a persisted snapshot. It records no source
-  text in planning metadata; each objective stores only a fixed reason and relevant IDs.
-- Audit events are allowlisted and redacted. Evidence, lifecycle, and planning writes share
-  the transaction that changes state, so an audit failure rolls the state change back.
-- The application factory and route dependencies compose services and close sessions.
-- Add modules and folders when a real boundary emerges. Deployment infrastructure,
-  multi-user authentication, agent networking, and advanced synthesis remain future work.
+- `domain` defines business concepts without provider or database imports.
+- `ports` defines replaceable interfaces; adapters integrate external systems.
+- `persistence` owns database mapping and repository implementation.
+- Some evidence, assessment, registry, and snapshot services query SQLAlchemy directly; new repository ports should be added when another implementation is needed.
+- Snapshot reads use a consistent transaction and do not generate or update research conclusions.
+- Cycle planning is deterministic, consumes a persisted snapshot, and records only fixed reasons and relevant IDs.
+- Allowlisted, redacted audit events share transactions with evidence, lifecycle, and planning writes.
+- Deployment infrastructure, multi-user authentication, live agent networking, and advanced synthesis remain future work unless a maintained document says otherwise.
+
+For navigation, use the [documentation map](README.md). For implementation status and evidence, use [development conformance](development/conformance.md) and the [source-of-truth summary](development/source-of-truth.md).

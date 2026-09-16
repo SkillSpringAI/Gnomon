@@ -2,12 +2,13 @@
 
 ## Implementation status updated on 2026-09-15
 
-Latest verification: `928e80b` plus Slice 12A/12B working changes (15 September 2026).
+Latest verification: `928e80b` plus Slice 12A/12B and Slice 13 working changes (15 September 2026).
 The earlier documentation baseline was `6f0d3b0` (reconciled in `b69025f`).
 The working tree was clean before this conformance documentation was added. The
-user then supplied ten authority documents in `docs`; they are retained unchanged.
-Slices 2–6 subsequently changed runtime code, migrations, audit behavior, boundary tests,
-the platform-neutral fake agent contract, and the local cycle runner; this document
+user then supplied ten authority documents; their original DOCX artifacts are now archived
+after conversion to maintained Markdown. Slices 2–6 subsequently changed runtime code,
+migrations, audit behavior, boundary tests, the platform-neutral fake agent contract,
+and the local cycle runner; Slice 13 added security-state persistence and transitions; this document
 tracks the resulting state.
 
 Gnomon currently implements a local research API with PostgreSQL tasks, bounded
@@ -66,8 +67,8 @@ code. Slices 2–5 have executable evidence; no v0.1 conformance is claimed.
 | 4 | 48-hour rollback | Implemented with duplicate, stale, concurrent, dependent, expired and conflict tests |
 | 5 | Audit expansion | Implemented for task creation/mutation, cycles, sources, claims, assessments via governed memory events, rollback, and redacted payload metadata; security event type is available for boundary integrations |
 | 6 | Security boundary tests | HTTP policy remains bounded; shared untrusted-text, data-delimiting, and capability guards now have deterministic adversarial tests; broader agent/tool boundaries remain future work |
-| 7 | Agent domain model | Partial: neutral identity, question, and observation objects implemented; persistence and lifecycle absent |
-| 8 | Fake/adversarial network | Partial: bounded deterministic fake covers required adversarial scenarios; integration and audit pipeline absent |
+| 7 | Agent domain model | Partial: neutral identity, question, and observation objects implemented; live network persistence and platform lifecycle remain absent |
+| 8 | Fake/adversarial network | Partial: bounded deterministic fake, persisted agent-message evidence, comparison, audit, and local cycle integration are implemented; live adapters remain absent |
 | 9 | Moltbook adapter | Not implemented; depends on fake-network gate |
 | 10 | Research-loop integration | Local fake-agent acquisition is connected to one bounded cycle runner; long-running and live acquisition remain absent |
 | 11 | Persistent execution attempts and recovery | Implemented; atomic startup, operator closure before attachment, interrupted processes and late evidence are covered for bounded runners |
@@ -92,4 +93,4 @@ code. Slices 2–5 have executable evidence; no v0.1 conformance is claimed.
 7. Record security, epistemic and recovery review outcomes against the matrix.
 
 See [authority-matrix.md](authority-matrix.md) for requirement evidence and
-[known-gaps.md](known-gaps.md) for implementation risks and decisions.
+[archived known-gaps](../archive/superseded-plans/known-gaps.md) for historical implementation risks and decisions.

@@ -1,7 +1,7 @@
 # Gnomon known gaps and implementation priorities
 
 > Historical document. Baseline statements below are retained for traceability;
-> current implementation status is maintained in `docs/source_of_truth/GNOMON_SOURCE_OF_TRUTH.md`
+> current implementation status is maintained in `docs/development/source-of-truth.md`
 > (including its Slice 12B closure ledger). The dated architecture review is historical,
 > pinned to its original commit. The corrections below supersede stale claims
 > about assessment history, audit deletion, migration checksums, and provider budgets.

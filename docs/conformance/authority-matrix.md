@@ -114,7 +114,7 @@ Each row covers **all requirements in the named section**, including its subordi
 
 ### Document 01 — Authority & Constitutional Principles
 
-Source: [Gnomon Authority & Constitutional Principles.docx](../Gnomon%20Authority%20&%20Constitutional%20Principles.docx). SHA-256: `4342e1b10fb6dd94c5626c21c02e1bedb8f8ba4ff746e7a309a4fb7059821c71`.
+Source: [Gnomon Authority & Constitutional Principles.docx](../archive/original-authority-documents/Gnomon%20Authority%20%26%20Constitutional%20Principles.docx). SHA-256: `4342e1b10fb6dd94c5626c21c02e1bedb8f8ba4ff746e7a309a4fb7059821c71`.
 
 | Requirement group | Source section | Classification | Evidence IDs | Gap / priority |
 | --- | --- | --- | --- | --- |
@@ -152,7 +152,7 @@ Source: [Gnomon Authority & Constitutional Principles.docx](../Gnomon%20Authorit
 
 ### Document 02 — System Architecture Authority
 
-Source: [Gnomon System Architecture Authority.docx](../Gnomon%20System%20Architecture%20Authority.docx). SHA-256: `8acf648710630d59a0ab5d92ef051d9702c3beaff44011cd0f984e3e2846aabd`.
+Source: [Gnomon System Architecture Authority.docx](../archive/original-authority-documents/Gnomon%20System%20Architecture%20Authority.docx). SHA-256: `8acf648710630d59a0ab5d92ef051d9702c3beaff44011cd0f984e3e2846aabd`.
 
 | Requirement group | Source section | Classification | Evidence IDs | Gap / priority |
 | --- | --- | --- | --- | --- |
@@ -204,7 +204,7 @@ Source: [Gnomon System Architecture Authority.docx](../Gnomon%20System%20Archite
 
 ### Document 03 — Epistemic & Evidence Authority
 
-Source: [Gnomon Epistemic & Evidence Authority.docx](../Gnomon%20Epistemic%20&%20Evidence%20Authority.docx). SHA-256: `f5cc576da120fc13f1bd8a9106bcadcc12ba1ff630f6a170eaeeecd2f3b627fb`.
+Source: [Gnomon Epistemic & Evidence Authority.docx](../archive/original-authority-documents/Gnomon%20Epistemic%20%26%20Evidence%20Authority.docx). SHA-256: `f5cc576da120fc13f1bd8a9106bcadcc12ba1ff630f6a170eaeeecd2f3b627fb`.
 
 | Requirement group | Source section | Classification | Evidence IDs | Gap / priority |
 | --- | --- | --- | --- | --- |
@@ -274,7 +274,7 @@ Source: [Gnomon Epistemic & Evidence Authority.docx](../Gnomon%20Epistemic%20&%2
 
 ### Document 04 — Memory & State Authority
 
-Source: [Gnomon Memory & State Authority.docx](../Gnomon%20Memory%20&%20State%20Authority.docx). SHA-256: `7fe372dcddc65c18fded56f908c89fe800e52107c83bb8896ffdddfec3a658d5`.
+Source: [Gnomon Memory & State Authority.docx](../archive/original-authority-documents/Gnomon%20Memory%20%26%20State%20Authority.docx). SHA-256: `7fe372dcddc65c18fded56f908c89fe800e52107c83bb8896ffdddfec3a658d5`.
 
 | Requirement group | Source section | Classification | Evidence IDs | Gap / priority |
 | --- | --- | --- | --- | --- |
@@ -346,7 +346,7 @@ Source: [Gnomon Memory & State Authority.docx](../Gnomon%20Memory%20&%20State%20
 
 ### Document 05 — Agent Runtime & Tool Authority
 
-Source: [Gnomon — Agent Runtime & Tool Authority.docx](../Gnomon%20—%20Agent%20Runtime%20&%20Tool%20Authority.docx). SHA-256: `b402436cbf7362848d7bf27cbfacf8caa6f69c3518b2e917ac4940c0e23c1d0a`.
+Source: [Gnomon — Agent Runtime & Tool Authority.docx](../archive/original-authority-documents/Gnomon%20%E2%80%94%20Agent%20Runtime%20%26%20Tool%20Authority.docx). SHA-256: `b402436cbf7362848d7bf27cbfacf8caa6f69c3518b2e917ac4940c0e23c1d0a`.
 
 | Requirement group | Source section | Classification | Evidence IDs | Gap / priority |
 | --- | --- | --- | --- | --- |
@@ -413,7 +413,7 @@ Source: [Gnomon — Agent Runtime & Tool Authority.docx](../Gnomon%20—%20Agent
 
 ### Document 06 — Research Methodology Authority
 
-Source: [Gnomon — Research Methodology Authority.docx](../Gnomon%20—%20Research%20Methodology%20Authority.docx). SHA-256: `6419698a7e4019583706d700ca1b02b216d8cd1fce6916c8afc7ce156f3ad0a9`.
+Source: [Gnomon — Research Methodology Authority.docx](../archive/original-authority-documents/Gnomon%20%E2%80%94%20Research%20Methodology%20Authority.docx). SHA-256: `6419698a7e4019583706d700ca1b02b216d8cd1fce6916c8afc7ce156f3ad0a9`.
 
 | Requirement group | Source section | Classification | Evidence IDs | Gap / priority |
 | --- | --- | --- | --- | --- |
@@ -487,7 +487,7 @@ Source: [Gnomon — Research Methodology Authority.docx](../Gnomon%20—%20Resea
 
 ### Document 07 — External Agent Network Authority
 
-Source: [Gnomon — External Agent Network Authority.docx](../Gnomon%20—%20External%20Agent%20Network%20Authority.docx). SHA-256: `6b2d4878efd16212e47a28d9ebecdd2d8b0e4b52b33accc69c33f47c0c415b31`.
+Source: [Gnomon — External Agent Network Authority.docx](../archive/original-authority-documents/Gnomon%20%E2%80%94%20External%20Agent%20Network%20Authority.docx). SHA-256: `6b2d4878efd16212e47a28d9ebecdd2d8b0e4b52b33accc69c33f47c0c415b31`.
 
 | Requirement group | Source section | Classification | Evidence IDs | Gap / priority |
 | --- | --- | --- | --- | --- |
