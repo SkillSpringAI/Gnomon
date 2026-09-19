@@ -6,13 +6,22 @@ This document contains future work and planned capabilities. It is not current i
 
 ## Near-term hardening
 
-### Backup and restore conformance
+### Ordered authority foundations
 
-Build a supported PostgreSQL backup and restore procedure, an automated fixture, and a comparison of IDs, versions, provenance, audit, memory journal, and deterministic snapshots. Verify that provider credentials remain ephemeral and add the recovery check to the release gate.
+The 19 September sequence is baseline/docs → Authority Epoch foundation → verification
+and adversarial review → transition actor/reason hardening → stop. Point-of-effect
+checks are implemented in `9c82544d` (successful hosted Quality run #12).
+The epoch foundation and bounded actor/reason matrix are now implemented locally;
+see [authority foundations](authority-foundations.md) for the completed scope.
 
-### Security-state reconciliation
+Recovery bootstrap, new-epoch replacement, RecoveryContext, OperatorAuthorization,
+ExecutionAuthorization epoch binding, deployment cloning, and backup reconstruction
+remain deferred. Backup/restore depends on authority lineage, transition/restoration
+authority, bootstrap semantics, and RecoveryContext; it is not the next implementation slice.
 
-Reconcile the security authority’s `NORMAL`, `DEGRADED`, `ISOLATED`, `SAFE`, and `RECOVERY` vocabulary with Slice 13’s persisted `NORMAL`, `DEGRADED`, `LOCKDOWN`, `RECOVERY_REQUIRED`, and `COMPROMISED_SUSPECTED` model. Establish one canonical state machine, transition table, API contract, and conformance test set.
+The canonical runtime state vocabulary is NORMAL, DEGRADED, COMPROMISED_SUSPECTED,
+LOCKDOWN, and RECOVERY_REQUIRED. Historical security vocabulary is not an additional
+runtime state machine. Full recovery conformance remains open.
 
 ### Workflow and persistence hardening
 
@@ -20,7 +29,7 @@ Reconcile the security authority’s `NORMAL`, `DEGRADED`, `ISOLATED`, `SAFE`, a
 - Complete the inventory of application-only versus database-critical invariants.
 - Improve translation of database constraint failures into stable API errors.
 - Define compatibility behavior for older governed-memory journal formats.
-- Confirm expanded verification in hosted CI.
+- Obtain hosted verification for each subsequent implementation baseline.
 
 ## Future capability phases
 

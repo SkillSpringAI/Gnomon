@@ -36,7 +36,7 @@ def test_restrictive_states_deny_authority_bearing_capabilities(state: SecurityS
 
 def test_missing_state_fails_closed() -> None:
     class MissingStateSession:
-        def get(self, *_: object) -> None:
+        def get(self, *_: object, **__: object) -> None:
             return None
 
     with pytest.raises(SecurityCapabilityDenied):

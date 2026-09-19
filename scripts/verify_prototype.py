@@ -104,6 +104,8 @@ def main() -> None:
             origin = f"http://127.0.0.1:{port}"
             with httpx.Client(base_url=origin, timeout=10, trust_env=False) as client:
                 ready(client)
+                security_before = json_response(client.get("/security/state"))
+                assert security_before["authority_epoch_id"]
                 task = json_response(
                     client.post(
                         "/investigations",
@@ -156,11 +158,12 @@ def main() -> None:
                 stop()
                 process = start()
                 ready(client)
+                assert json_response(client.get("/security/state")) == security_before
                 assert json_response(client.get(f"{prefix}/report")) == before
                 assert client.get(f"{prefix}/workspace").status_code == 200
                 print(
                     "Real HTTP: lifecycle, two cycles, blocked outcome "
-                    "and restart persistence passed.",
+                    "and restart persistence (including authority epoch) passed.",
                     flush=True,
                 )
                 if args.serve:

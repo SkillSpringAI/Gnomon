@@ -1,6 +1,7 @@
 # Gnomon Current Source of Truth
 
-**Current baseline:** Slice 13 security-state work complete, with Slice 12A/12B verification evidence from 15 September 2026.
+**Current verified baseline:** `9c82544ddd582770332df2174d93c2ca759a28bd` (19 September 2026), with [hosted Quality run #12 successful](https://github.com/SkillSpringAI/Gnomon/actions/runs/35414849048).
+**Local changes:** A/B/C authority foundation slices are implemented and locally verified; see [implementation status](../conformance/implementation-status.md). They are not yet a new hosted baseline.
 **Purpose:** Concise current implementation truth, open release gaps, and immediate work.
 **Status:** Current authority for repository state; completed history belongs in [development history](development-history.md), and future work belongs in the [roadmap](roadmap.md).
 
@@ -22,7 +23,10 @@ Current supported behavior includes:
 - Deterministic snapshots and reports that preserve uncertainty, provenance, cycle outcomes, unresolved objectives, and non-authoritative agent comparison metadata.
 - Local rule-based and optional Bedrock provider boundaries with idempotent attempts, bounded output limits, dispatch fencing, and explicit unknown outcomes.
 - A platform-neutral fake agent network with bounded adversarial scenarios, persisted agent-message evidence, deterministic comparison, and local cycle integration.
-- Versioned security state persistence and controlled transitions for the current Slice 13 scope.
+- Versioned canonical security state persistence, controlled transitions, and centralized capability policy.
+- Point-of-effect enforcement for `READ_AUDIT` on audit/history reads, source retrieval in the cycle runner, and provider dispatch after reservation. Admission alone does not authorize a later effect.
+- Authority Epoch persistence and epoch-bound new transition audit records, with fail-closed lineage loading and no runtime epoch creation.
+- Explicit transition actor/reason authorization and REDUCE/PRESERVE/BROADEN classification of current capability sets. See [authority foundations](authority-foundations.md) for the matrix and limits.
 
 ## Current guarantees and limits
 
@@ -45,12 +49,12 @@ No current document should claim full autonomous operation, complete security co
 
 | Priority | Issue | Current status | Next evidence required |
 |---|---|---|---|
-| P1 | Backup and restore conformance | Open | Supported PostgreSQL backup/restore procedure, fixture, state/history/provenance/audit comparison, credential non-persistence checks, and release verification. |
+| P1 | Backup and restore conformance | Deferred behind authority lineage, transition/restoration authority, bootstrap semantics, and RecoveryContext | Supported PostgreSQL backup/restore procedure, fixture, state/history/provenance/audit comparison, credential non-persistence checks, and release verification. |
 | P1/P2 | Historical journal compatibility | Partial | Define compatibility behavior for older memory journal formats and add reconstruction coverage. |
 | P1/P2 | Workflow atomicity observability | Partial | Clearly expose retained evidence and progress in failed-cycle responses and workspace UI. |
 | P1/P2 | Lowest-layer invariant enforcement | Partial | Inventory application-only invariants, classify DB-critical rules, and improve understandable database-error translation. |
-| P1/P2 | Security-state authority reconciliation | Open | Reconcile the Security Authority state vocabulary with Slice 13’s persisted canonical model and transition table. |
-| P1/P2 | Hosted CI evidence | Locally verified | Confirm the expanded verification stack in hosted CI for the working changes. |
+| P1/P2 | Security authority foundations | Partial | Epoch persistence and transition actor/reason hardening are implemented locally. Protected restoration, bootstrap and frozen recovery architecture remain unimplemented. |
+| P1/P2 | Hosted CI evidence | Verified for `9c82544d` | Quality run #12 passed; subsequent changes require new verification. |
 
 The dated architecture review findings are historical evidence. They were reconciled into the current ledger where applicable and should not be treated as the active defect list without checking this document and the conformance records.
 
@@ -67,10 +71,13 @@ The current hardening baseline advances only when:
 
 ## Immediate next work
 
-1. Complete backup/restore conformance and recovery documentation.
-2. Reconcile the security-state authority documents and Slice 13 implementation.
-3. Close workflow observability and database-error translation gaps.
-4. Keep live external-agent adapters, broad provider expansion, semantic synthesis, and long-running orchestration deferred until the hardening gates are satisfied.
+1. Review the locally implemented A/B/C slices and their [verification record](../conformance/implementation-status.md). Contracts #1–#5 remain untouched.
+2. Resolve lifecycle-closure authority and protected restoration semantics in a separate future slice. The legacy migration initializes once; runtime corruption never mints an epoch.
+3. Stop before recovery bootstrap, new-epoch replacement, RecoveryContext, OperatorAuthorization, ExecutionAuthorization epoch binding, deployment cloning, and backup reconstruction.
+
+### Known implementation question
+
+When a restrictive SecurityState transition interrupts an already-running cycle, which authority permits Gnomon to durably mark that cycle BLOCKED/INTERRUPTED? Resolve this before generalizing capability policy; it affects containment bookkeeping, recovery semantics, and MEMORY_MUTATION. Recording the question does not change lifecycle behavior.
 
 ## Navigation
 
@@ -79,5 +86,5 @@ The current hardening baseline advances only when:
 - [Conformance](conformance.md) — implementation and release-gate rules.
 - [Authority matrix](../conformance/authority-matrix.md) — detailed requirement evidence.
 - [Implementation status](../conformance/implementation-status.md) — latest verification summary.
-- [Security authority](../governance/security-authority.md) — security requirements and known state-model conflict.
+- [Security authority](../governance/security-authority.md) — security requirements and historical vocabulary.
 - [Repository documentation inventory](../source_of_truth/repository-documentation-inventory.md) — cleanup classification record.

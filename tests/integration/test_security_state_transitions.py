@@ -50,7 +50,55 @@ def transition(**kwargs):
         return SecurityStateTransitionService(session).transition(**kwargs)
 
 
+def test_cached_normal_state_cannot_authorize_after_lockdown():
+    with SessionFactory() as session:
+        cached = session.get(SecurityStateRecord, 1)
+        assert cached.state == "normal"
+        transition(
+            expected_version=1,
+            requested_state=SecurityState.LOCKDOWN,
+            actor_type=SecurityActor.LOCAL_OPERATOR,
+            actor_id="operator",
+            reason_code=SecurityReasonCode.OPERATOR_LOCKDOWN,
+        )
+        # Hold the ORM object strongly so the identity map retains the stale snapshot.
+        assert cached.state == "normal"
+        with pytest.raises(SecurityCapabilityDenied):
+            require_capability(session, SecurityCapability.PROVIDER_DISPATCH)
+        assert cached.state == "lockdown"
+        assert cached.version == 2
+
+
+def test_locked_transition_refreshes_cached_state_before_version_check():
+    with SessionFactory() as session:
+        cached = session.get(SecurityStateRecord, 1)
+        first = transition(
+            expected_version=1,
+            requested_state=SecurityState.LOCKDOWN,
+            actor_type=SecurityActor.LOCAL_OPERATOR,
+            actor_id="operator",
+            reason_code=SecurityReasonCode.OPERATOR_LOCKDOWN,
+        )
+        assert cached.state == "normal"
+        with pytest.raises(SecurityStateConflict):
+            SecurityStateTransitionService(session).transition(
+                expected_version=1,
+                requested_state=SecurityState.DEGRADED,
+                actor_type=SecurityActor.LOCAL_OPERATOR,
+                actor_id="stale-operator",
+                reason_code=SecurityReasonCode.OPERATOR_DEGRADED_MODE,
+            )
+        assert cached.state == "lockdown"
+    with SessionFactory() as session:
+        state = SecurityStateStore(session).load()
+        assert state.identity == (first.authority_epoch_id, 2)
+        assert state.state is SecurityState.LOCKDOWN
+        assert len(session.scalars(select(SecurityTransitionRecord)).all()) == 1
+
+
 def test_transition_persists_state_and_authoritative_audit() -> None:
+    with SessionFactory() as session:
+        initial = SecurityStateStore(session).load()
     result = transition(
         expected_version=1,
         requested_state=SecurityState.LOCKDOWN,
@@ -69,6 +117,13 @@ def test_transition_persists_state_and_authoritative_audit() -> None:
     assert audit.previous_state == "normal"
     assert audit.new_state == "lockdown"
     assert audit.security_state_version == 2
+    assert result.authority_epoch_id == initial.authority_epoch_id
+    assert state.authority_epoch_id == audit.authority_epoch_id == initial.authority_epoch_id.value
+    # Drop pooled connections to exercise durable reload across engine restart.
+    engine.dispose()
+    with SessionFactory() as session:
+        restarted = SecurityStateStore(session).load()
+    assert restarted.identity == (initial.authority_epoch_id, 2)
 
 
 def test_invalid_stale_and_unauthorized_requests_do_not_change_state() -> None:
@@ -257,3 +312,89 @@ def test_transition_service_applies_centralized_recovery_capability_policy() -> 
         reason_code=SecurityReasonCode.RECOVERY_VERIFIED,
     )
     assert result.state is SecurityState.NORMAL
+
+
+@pytest.mark.parametrize(
+    "actor,requested,reason",
+    [
+        (
+            SecurityActor.SECURITY_DETECTOR,
+            SecurityState.LOCKDOWN,
+            SecurityReasonCode.OPERATOR_LOCKDOWN,
+        ),
+        (
+            SecurityActor.SECURITY_DETECTOR,
+            SecurityState.DEGRADED,
+            SecurityReasonCode.RECOVERY_VERIFIED,
+        ),
+        (
+            SecurityActor.LOCAL_OPERATOR,
+            SecurityState.COMPROMISED_SUSPECTED,
+            SecurityReasonCode.OPERATOR_DEGRADED_MODE,
+        ),
+        (
+            SecurityActor.SECURITY_RECOVERY_SERVICE,
+            SecurityState.DEGRADED,
+            SecurityReasonCode.RECOVERY_PARTIAL,
+        ),
+    ],
+)
+def test_unrelated_reasons_cannot_mutate_state_or_append_audit(actor, requested, reason):
+    with SessionFactory() as session:
+        before = SecurityStateStore(session).load()
+    with pytest.raises(SecurityTransitionDenied):
+        transition(
+            expected_version=1,
+            requested_state=requested,
+            actor_type=actor,
+            actor_id="test",
+            reason_code=reason,
+        )
+    with SessionFactory() as session:
+        assert SecurityStateStore(session).load() == before
+        assert session.scalars(select(SecurityTransitionRecord)).all() == []
+
+
+def test_detector_integrity_finding_can_contain_with_epoch_audit():
+    result = transition(
+        expected_version=1,
+        requested_state=SecurityState.COMPROMISED_SUSPECTED,
+        actor_type=SecurityActor.SECURITY_DETECTOR,
+        actor_id="detector",
+        reason_code=SecurityReasonCode.INTEGRITY_CHECK_FAILED,
+    )
+    with SessionFactory() as session:
+        audit = session.get(SecurityTransitionRecord, result.transition_id)
+        assert audit.reason_code == SecurityReasonCode.INTEGRITY_CHECK_FAILED
+        assert audit.authority_epoch_id == result.authority_epoch_id.value
+
+
+def test_noop_response_keeps_observed_identity_after_releasing_lock(monkeypatch):
+    with SessionFactory() as session:
+        rollback = session.rollback
+
+        def rollback_then_concurrent_transition():
+            rollback()
+            transition(
+                expected_version=1,
+                requested_state=SecurityState.LOCKDOWN,
+                actor_type=SecurityActor.LOCAL_OPERATOR,
+                actor_id="concurrent",
+                reason_code=SecurityReasonCode.OPERATOR_LOCKDOWN,
+            )
+
+        monkeypatch.setattr(session, "rollback", rollback_then_concurrent_transition)
+        result = SecurityStateTransitionService(session).transition(
+            expected_version=1,
+            requested_state=SecurityState.NORMAL,
+            actor_type=SecurityActor.LOCAL_OPERATOR,
+            actor_id="noop",
+            reason_code=SecurityReasonCode.OPERATOR_DEGRADED_MODE,
+        )
+        assert result.state is SecurityState.NORMAL
+        assert result.version == 1
+        assert result.transition_id is None
+    with SessionFactory() as session:
+        current = SecurityStateStore(session).load()
+        assert current.state is SecurityState.LOCKDOWN
+        assert current.identity == (result.authority_epoch_id, 2)

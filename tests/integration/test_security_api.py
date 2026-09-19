@@ -46,7 +46,10 @@ def test_security_state_and_transition_history_are_operator_visible() -> None:
     with TestClient(create_app()) as client:
         initial = client.get("/security/state")
         assert initial.status_code == 200
-        assert initial.json() == {"state": "normal", "version": 1}
+        assert initial.json()["state"] == "normal"
+        assert initial.json()["version"] == 1
+        epoch = initial.json()["authority_epoch_id"]
+        assert epoch
 
         changed = client.post(
             "/security/transitions",
@@ -59,11 +62,13 @@ def test_security_state_and_transition_history_are_operator_visible() -> None:
         assert changed.status_code == 200
         assert changed.json()["new_state"] == "lockdown"
         assert changed.json()["security_state_version"] == 2
+        assert changed.json()["authority_epoch_id"] == epoch
 
         history = client.get("/security/transitions")
         assert history.status_code == 200
         assert len(history.json()) == 1
         assert history.json()[0]["reason_code"] == "OPERATOR_LOCKDOWN"
+        assert history.json()[0]["authority_epoch_id"] == epoch
 
         stale = client.post(
             "/security/transitions",

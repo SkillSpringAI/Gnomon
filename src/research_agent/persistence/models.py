@@ -22,6 +22,7 @@ class SecurityStateRecord(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     state: Mapped[str] = mapped_column(String(32), nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False)
+    authority_epoch_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
@@ -38,6 +39,8 @@ class SecurityTransitionRecord(Base):
     actor_id: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     security_state_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Pre-epoch audit entries retain their original history without invented attribution.
+    authority_epoch_id: Mapped[UUID | None] = mapped_column(PostgreSQLUUID(as_uuid=True))
     related_event_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
 
 

@@ -11,8 +11,14 @@ from research_agent.application.security_capability import (
     SecurityCapabilityDenied,
     allows,
 )
+from research_agent.application.security_transition_policy import (
+    AuthorityDirection,
+    authority_direction,
+    authorized_transition,
+)
 from research_agent.domain.research import utc_now
 from research_agent.domain.security import (
+    AuthorityEpochId,
     SecurityActor,
     SecurityReasonCode,
     SecurityState,
@@ -34,6 +40,7 @@ class SecurityTransitionResult:
     state: SecurityState
     version: int
     transition_id: UUID | None
+    authority_epoch_id: AuthorityEpochId
 
 
 class SecurityStateTransitionService:
@@ -55,12 +62,16 @@ class SecurityStateTransitionService:
         if expected_version < 1 or not actor_id.strip():
             raise SecurityTransitionDenied("Transition request metadata is invalid")
         record = self.session.scalar(
-            select(SecurityStateRecord).where(SecurityStateRecord.id == 1).with_for_update()
+            select(SecurityStateRecord)
+            .where(SecurityStateRecord.id == 1)
+            .with_for_update()
+            .execution_options(populate_existing=True)
         )
         if record is None:
             raise SecurityTransitionDenied("Persisted security state is unavailable")
         try:
             current = SecurityState(record.state)
+            epoch = AuthorityEpochId(record.authority_epoch_id)
         except ValueError as exc:
             raise SecurityTransitionDenied("Persisted security state is invalid") from exc
         if record.version < 1:
@@ -70,17 +81,16 @@ class SecurityStateTransitionService:
                 f"Expected security-state version {expected_version}, found {record.version}"
             )
         if requested_state == current:
+            # Rollback expires ORM attributes and releases the row lock. Capture
+            # the entire observed identity before another transition can commit.
+            version = record.version
             self.session.rollback()
-            return SecurityTransitionResult(current, record.version, None)
+            return SecurityTransitionResult(current, version, None, epoch)
         capability = (
-            SecurityCapability.SECURITY_CONTAINMENT
-            if requested_state
-            in {
-                SecurityState.DEGRADED,
-                SecurityState.COMPROMISED_SUSPECTED,
-                SecurityState.LOCKDOWN,
-            }
-            else SecurityCapability.RECOVERY_ACTION
+            SecurityCapability.RECOVERY_ACTION
+            if authority_direction(current, requested_state) is AuthorityDirection.BROADEN
+            or requested_state is SecurityState.RECOVERY_REQUIRED
+            else SecurityCapability.SECURITY_CONTAINMENT
         )
         if not allows(current, capability):
             raise SecurityCapabilityDenied(
@@ -106,6 +116,7 @@ class SecurityStateTransitionService:
                 actor_id=actor_id,
                 created_at=utc_now(),
                 security_state_version=new_version,
+                authority_epoch_id=epoch.value,
                 related_event_ids=[str(event_id) for event_id in (related_event_ids or [])],
             )
         )
@@ -114,7 +125,7 @@ class SecurityStateTransitionService:
         except Exception:
             self.session.rollback()
             raise
-        return SecurityTransitionResult(requested_state, new_version, transition_id)
+        return SecurityTransitionResult(requested_state, new_version, transition_id, epoch)
 
     @staticmethod
     def _authorized(
@@ -123,20 +134,4 @@ class SecurityStateTransitionService:
         actor: SecurityActor,
         reason: SecurityReasonCode,
     ) -> bool:
-        restrictive = {
-            SecurityState.DEGRADED,
-            SecurityState.COMPROMISED_SUSPECTED,
-            SecurityState.LOCKDOWN,
-        }
-        if requested in restrictive:
-            return actor in {SecurityActor.LOCAL_OPERATOR, SecurityActor.SECURITY_DETECTOR}
-        if actor not in {SecurityActor.LOCAL_OPERATOR, SecurityActor.SECURITY_RECOVERY_SERVICE}:
-            return False
-        if requested == SecurityState.NORMAL:
-            return reason == SecurityReasonCode.RECOVERY_VERIFIED
-        if requested == SecurityState.RECOVERY_REQUIRED:
-            return reason == SecurityReasonCode.RECOVERY_STARTED
-        return reason in {
-            SecurityReasonCode.RECOVERY_PARTIAL,
-            SecurityReasonCode.RECOVERY_FAILED,
-        }
+        return authorized_transition(current, requested, actor, reason)

@@ -1,15 +1,21 @@
 # Gnomon implementation status
 
-## Implementation status updated on 2026-09-15
+## Implementation status updated on 2026-09-19
 
-Latest verification: `928e80b` plus Slice 12A/12B and Slice 13 working changes (15 September 2026).
-The earlier documentation baseline was `6f0d3b0` (reconciled in `b69025f`).
-The working tree was clean before this conformance documentation was added. The
-user then supplied ten authority documents; their original DOCX artifacts are now archived
-after conversion to maintained Markdown. Slices 2–6 subsequently changed runtime code,
-migrations, audit behavior, boundary tests, the platform-neutral fake agent contract,
-and the local cycle runner; Slice 13 added security-state persistence and transitions; this document
-tracks the resulting state.
+Latest verified commit: `9c82544ddd582770332df2174d93c2ca759a28bd`.
+[Hosted Quality run #12](https://github.com/SkillSpringAI/Gnomon/actions/runs/35414849048)
+succeeded for this exact commit. Both checks and minimal-install jobs passed,
+covering lint, strict typing, migrations, tests, smoke, prototype, conformance,
+and clean-wheel verification (including PostgreSQL in the checks job).
+
+Point-of-effect enforcement is implemented for READ_AUDIT on audit and security
+transition history, source retrieval, and provider dispatch. Canonical runtime
+security states and capability policy are implemented; this does not establish
+full restoration or recovery authority. Authority Epoch and actor/reason hardening
+are now implemented in the local working changes described below. Recovery/bootstrap
+machinery remains unimplemented.
+Contracts #1–#5 remain untouched. The lifecycle-closure authority question is
+tracked in [source of truth](../development/source-of-truth.md#known-implementation-question).
 
 Gnomon currently implements a local research API with PostgreSQL tasks, bounded
 cycles, manual lifecycle/outcome control, approved HTTP source retrieval, exact
@@ -25,7 +31,41 @@ live platform adapters and long-running orchestration remain absent.
 does not: entity models, raw-source storage, cross-task retrieval, general claim
 revision rules and semantic evaluation remain absent or partial.
 
-## Checks actually executed
+## Local authority foundation slices (19 September 2026)
+
+A synchronizes the baseline and dependency order. B adds migration 023, validated
+AuthorityEpochId, canonical epoch persistence, `(epoch, version)` identity, new
+transition audit binding, and API visibility. Historical transitions remain
+unbound; no replacement epoch or execution-authorization binding is implemented.
+C adds an explicit state/actor/reason matrix and capability-direction classification.
+See [authority foundations](../development/authority-foundations.md) for exact
+semantics, accepted reasons, and deferred restoration questions.
+
+B verification before C: **355 passed, 5 skipped** (opt-in browser checks), Ruff,
+strict mypy, conformance, smoke, fresh 23-migration bootstrap/rerun, real HTTP
+restart with epoch persistence, and clean-wheel populated upgrade/drift checks pass.
+The adversarial checks cover null/nil/malformed lineage, missing canonical state,
+repeat migration, retained history, and denial without a capability grant.
+C focused verification: **869 passed**, including all 825 state/actor/reason
+combinations, 25 direction pairs, invalid actor/reason values, and transition/API
+integration. This local work has no new hosted CI result yet.
+
+Final regression after refinements: **1,214 passed, 5 skipped** (opt-in browser
+checks). This includes the no-op response race regression and two cached-session
+regressions. Capability reads and locked transition reads now refresh existing
+ORM objects, preventing stale NORMAL state or versions from surviving a concurrent
+lockdown. No-op responses retain the identity observed before releasing the lock.
+
+Ruff, strict mypy (78 source files), conformance, and diff checks pass. Clean-wheel
+verification was rerun against the final runtime changes: all 23 migration resources,
+populated upgrade, idempotent rerun, drift rejection, and draft checks pass. Real
+HTTP lifecycle/restart verification also passes with stable epoch identity.
+Existing FastAPI deprecation and intermittent Pydantic alias warnings remain.
+Checkpoint: `checkpoint-2026-09-19-authority-foundations`. The results above are
+local verification; hosted evidence recorded here continues to refer only to
+`9c82544d`. The next session should check CI for the checkpoint before proceeding.
+
+## Historical checks (15 September 2026)
 
 Slice 12B local verification: **296 passed, 5 skipped** (opt-in browser tests),
 with two Pydantic alias warnings in concurrency tests. Ruff and strict mypy pass.
@@ -33,8 +73,8 @@ All 20 packaged migrations apply to a fresh database and rerun idempotently.
 Clean-wheel verification passes outside the checkout, without AWS dependencies,
 including concurrent bootstrap, populated upgrade and checksum-drift rejection.
 Smoke, real HTTP lifecycle/restart, and authority traceability checks pass.
-No hosted CI result is claimed for the working changes. The table below preserves
-the earlier baseline's check results.
+The table below preserves the earlier baseline's check results; current hosted
+evidence is recorded above.
 
 | Command | Result |
 | --- | --- |
@@ -46,7 +86,7 @@ the earlier baseline's check results.
 | Final `python -m ruff check .` / `python -m mypy src` | Pass; 72 source files checked by mypy |
 | `git diff --check` | Pass |
 
-These results establish the current regression baseline, not missing capability
+These results establish the historical regression baseline, not missing capability
 coverage. No live Bedrock or Moltbook call, deployment penetration test, or recovery
 drill was performed. Existing tests use isolated database records and controlled
 provider/network substitutes where applicable.

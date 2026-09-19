@@ -1,6 +1,19 @@
 """Canonical operational security states and their structural transitions."""
 
+from dataclasses import dataclass
 from enum import StrEnum
+from uuid import UUID
+
+
+@dataclass(frozen=True)
+class AuthorityEpochId:
+    """Continuous authority lineage identity; possession grants no capability."""
+
+    value: UUID
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.value, UUID) or self.value.int == 0:
+            raise ValueError("Authority epoch must be a non-nil UUID")
 
 
 class SecurityState(StrEnum):

@@ -35,6 +35,7 @@ class SecurityTransitionRequest(BaseModel):
 class SecurityStateResponse(BaseModel):
     state: SecurityState
     version: int
+    authority_epoch_id: UUID
 
 
 class SecurityTransitionResponse(BaseModel):
@@ -46,6 +47,7 @@ class SecurityTransitionResponse(BaseModel):
     actor_id: str
     created_at: datetime | None
     security_state_version: int
+    authority_epoch_id: UUID | None
     related_event_ids: list[str]
 
 
@@ -59,7 +61,9 @@ def get_security_state() -> SecurityStateResponse:
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Security state is unavailable",
             ) from exc
-    return SecurityStateResponse(state=state.state, version=state.version)
+    return SecurityStateResponse(
+        state=state.state, version=state.version, authority_epoch_id=state.authority_epoch_id.value
+    )
 
 
 @router.get("/transitions", response_model=list[SecurityTransitionResponse])
@@ -104,6 +108,7 @@ def transition_security_state(request: SecurityTransitionRequest) -> SecurityTra
                 actor_id="api:local_operator",
                 created_at=None,
                 security_state_version=result.version,
+                authority_epoch_id=result.authority_epoch_id.value,
                 related_event_ids=[],
             )
         record = session.get(SecurityTransitionRecord, result.transition_id)
