@@ -7,6 +7,10 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 
+from research_agent.application.security_capability import (
+    SecurityCapability,
+    require_capability,
+)
 from research_agent.application.security_state_service import (
     SecurityStateConflict,
     SecurityStateTransitionService,
@@ -63,6 +67,7 @@ def list_security_transitions(limit: int = 100) -> list[SecurityTransitionRespon
     if limit < 1 or limit > 100:
         raise HTTPException(status_code=422, detail="limit must be between 1 and 100")
     with SessionFactory() as session:
+        require_capability(session, SecurityCapability.READ_AUDIT)
         records = session.scalars(
             select(SecurityTransitionRecord)
             .order_by(SecurityTransitionRecord.created_at.desc())

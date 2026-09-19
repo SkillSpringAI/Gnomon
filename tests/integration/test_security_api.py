@@ -3,6 +3,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy import delete, text
 
 from research_agent.api.app import create_app
+from research_agent.api.routes import security as security_routes
+from research_agent.application.security_capability import (
+    SecurityCapability,
+    SecurityCapabilityDenied,
+)
 from research_agent.persistence.database import engine
 from research_agent.persistence.models import SecurityTransitionRecord
 
@@ -23,6 +28,18 @@ def clean_security_state():
     reset_security_state()
     yield
     reset_security_state()
+
+
+def test_security_transition_history_enforces_read_audit(monkeypatch) -> None:
+    def deny(session, capability):
+        assert capability is SecurityCapability.READ_AUDIT
+        raise SecurityCapabilityDenied("denied by test policy")
+
+    monkeypatch.setattr(security_routes, "require_capability", deny)
+    with TestClient(create_app()) as client:
+        response = client.get("/security/transitions")
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Security policy denied capability"}
 
 
 def test_security_state_and_transition_history_are_operator_visible() -> None:
@@ -98,3 +115,13 @@ def test_lockdown_blocks_lifecycle_start_and_provider_admission() -> None:
         assert client.post(f"/investigations/{task_id}/cycles").status_code == 403
         assert client.post(f"/investigations/{task_id}/cycles/1/start").status_code == 403
         assert client.post(f"/investigations/{task_id}/report/draft").status_code == 403
+
+        source_fetch = client.post(
+            f"/investigations/{task_id}/sources/fetch",
+            json={
+                "uri": "https://example.test/evidence",
+                "source_type": "web_page",
+                "reliability_score": 0.5,
+            },
+        )
+        assert source_fetch.status_code == 403

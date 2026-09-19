@@ -85,6 +85,7 @@ class EventPayload(BaseModel):
             "report_input_too_large",
             "report_budget_exceeded",
             "provider_outcome_unknown",
+            "provider_dispatch_authority_revoked",
             "reservation_expired",
             "agent_network_failed",
         ]

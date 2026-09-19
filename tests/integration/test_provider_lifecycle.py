@@ -13,6 +13,7 @@ from sqlalchemy import select, text
 
 from research_agent.adapters.llm.rule_based_report import RuleBasedReportDraftGenerator
 from research_agent.api.app import create_app
+from research_agent.api.routes import reports as report_routes
 from research_agent.api.routes.reports import get_report_generator
 from research_agent.application.audit_service import AuditService
 from research_agent.application.provider_budget_service import (
@@ -21,6 +22,10 @@ from research_agent.application.provider_budget_service import (
     ProviderBudgetService,
 )
 from research_agent.application.report_generation_service import ReportGenerationService
+from research_agent.application.security_capability import (
+    SecurityCapability,
+    SecurityCapabilityDenied,
+)
 from research_agent.config.settings import get_settings
 from research_agent.domain.events import EventType
 from research_agent.persistence.database import SessionFactory, engine, get_session
@@ -220,6 +225,44 @@ def test_live_expiry_recovery_and_late_success_keep_capacity(provider_task):
     assert (
         client.get(f"/investigations/{uuid4()}/report/attempts/{operation_id}").status_code == 404
     )
+
+
+def test_provider_authority_revoked_after_dispatch_prevents_external_call(
+    provider_task, monkeypatch
+):
+    app, client, task_id = provider_task
+    operation_id = uuid4()
+    generator_calls = []
+    checks = 0
+    original = report_routes.require_capability
+
+    class Guarded:
+        def generate(self, report):
+            generator_calls.append(report.task_id)
+            return RuleBasedReportDraftGenerator().generate(report)
+
+    def revoke_after_dispatch(session, capability):
+        nonlocal checks
+        assert capability is SecurityCapability.PROVIDER_DISPATCH
+        checks += 1
+        if checks == 2:
+            raise SecurityCapabilityDenied("revoked by test policy")
+        return original(session, capability)
+
+    app.dependency_overrides[get_report_generator] = lambda: ReportGenerationService(Guarded())
+    monkeypatch.setattr(report_routes, "require_capability", revoke_after_dispatch)
+
+    response = client.post(
+        f"/investigations/{task_id}/report/draft",
+        headers={"Idempotency-Key": str(operation_id)},
+    )
+    assert response.status_code == 403
+    assert generator_calls == []
+
+    attempt, events = saved(operation_id)
+    assert attempt.status == "FAILED"
+    assert attempt.error_reason == "provider_dispatch_authority_revoked"
+    assert events.count("report.draft_failed") == 1
 
 
 @pytest.mark.parametrize("failure", ["transport", "validation", "input"])

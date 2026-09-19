@@ -31,6 +31,7 @@ from research_agent.application.report_service import ReportService
 from research_agent.application.research_service import ResearchTaskNotFound
 from research_agent.application.security_capability import (
     SecurityCapability,
+    SecurityCapabilityDenied,
     require_capability,
 )
 from research_agent.application.snapshot_service import SnapshotService
@@ -141,6 +142,25 @@ def generate_report_draft(
             )
             raise HTTPException(status_code=413, detail="Report input exceeds configured limit")
         ProviderBudgetService(session).dispatch(operation_id)
+        try:
+            # Re-check at the external-effect boundary. Admission and the durable
+            # DISPATCHED marker do not lease provider authority across a later
+            # restrictive security-state transition.
+            require_capability(session, SecurityCapability.PROVIDER_DISPATCH)
+            # The capability read starts a short SQL transaction; never carry it
+            # across the external provider call.
+            session.rollback()
+        except SecurityCapabilityDenied:
+            ProviderBudgetService(session).finish(
+                operation_id,
+                "FAILED",
+                "provider_dispatch_authority_revoked",
+                payload=EventPayload(
+                    operation_id=operation_id,
+                    reason="provider_dispatch_authority_revoked",
+                ),
+            )
+            raise
         started_at = monotonic()
         draft = generator.generate(report)
         latency_ms = max(0, round((monotonic() - started_at) * 1000))

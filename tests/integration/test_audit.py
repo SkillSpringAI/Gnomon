@@ -10,8 +10,13 @@ from sqlalchemy import event, func, select
 from research_agent.adapters.web.http import SourceRetrievalError
 from research_agent.api.app import create_app
 from research_agent.api.routes.evidence import get_source_retriever
+from research_agent.application.audit_service import AuditService
 from research_agent.application.claim_extraction_service import ClaimExtractionService
 from research_agent.application.evidence_service import EvidenceService
+from research_agent.application.security_capability import (
+    SecurityCapability,
+    SecurityCapabilityDenied,
+)
 from research_agent.application.source_registry import UntrustedSourceError
 from research_agent.domain.research import (
     ClaimCreate,
@@ -46,6 +51,21 @@ def audit_task():
         finally:
             with engine.begin() as connection:
                 purge_test_tasks(connection, [UUID(task_id)])
+
+
+def test_direct_audit_read_enforces_read_audit(audit_task, monkeypatch):
+    from research_agent.application import audit_service as audit_module
+
+    _, _, task_id = audit_task
+
+    def deny(session, capability):
+        assert capability is SecurityCapability.READ_AUDIT
+        raise SecurityCapabilityDenied("denied by test policy")
+
+    monkeypatch.setattr(audit_module, "require_capability", deny)
+    with SessionFactory() as session:
+        with pytest.raises(SecurityCapabilityDenied):
+            AuditService(session).list_events(UUID(task_id), 50, 0)
 
 
 def create_source(client, task_id):

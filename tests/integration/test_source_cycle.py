@@ -14,6 +14,11 @@ from research_agent.adapters.llm.rule_based import RuleBasedClaimExtractor
 from research_agent.adapters.web.http import HttpSourceRetriever
 from research_agent.api.app import create_app
 from research_agent.api.routes.evidence import get_source_retriever
+from research_agent.application import source_cycle_runner as source_cycle_module
+from research_agent.application.security_capability import (
+    SecurityCapability,
+    SecurityCapabilityDenied,
+)
 from research_agent.application.source_registry import SourceRegistryService
 from research_agent.domain.research import ResearchMethod
 from research_agent.persistence.database import SessionFactory, engine
@@ -96,6 +101,34 @@ def snapshot(client, task_id):
     response = client.get(f"/investigations/{task_id}/snapshot")
     assert response.status_code == 200, response.text
     return response.json()
+
+
+def test_mid_cycle_source_authority_revocation_stops_second_fetch(
+    source_cycle, monkeypatch
+):
+    client, task_id, url, calls, _ = source_cycle
+    original = source_cycle_module.require_capability
+    retrieval_checks = 0
+
+    def revoke_before_second_fetch(session, capability):
+        nonlocal retrieval_checks
+        if capability is SecurityCapability.SOURCE_RETRIEVAL:
+            retrieval_checks += 1
+            # 1 = runner admission, 2 = first point-of-effect check,
+            # 3 = second point-of-effect check.
+            if retrieval_checks == 3:
+                raise SecurityCapabilityDenied("revoked by test policy")
+        return original(session, capability)
+
+    monkeypatch.setattr(
+        source_cycle_module, "require_capability", revoke_before_second_fetch
+    )
+    response = run(client, task_id, [target(url + "/a"), target(url + "/b", 1)])
+    assert response.status_code == 200, response.text
+    cycle = response.json()["task"]["cycles"][0]
+    assert cycle["status"] == "blocked"
+    assert len(calls) == 1
+    assert calls[0].endswith("/a")
 
 
 def test_two_sources_produce_durable_outcome_and_next_plan(source_cycle):

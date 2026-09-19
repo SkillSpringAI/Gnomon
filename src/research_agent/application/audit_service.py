@@ -7,6 +7,10 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from research_agent.application.research_service import ResearchTaskNotFound
+from research_agent.application.security_capability import (
+    SecurityCapability,
+    require_capability,
+)
 from research_agent.domain.events import EventPayload, EventType, ResearchEventResponse
 from research_agent.domain.research import utc_now
 from research_agent.persistence.models import ResearchEventRecord, ResearchTaskRecord
@@ -62,6 +66,7 @@ class AuditService:
             raise
 
     def list_events(self, task_id: UUID, limit: int, offset: int) -> list[ResearchEventResponse]:
+        require_capability(self.session, SecurityCapability.READ_AUDIT)
         if self.session.get(ResearchTaskRecord, task_id) is None:
             raise ResearchTaskNotFound
         records = self.session.scalars(

@@ -14,6 +14,7 @@ from research_agent.application.evidence_service import EvidenceService
 from research_agent.application.research_service import ResearchService, TaskStateConflict
 from research_agent.application.security_capability import (
     SecurityCapability,
+    SecurityCapabilityDenied,
     require_capability,
 )
 from research_agent.application.source_registry import UntrustedSourceError
@@ -137,6 +138,7 @@ class SourceCycleRunner:
                 )
                 evidence = EvidenceService(self.session)
                 try:
+                    require_capability(self.session, SecurityCapability.SOURCE_RETRIEVAL)
                     retrieved = self.retriever.fetch(SourceTarget(uri=target.uri))
                 except (SourceRetrievalError, UntrustedSourceError) as error:
                     AuditService(self.session).record_failure(
@@ -178,7 +180,13 @@ class SourceCycleRunner:
                     claim.id for claim in claims if claim.id not in result.claim_ids
                 )
             return outcome("completed")
-        except (SourceRetrievalError, UntrustedSourceError, TaskStateConflict, ValueError):
+        except (
+            SourceRetrievalError,
+            UntrustedSourceError,
+            SecurityCapabilityDenied,
+            TaskStateConflict,
+            ValueError,
+        ):
             return recover("blocked")
         except Exception as error:
             try:
