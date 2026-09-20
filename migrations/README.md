@@ -64,6 +64,11 @@ security state and seeds a normal state for new installations.
 Migration `022_security_state_transitions.sql` adds the append-only authoritative
 audit record for compare-and-set security-state transitions.
 
+Migration `025_authority_invariant_constraint_names.sql` gives the canonical security
+state and transition state/version checks stable explicit names for bounded error
+translation. It preserves the predicates introduced by migrations 021 and 022, validates
+fallback-created checks against populated databases, and does not rewrite authority data.
+
 Migration `020_provider_attempt_unknown.sql` adds `UNKNOWN` for unresolved remote
 outcomes. It retains capacity, has no terminal timestamp, and may accept a late
 known result. Existing attempt rows and their recorded history are unchanged.

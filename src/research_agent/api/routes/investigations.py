@@ -12,6 +12,10 @@ from research_agent.adapters.agents.fake import FakeScenario
 from research_agent.adapters.web.http import HttpSourceRetriever
 from research_agent.api.routes.evidence import get_source_retriever
 from research_agent.application.agent_cycle_runner import AgentCycleRunner
+from research_agent.application.cycle_progress_query import (
+    CycleAttemptNotFound,
+    CycleAttemptProgressService,
+)
 from research_agent.application.research_service import (
     CycleNotFound,
     InvalidCycleSelection,
@@ -22,6 +26,7 @@ from research_agent.application.research_service import (
 from research_agent.application.source_cycle_runner import SourceCycleRequest, SourceCycleRunner
 from research_agent.config.settings import get_settings
 from research_agent.domain.research import (
+    CycleAttemptProgress,
     CycleOutcomeCreate,
     CycleRecoveryCreate,
     ObjectiveReviewCreate,
@@ -153,6 +158,22 @@ def start_cycle(
         raise HTTPException(status_code=404, detail="Cycle not found") from exc
     except TaskStateConflict as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.get(
+    "/{task_id}/cycles/{cycle_number}/attempts/latest",
+    response_model=CycleAttemptProgress,
+)
+def get_latest_cycle_attempt(
+    task_id: UUID,
+    cycle_number: int,
+    session: Annotated[Session, Depends(get_session)],
+) -> CycleAttemptProgress:
+    """Return persisted progress without mutating or recovering the cycle."""
+    try:
+        return CycleAttemptProgressService(session).latest(task_id, cycle_number)
+    except CycleAttemptNotFound as exc:
+        raise HTTPException(status_code=404, detail="Cycle attempt not found") from exc
 
 
 @router.post("/{task_id}/cycles/{cycle_number}/run", response_model=ResearchTaskResponse)

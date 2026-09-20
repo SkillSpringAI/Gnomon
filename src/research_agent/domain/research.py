@@ -227,6 +227,37 @@ class ResearchCycle(BaseModel):
     objective_reviews: list[ObjectiveReview] = Field(default_factory=list, max_length=100)
 
 
+class CycleAttemptProgress(BaseModel):
+    """Read-only durable progress for one persisted cycle execution attempt."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    attempt_id: UUID
+    cycle_number: int = Field(ge=1)
+    attempt_status: Literal["RUNNING", "COMPLETED", "BLOCKED", "FAILED", "INTERRUPTED"]
+    last_durable_stage: Literal[
+        "CREATED",
+        "STARTED",
+        "QUESTIONING",
+        "EVIDENCE_RECORDED",
+        "EXTRACTING_CLAIMS",
+        "FINALIZING",
+        "COMPLETED",
+        "BLOCKED",
+        "FAILED",
+        "INTERRUPTED",
+    ]
+    started_at: datetime
+    finished_at: datetime | None = None
+    recovery_reason: str | None = None
+    retained_evidence_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    retained_claim_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    attempted_objectives: list[str] = Field(default_factory=list, max_length=3)
+    unresolved_objectives: list[str] = Field(default_factory=list, max_length=50)
+    cycle_status: CycleStatus
+    cycle_active: bool
+
+
 class CycleRecoveryCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     reason: str = Field(min_length=1, max_length=4000)
