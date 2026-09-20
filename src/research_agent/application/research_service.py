@@ -17,6 +17,7 @@ from research_agent.application.cycle_planner import (
 from research_agent.application.security_capability import (
     SecurityCapability,
     require_capability,
+    require_locked_capability,
 )
 from research_agent.domain.research import (
     CycleObjectiveResult,
@@ -319,6 +320,9 @@ class ResearchService:
         require_active_task: bool = False,
     ) -> ResearchTask:
         with self.repository.edit(task_id) as task:
+            session = getattr(self.repository, "session", None)
+            if isinstance(session, Session):
+                require_locked_capability(session, SecurityCapability.MEMORY_MUTATION)
             if require_active_task and task.status != TaskStatus.ACTIVE:
                 raise TaskStateConflict("Investigation stopped during cycle execution")
             cycle = self._cycle(task, cycle_number)

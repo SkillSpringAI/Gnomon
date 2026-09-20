@@ -93,3 +93,7 @@ interrupts an already-running cycle, which authority permits a durable
 BLOCKED/INTERRUPTED closure? Resolve this before generalizing capabilities,
 containment bookkeeping, recovery semantics, or MEMORY_MUTATION. No lifecycle
 behavior is changed by this slice.
+
+The [20 September closure decision](cycle-closure-authority.md) now documents a
+bounded containment path, now implemented in local changes following this
+checkpoint, together with the five-path mutation/lockdown ordering protocol.

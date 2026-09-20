@@ -13,7 +13,7 @@ from research_agent.application.audit_service import AuditService
 from research_agent.application.research_service import ResearchTaskNotFound
 from research_agent.application.security_capability import (
     SecurityCapability,
-    require_capability,
+    require_locked_capability,
 )
 from research_agent.domain.events import EventPayload, EventType
 from research_agent.domain.memory import (
@@ -336,9 +336,9 @@ class MemoryService:
         authority: MemoryAuthority,
     ) -> AppliedMemoryChange:
         """Caller owns atomic transaction, including extraction batches."""
-        require_capability(self.session, SecurityCapability.MEMORY_MUTATION)
         self._authorize(authority)
         self._task(authority.task_id)
+        require_locked_capability(self.session, SecurityCapability.MEMORY_MUTATION)
         request = proposal.model_dump(mode="json")
         prior = self.session.get(MemoryChangeRecord, proposal.change_id)
         if prior is not None:
@@ -501,6 +501,7 @@ class MemoryService:
             if authority.actor != "local_operator" or not request.reason.strip():
                 raise MemoryDenied("Only the operator can request reversal")
             task = self._task(authority.task_id)
+            require_locked_capability(self.session, SecurityCapability.MEMORY_MUTATION)
             original = self.session.get(MemoryChangeRecord, original_id)
             if original is None or original.task_id != task.id:
                 raise MemoryConflict("Change not found in this investigation")

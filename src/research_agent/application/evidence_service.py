@@ -15,6 +15,7 @@ from research_agent.application.research_service import ResearchTaskNotFound
 from research_agent.application.security_capability import (
     SecurityCapability,
     require_capability,
+    require_locked_capability,
 )
 from research_agent.domain.events import EventPayload, EventType
 from research_agent.domain.memory import (
@@ -78,6 +79,7 @@ class EvidenceService:
             # retrieval/agent response cannot bypass a restrictive transition.
             require_capability(self.session, SecurityCapability.MEMORY_MUTATION)
             self.require_task(task_id, lock=True)
+            require_locked_capability(self.session, SecurityCapability.MEMORY_MUTATION)
             if before_write is not None:
                 before_write()
             content_hash = sha256(source.content.encode("utf-8")).hexdigest()

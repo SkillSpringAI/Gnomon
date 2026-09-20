@@ -11,7 +11,7 @@ This document contains future work and planned capabilities. It is not current i
 The 19 September sequence is baseline/docs → Authority Epoch foundation → verification
 and adversarial review → transition actor/reason hardening → stop. Point-of-effect
 checks are implemented in `9c82544d` (successful hosted Quality run #12).
-The epoch foundation and bounded actor/reason matrix are now implemented locally;
+The epoch foundation and bounded actor/reason matrix are hosted-verified in `4ea2693`;
 see [authority foundations](authority-foundations.md) for the completed scope.
 
 Recovery bootstrap, new-epoch replacement, RecoveryContext, OperatorAuthorization,
@@ -22,6 +22,16 @@ authority, bootstrap semantics, and RecoveryContext; it is not the next implemen
 The canonical runtime state vocabulary is NORMAL, DEGRADED, COMPROMISED_SUSPECTED,
 LOCKDOWN, and RECOVERY_REQUIRED. Historical security vocabulary is not an additional
 runtime state machine. Full recovery conformance remains open.
+
+### Local slices awaiting closure gates: interruption and mutation ordering
+
+The [20 September implementation](cycle-closure-authority.md) adds exact-attempt
+containment closure, the general outcome guard and runner integration, reversal
+authorization, and commit ordering for the five selected writers. Atomic audit and
+real PostgreSQL interleaving checks cover the bounded scope.
+Resolve the [temporary closure gaps](../temporary-docs/2026-09-20-slice-closure-gaps.md)
+before declaring these slices closed or recording a new hosted baseline.
+Protected restoration and recovery/bootstrap remain separate.
 
 ### Workflow and persistence hardening
 

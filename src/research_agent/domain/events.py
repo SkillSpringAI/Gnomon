@@ -8,6 +8,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from research_agent.domain.research import CycleStatus, TaskStatus
+from research_agent.domain.security import SecurityState
 
 
 class EventType(StrEnum):
@@ -21,6 +22,7 @@ class EventType(StrEnum):
     OBJECTIVE_REVIEWED = "cycle.objective_reviewed"
     CYCLE_PROGRESS_RECORDED = "cycle.progress_recorded"
     CYCLE_RECOVERED = "cycle.recovered"
+    CYCLE_SECURITY_INTERRUPTED = "cycle.security_interrupted"
     SOURCE_CREATED = "source.created"
     SOURCE_REUSED = "source.reused"
     AGENT_OBSERVATION_RECORDED = "agent.observation_recorded"
@@ -46,7 +48,23 @@ class EventPayload(BaseModel):
     change_id: UUID | None = None
     target_id: UUID | None = None
     target_type: Literal["claim", "assessment"] | None = None
-    actor: Literal["local_operator", "claim_extractor", "model", "agent_network"] | None = None
+    actor: (
+        Literal[
+            "local_operator",
+            "claim_extractor",
+            "model",
+            "agent_network",
+            "source_runner",
+            "agent_runner",
+        ]
+        | None
+    ) = None
+    attempt_id: UUID | None = None
+    authority_epoch_id: UUID | None = None
+    security_state_version: int | None = Field(default=None, ge=1)
+    security_state: SecurityState | None = None
+    from_attempt_status: Literal["RUNNING"] | None = None
+    to_attempt_status: Literal["INTERRUPTED"] | None = None
     memory_operation: (
         Literal["CREATE", "UPDATE", "ARCHIVE", "LOGICAL_DELETE", "RESTORE", "REVERSE"] | None
     ) = None
@@ -72,12 +90,15 @@ class EventPayload(BaseModel):
     result: Literal["accepted", "reused", "rejected", "committed", "failed"] | None = None
     change_reason: (
         Literal[
-            "operator_memory_change", "operator_memory_reversal", "unauthorized_memory_mutation"
+            "operator_memory_change",
+            "operator_memory_reversal",
+            "unauthorized_memory_mutation",
         ]
         | None
     ) = None
     reason: (
         Literal[
+            "security_policy_interrupted",
             "extraction_failed",
             "retrieval_rejected",
             "domain_not_enabled",

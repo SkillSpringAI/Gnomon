@@ -7,10 +7,15 @@ from sqlalchemy.orm import Session
 from research_agent.adapters.agents.fake import FakeAgentNetwork, FakeScenario
 from research_agent.application.agent_evidence_service import AgentEvidenceService
 from research_agent.application.claim_extraction_service import ClaimExtractionService
+from research_agent.application.cycle_interruption import (
+    CycleInterruptionService,
+    CycleRunnerIdentity,
+)
 from research_agent.application.cycle_progress import CycleProgress
 from research_agent.application.research_service import ResearchService, TaskStateConflict
 from research_agent.application.security_capability import (
     SecurityCapability,
+    SecurityCapabilityDenied,
     require_capability,
 )
 from research_agent.domain.agents import AgentQuestion
@@ -100,7 +105,6 @@ class AgentCycleRunner:
 
         def finish_failure(status: str) -> ResearchTask:
             self.session.rollback()
-            progress.finish("blocked" if status != "failed" else "failed", "runner failure")
             # A manual outcome may have stopped this run. Never overwrite it.
             try:
                 return research.record_cycle_outcome(
@@ -117,6 +121,10 @@ class AgentCycleRunner:
                         attempted_objectives=[cycle.objectives[index] for index in results],
                         objective_results=list(results.values()),
                     ),
+                )
+            except SecurityCapabilityDenied:
+                return CycleInterruptionService(self.session).close(
+                    task_id, cycle_number, attempt_id, caller=CycleRunnerIdentity.AGENT
                 )
             except TaskStateConflict:
                 current = repository.get(task_id)
@@ -167,7 +175,6 @@ class AgentCycleRunner:
                     result.claim_ids.extend(
                         claim.id for claim in claims if claim.id not in result.claim_ids
                     )
-            progress.finish("completed")
             return research.record_cycle_outcome(
                 task_id,
                 cycle_number,
@@ -184,6 +191,10 @@ class AgentCycleRunner:
                     objective_results=list(results.values()),
                 ),
                 require_active_task=True,
+            )
+        except SecurityCapabilityDenied:
+            return CycleInterruptionService(self.session).close(
+                task_id, cycle_number, attempt_id, caller=CycleRunnerIdentity.AGENT
             )
         except (AgentNetworkError, BoundaryViolation, ValueError, TaskStateConflict):
             return finish_failure("blocked")

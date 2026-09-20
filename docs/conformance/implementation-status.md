@@ -1,9 +1,9 @@
 # Gnomon implementation status
 
-## Implementation status updated on 2026-09-19
+## Implementation status updated on 2026-09-20
 
-Latest verified commit: `9c82544ddd582770332df2174d93c2ca759a28bd`.
-[Hosted Quality run #12](https://github.com/SkillSpringAI/Gnomon/actions/runs/35414849048)
+Latest verified commit: `4ea2693d368eee016b6f0436a0366faf17922c5d`.
+[Hosted Quality run #14](https://github.com/SkillSpringAI/Gnomon/actions/runs/35418622604)
 succeeded for this exact commit. Both checks and minimal-install jobs passed,
 covering lint, strict typing, migrations, tests, smoke, prototype, conformance,
 and clean-wheel verification (including PostgreSQL in the checks job).
@@ -12,7 +12,7 @@ Point-of-effect enforcement is implemented for READ_AUDIT on audit and security
 transition history, source retrieval, and provider dispatch. Canonical runtime
 security states and capability policy are implemented; this does not establish
 full restoration or recovery authority. Authority Epoch and actor/reason hardening
-are now implemented in the local working changes described below. Recovery/bootstrap
+are implemented in the verified checkpoint described below. Recovery/bootstrap
 machinery remains unimplemented.
 Contracts #1–#5 remain untouched. The lifecycle-closure authority question is
 tracked in [source of truth](../development/source-of-truth.md#known-implementation-question).
@@ -48,7 +48,7 @@ The adversarial checks cover null/nil/malformed lineage, missing canonical state
 repeat migration, retained history, and denial without a capability grant.
 C focused verification: **869 passed**, including all 825 state/actor/reason
 combinations, 25 direction pairs, invalid actor/reason values, and transition/API
-integration. This local work has no new hosted CI result yet.
+integration. Hosted Quality runs #13 and #14 subsequently passed for the checkpoint.
 
 Final regression after refinements: **1,214 passed, 5 skipped** (opt-in browser
 checks). This includes the no-op response race regression and two cached-session
@@ -61,9 +61,48 @@ verification was rerun against the final runtime changes: all 23 migration resou
 populated upgrade, idempotent rerun, drift rejection, and draft checks pass. Real
 HTTP lifecycle/restart verification also passes with stable epoch identity.
 Existing FastAPI deprecation and intermittent Pydantic alias warnings remain.
-Checkpoint: `checkpoint-2026-09-19-authority-foundations`. The results above are
-local verification; hosted evidence recorded here continues to refer only to
-`9c82544d`. The next session should check CI for the checkpoint before proceeding.
+Checkpoint: `checkpoint-2026-09-19-authority-foundations`. The test counts above
+are local results. Hosted runs #13 and #14 both succeeded for `4ea2693`, with both
+checks and minimal-install jobs successful (confirmed 20 September).
+
+## Interruption closure and mutation ordering (20 September 2026)
+
+**Implemented locally; closure pending.** The [temporary gap checklist](../temporary-docs/2026-09-20-slice-closure-gaps.md)
+tracks final-tree verification, runner failure propagation, preservation coverage,
+transaction composition and hosted checkpoint evidence. Passing tests below do not
+close those outstanding gates. Base is `4ea2693`; no new hosted result is claimed. The
+[closure/locking record](../development/cycle-closure-authority.md) documents the
+lock order before implementation and the exact bounded mutation fields.
+
+- Source and agent runners use an internal exact-attempt closure operation. It
+  retains committed evidence, claims and objective progress, sets BLOCKED/INTERRUPTED,
+  and appends one accurately attributed audit with attempt and observed epoch/version.
+- Matching repeats are idempotent. Foreign attempts, caller mismatches and unrelated
+  terminal outcomes conflict. Audit failure rolls back the entire closure; missing
+  or invalid authority never manufactures success.
+- General outcome writes and memory reversal enforce MEMORY_MUTATION.
+- Memory stage/reverse, source creation, general outcomes and bounded closure share
+  task FOR UPDATE → security FOR SHARE → dependent rows → audit ordering. Security
+  transitions acquire security FOR UPDATE only. Locks persist to commit/rollback.
+- PostgreSQL tests observe actual row blocking through pg_blocking_pids for both
+  race orders of all five paths. Ordinary mutation denies when lockdown wins;
+  bounded containment closure remains permitted and records current authority.
+
+Broad regression: **1,244 passed, 5 skipped** (opt-in browser checks). Ruff and
+strict mypy pass (79 source files). Clean-wheel validation passes, including all
+23 migration resources, populated upgrade, rerun and checksum drift rejection.
+No schema migration was needed: the closure event uses the existing JSON audit
+payload. Existing FastAPI deprecation and intermittent Pydantic alias warnings
+remain. A final missing-row guard was added to the locking helper after broad
+verification; the final focused closure/ordering suite passes **30 tests**, and
+smoke plus real HTTP lifecycle/restart verification both pass with that guard.
+
+Contracts #1–#5 remain unchanged. No recovery/bootstrap, epoch replacement,
+protected restoration, generic containment mutation API, or external-call
+cancellation was added. The development memory backend and unrelated/direct ORM
+writers are outside the PostgreSQL commit-ordering claim. Interim checkpoint:
+`checkpoint-2026-09-20-review-closure-gaps-before-continuing`. This checkpoint
+preserves work in progress; it does not close the slices or their remaining gates.
 
 ## Historical checks (15 September 2026)
 

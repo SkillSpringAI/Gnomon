@@ -2,13 +2,16 @@
 
 from enum import StrEnum
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from research_agent.application.security_state_store import (
+    PersistedSecurityState,
     SecurityStateStore,
     SecurityStateUnavailable,
 )
 from research_agent.domain.security import SecurityState
+from research_agent.persistence.models import SecurityStateRecord
 
 
 class SecurityCapability(StrEnum):
@@ -27,6 +30,34 @@ class SecurityCapability(StrEnum):
 
 class SecurityCapabilityDenied(RuntimeError):
     """The current persisted security state does not permit a capability."""
+
+
+def require_locked_capability(
+    session: Session, capability: SecurityCapability
+) -> PersistedSecurityState:
+    """After locking the task, hold a security SHARE lock through the caller's commit.
+
+    Security transitions take FOR UPDATE on this same row. No adapter calls may
+    occur in this transaction. This function never commits or grants write scope.
+    """
+    with session.no_autoflush:
+        record = session.scalar(
+            select(SecurityStateRecord)
+            .where(SecurityStateRecord.id == 1)
+            .with_for_update(read=True)
+            .execution_options(populate_existing=True)
+        )
+        if record is None:
+            raise SecurityCapabilityDenied("Security state is unavailable; capability denied")
+        try:
+            current = SecurityStateStore(session).load()
+        except SecurityStateUnavailable as exc:
+            raise SecurityCapabilityDenied(
+                "Security state is unavailable; capability denied"
+            ) from exc
+    if not allows(current.state, capability):
+        raise SecurityCapabilityDenied("Security policy denied capability")
+    return current
 
 
 _ALWAYS_SAFE = {

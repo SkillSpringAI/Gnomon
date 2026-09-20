@@ -9,6 +9,10 @@ from sqlalchemy.orm import Session
 from research_agent.adapters.web.http import SourceRetrievalError
 from research_agent.application.audit_service import AuditService
 from research_agent.application.claim_extraction_service import ClaimExtractionService
+from research_agent.application.cycle_interruption import (
+    CycleInterruptionService,
+    CycleRunnerIdentity,
+)
 from research_agent.application.cycle_progress import CycleProgress
 from research_agent.application.evidence_service import EvidenceService
 from research_agent.application.research_service import ResearchService, TaskStateConflict
@@ -86,7 +90,6 @@ class SourceCycleRunner:
                 self.session.rollback()
 
         def outcome(status: str) -> ResearchTask:
-            progress.finish(status)
             return research.record_cycle_outcome(
                 task_id,
                 cycle_number,
@@ -113,6 +116,10 @@ class SourceCycleRunner:
             self.session.rollback()
             try:
                 return outcome(status)
+            except SecurityCapabilityDenied:
+                return CycleInterruptionService(self.session).close(
+                    task_id, cycle_number, attempt_id, caller=CycleRunnerIdentity.SOURCE
+                )
             except TaskStateConflict:
                 current = repository.get(task_id)
                 current_cycle = next(item for item in current.cycles if item.number == cycle_number)
@@ -180,10 +187,13 @@ class SourceCycleRunner:
                     claim.id for claim in claims if claim.id not in result.claim_ids
                 )
             return outcome("completed")
+        except SecurityCapabilityDenied:
+            return CycleInterruptionService(self.session).close(
+                task_id, cycle_number, attempt_id, caller=CycleRunnerIdentity.SOURCE
+            )
         except (
             SourceRetrievalError,
             UntrustedSourceError,
-            SecurityCapabilityDenied,
             TaskStateConflict,
             ValueError,
         ):
