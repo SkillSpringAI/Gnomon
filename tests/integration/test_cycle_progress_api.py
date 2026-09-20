@@ -10,10 +10,14 @@ from sqlalchemy import select
 
 from research_agent.adapters.agents.fake import FakeAgentNetwork
 from research_agent.api.app import create_app
+from research_agent.application import agent_cycle_runner
+from research_agent.application.research_service import ResearchService
+from research_agent.application.security_capability import SecurityCapabilityDenied
 from research_agent.persistence.database import SessionFactory, engine
 from research_agent.persistence.models import (
     ResearchCycleAttemptRecord,
     ResearchCycleRecord,
+    ResearchEventRecord,
 )
 
 
@@ -93,6 +97,105 @@ def test_unexpected_runner_failure_exposes_committed_progress(
     assert progress["unresolved_objectives"] == cycle["unresolved_objectives"]
     assert progress["cycle_status"] == "failed"
     assert progress["cycle_active"] is False
+
+
+def test_observing_retained_progress_does_not_mutate_state_or_audit(progress_api) -> None:
+    client, task_id = progress_api
+    run = client.post(
+        f"/investigations/{task_id}/cycles/1/run",
+        json={"max_agents": 1, "objective_indices": [0]},
+    )
+    assert run.status_code == 200, run.text
+
+    with SessionFactory() as session:
+        before = {
+            "attempt": session.scalar(
+                select(ResearchCycleAttemptRecord).where(
+                    ResearchCycleAttemptRecord.task_id == task_id
+                )
+            ),
+            "cycle": session.scalar(
+                select(ResearchCycleRecord).where(
+                    ResearchCycleRecord.task_id == task_id,
+                    ResearchCycleRecord.cycle_number == 1,
+                )
+            ),
+            "audit_count": session.query(ResearchEventRecord)
+            .filter(ResearchEventRecord.task_id == task_id)
+            .count(),
+        }
+        assert before["attempt"] is not None and before["cycle"] is not None
+        before_values = (
+            before["attempt"].status,
+            before["attempt"].stage,
+            before["attempt"].finished_at,
+            before["attempt"].recovery_reason,
+            before["cycle"].status,
+            before["cycle"].completed_at,
+            before["cycle"].recovery_reason,
+            before["audit_count"],
+        )
+
+    first = latest(client, task_id)
+    second = latest(client, task_id)
+    assert first.status_code == second.status_code == 200
+    assert first.json() == second.json()
+
+    with SessionFactory() as session:
+        attempt = session.scalar(
+            select(ResearchCycleAttemptRecord).where(
+                ResearchCycleAttemptRecord.task_id == task_id
+            )
+        )
+        cycle = session.scalar(
+            select(ResearchCycleRecord).where(
+                ResearchCycleRecord.task_id == task_id,
+                ResearchCycleRecord.cycle_number == 1,
+            )
+        )
+        audit_count = session.query(ResearchEventRecord).filter(
+            ResearchEventRecord.task_id == task_id
+        ).count()
+        assert attempt is not None and cycle is not None
+        assert (
+            attempt.status,
+            attempt.stage,
+            attempt.finished_at,
+            attempt.recovery_reason,
+            cycle.status,
+            cycle.completed_at,
+            cycle.recovery_reason,
+            audit_count,
+        ) == before_values
+
+
+def test_failed_closure_keeps_attempt_and_cycle_unresolved(progress_api, monkeypatch) -> None:
+    client, task_id = progress_api
+
+    def reject_outcome(service, task_id, cycle_number, outcome, **kwargs):
+        raise SecurityCapabilityDenied("outcome authority unavailable")
+
+    def reject_interruption(service, task_id, cycle_number, attempt_id, *, caller):
+        raise SecurityCapabilityDenied("containment authority unavailable")
+
+    monkeypatch.setattr(ResearchService, "record_cycle_outcome", reject_outcome)
+    monkeypatch.setattr(agent_cycle_runner.CycleInterruptionService, "close", reject_interruption)
+
+    response = client.post(
+        f"/investigations/{task_id}/cycles/1/run",
+        json={"scenario": "unresponsive", "max_agents": 1},
+    )
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Security policy denied capability"}
+
+    progress = latest(client, task_id)
+    assert progress.status_code == 200, progress.text
+    payload = progress.json()
+    assert payload["attempt_status"] == "RUNNING"
+    assert payload["last_durable_stage"] == "QUESTIONING"
+    assert payload["finished_at"] is None
+    assert payload["cycle_status"] == "active"
+    assert payload["cycle_active"] is True
 
 
 def test_latest_attempt_has_deterministic_tie_break_and_preserves_running_state(

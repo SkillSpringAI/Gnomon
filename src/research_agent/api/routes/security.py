@@ -7,6 +7,10 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 
+from research_agent.application.persistence_error_translation import (
+    PersistenceBoundaryError,
+    PersistenceErrorCategory,
+)
 from research_agent.application.security_capability import (
     SecurityCapability,
     require_capability,
@@ -98,6 +102,13 @@ def transition_security_state(request: SecurityTransitionRequest) -> SecurityTra
             raise HTTPException(status_code=409, detail="Security state version conflict") from exc
         except SecurityTransitionDenied as exc:
             raise HTTPException(status_code=403, detail="Security transition denied") from exc
+        except PersistenceBoundaryError as exc:
+            if exc.category is PersistenceErrorCategory.AUTHORITY_INVARIANT_VIOLATION:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Security state persistence invariant failed",
+                ) from exc
+            raise
         if result.transition_id is None:
             return SecurityTransitionResponse(
                 transition_id=None,

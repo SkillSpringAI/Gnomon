@@ -5,6 +5,10 @@ from typing import Annotated, Final
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from research_agent.application.persistence_error_translation import (
+    PersistenceBoundaryError,
+    PersistenceErrorCategory,
+)
 from research_agent.application.source_registry import SourceRegistryService, UntrustedSourceError
 from research_agent.domain.research import TrustedSourceCreate, TrustedSourceResponse
 from research_agent.persistence.database import SessionFactory
@@ -37,8 +41,12 @@ def register_trusted_source(
     """Register a source domain for later review and enablement."""
     try:
         return service.register(source)
-    except Exception as exc:
-        raise HTTPException(status_code=409, detail="Source domain is already registered") from exc
+    except PersistenceBoundaryError as exc:
+        if exc.category is PersistenceErrorCategory.DUPLICATE_RESOURCE:
+            raise HTTPException(
+                status_code=409, detail="Source domain is already registered"
+            ) from exc
+        raise
 
 
 @router.post("/{domain}/enable", response_model=TrustedSourceResponse)

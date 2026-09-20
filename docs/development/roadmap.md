@@ -38,9 +38,9 @@ semantics remain separate.
 
 ### Workflow and persistence hardening
 
-- Expose retained evidence and durable progress clearly in failed-cycle responses and the workspace.
-- Complete the inventory of application-only versus database-critical invariants.
-- Improve translation of database constraint failures into stable API errors.
+- Retained evidence and durable progress are exposed through one read-only latest-attempt projection and the workspace; broader UI redesign remains deferred.
+- The reviewed DB-critical authority invariants are constrained by migration 025; broader task/cycle/provider vocabulary constraints remain deferred.
+- Recognized database constraint failures now translate through structured diagnostics at reviewed boundaries; broader persistence taxonomy remains deferred.
 - Define compatibility behavior for older governed-memory journal formats.
 - Obtain hosted verification for each subsequent implementation baseline.
 

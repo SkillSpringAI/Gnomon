@@ -88,6 +88,14 @@ def test_source_controls_and_partial_result_reload(workspace_browser, partial):
     page.get_by_text("Evidence by objective", exact=True).click()
     expect(page.locator("#cycles")).to_contain_text("2. Check premise B.")
     expect(page.locator("#cycles")).to_contain_text("A retained source supports investigation.")
+    expect(page.locator("#cycles")).to_contain_text("Retained progress")
+    expect(page.locator("#cycles")).to_contain_text(
+        f"Attempt status: {'BLOCKED' if partial else 'COMPLETED'}"
+    )
+    expect(page.locator("#cycles")).to_contain_text(
+        f"Retained evidence ({1 if partial else 2})"
+    )
+    expect(page.locator("#cycles")).to_contain_text("Evidence")
     if partial:
         expect(page.locator("#cycles")).to_contain_text("Attempted; no source was retained.")
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")

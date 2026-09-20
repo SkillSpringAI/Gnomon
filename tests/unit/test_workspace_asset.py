@@ -18,4 +18,7 @@ def test_workspace_asset_is_packaged_and_state_driven() -> None:
     assert "running || !planned" in content
     assert "The investigation changed" in content
     assert "displayed history may be stale" in content
+    assert "attempts/latest" in content
+    assert "Retained progress" in content
+    assert "explicit operator action" in content
     assert "textContent" in content

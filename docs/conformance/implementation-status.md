@@ -2,11 +2,9 @@
 
 ## Implementation status updated on 2026-09-20
 
-Latest verified commit: `4ea2693d368eee016b6f0436a0366faf17922c5d`.
-[Hosted Quality run #14](https://github.com/SkillSpringAI/Gnomon/actions/runs/35418622604)
-succeeded for this exact commit. Both checks and minimal-install jobs passed,
-covering lint, strict typing, migrations, tests, smoke, prototype, conformance,
-and clean-wheel verification (including PostgreSQL in the checks job).
+Latest committed baseline: `2fb0710` (license update). The closing Slice 2/3
+changes are locally verified in the current uncommitted working tree; no hosted
+Quality run or closing commit SHA is claimed for that tree.
 
 Point-of-effect enforcement is implemented for READ_AUDIT on audit and security
 transition history, source retrieval, and provider dispatch. Canonical runtime
@@ -166,6 +164,27 @@ Final bounded-scope regression: **1,512 passed, 5 skipped** (opt-in browser test
 Ruff and strict mypy pass across 80 source files; conformance, smoke, real HTTP
 restart, fresh/upgrade/rerun/drift verification for all 24 migrations, and both
 clean-wheel modes pass on the final tree.
+
+## Failed-cycle observability and persistence error boundaries (20 September 2026)
+
+Slices 2 and 3 are locally complete in the current working tree. Failed bounded
+cycles expose one task-scoped, read-only latest-attempt projection containing
+durable stage/status, timestamps, recovery reason, retained evidence and claims,
+attempted/unresolved objectives, and active-cycle truth. The workspace loads that
+projection on refresh and after reload without performing recovery or mutation.
+
+Recognized PostgreSQL constraint failures now use a bounded translator based on
+structured driver diagnostics. Trusted-source duplicates, provider operation
+duplicates, and reviewed security invariants receive stable internal categories;
+unknown or undiagnosed failures remain unexpected. Public security-invariant
+responses are generic and do not expose SQL or constraint details.
+
+Local closing-tree verification: **1542 passed, 5 skipped** in the default suite;
+the opt-in browser suite passed **5 tests**. Ruff, strict mypy across 82 source
+files, conformance, smoke, disposable PostgreSQL prototype/restart verification,
+fresh/upgrade/rerun/drift migration checks, and clean-wheel verification passed.
+The default skips are only the opt-in browser tests. This local evidence is not a
+hosted release or v0.1 conformance claim.
 
 ## Historical checks (15 September 2026)
 

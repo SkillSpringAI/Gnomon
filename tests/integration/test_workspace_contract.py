@@ -44,7 +44,8 @@ def test_workspace_contains_state_driven_controls_and_no_credentials(workspace_t
     for control in (
         "Refresh report", "Run local agent cycle", "Plan next cycle",
         "Pause investigation", "Generate draft", "Cycle history",
-        "Unresolved objectives", "Agent comparisons",
+        "Unresolved objectives", "Agent comparisons", "Retained progress",
+        "Attempt status", "explicit operator action",
         "Attempted objectives",
     ):
         assert control in response.text

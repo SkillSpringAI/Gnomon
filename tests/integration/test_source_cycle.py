@@ -191,6 +191,18 @@ def test_partial_failure_retains_only_attempted_objectives_and_evidence(source_c
     assert cycle["attempted_objectives"] == [cycle["objectives"][1]]
     assert cycle["unresolved_objectives"] == cycle["objectives"]
     assert len(cycle["evidence_ids"]) == 1 and cycle["claim_ids"]
+    progress = client.get(
+        f"/investigations/{task_id}/cycles/1/attempts/latest"
+    )
+    assert progress.status_code == 200, progress.text
+    retained = progress.json()
+    assert retained["attempt_status"] == retained["last_durable_stage"] == "BLOCKED"
+    assert retained["retained_evidence_ids"] == cycle["evidence_ids"]
+    assert retained["retained_claim_ids"] == cycle["claim_ids"]
+    assert retained["attempted_objectives"] == cycle["attempted_objectives"]
+    assert retained["unresolved_objectives"] == cycle["unresolved_objectives"]
+    assert retained["cycle_status"] == "blocked"
+    assert retained["cycle_active"] is False
 
 
 @pytest.mark.parametrize("stage", ["fetch", "extract"])

@@ -9,6 +9,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from research_agent.application.audit_service import AuditService
+from research_agent.application.persistence_error_translation import (
+    PersistenceBoundaryError,
+    PersistenceErrorCategory,
+    translate_integrity_error,
+)
 from research_agent.application.research_service import ResearchTaskNotFound
 from research_agent.application.security_capability import (
     SecurityCapability,
@@ -121,10 +126,14 @@ class ProviderBudgetService:
             return attempt
         except IntegrityError as exc:
             self.session.rollback()
-            diagnostic = getattr(exc.orig, "diag", None)
-            if getattr(diagnostic, "constraint_name", None) == "report_generation_attempts_pkey":
-                raise ProviderAttemptConflict("Operation ID has already been used") from exc
-            raise
+            try:
+                translate_integrity_error(exc)
+            except PersistenceBoundaryError as translated:
+                if translated.category is PersistenceErrorCategory.DUPLICATE_OPERATION:
+                    raise ProviderAttemptConflict(
+                        "Operation ID has already been used"
+                    ) from translated
+                raise
         except Exception:
             self.session.rollback()
             raise

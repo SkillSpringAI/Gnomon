@@ -105,6 +105,7 @@
     const taskId = '__TASK_ID__';
     const byId = id => document.getElementById(id);
     let report = null;
+    let progressByCycle = new Map();
     let busy = false;
     let selectionKey = null;
     let reviewKey = null;
@@ -265,6 +266,34 @@
         parent.append(item);
       }
     }
+    function renderAttemptProgress(article, cycle) {
+      const progress = progressByCycle.get(cycle.number);
+      if (!progress) return;
+      const details = document.createElement('details');
+      if (['RUNNING', 'FAILED', 'BLOCKED', 'INTERRUPTED'].includes(progress.attempt_status)) details.open = true;
+      const summary = document.createElement('summary');
+      summary.textContent = 'Retained progress';
+      details.append(summary);
+      paragraph(details, `Attempt status: ${progress.attempt_status}; last durable stage: ${progress.last_durable_stage}.`);
+      paragraph(details, `Started: ${progress.started_at || 'not recorded'}; finished: ${progress.finished_at || 'not recorded'}.`);
+      if (progress.recovery_reason) paragraph(details, `Recorded reason: ${progress.recovery_reason}.`);
+      if (progress.cycle_active) {
+        paragraph(details, 'This cycle remains active; explicit operator action is required before it can be treated as terminal.');
+      }
+      paragraph(details, `Retained evidence (${progress.retained_evidence_ids.length}):`);
+      const evidence = progress.retained_evidence_ids.map(id => {
+        const source = report.sources.find(item => item.id === id);
+        return `Evidence: ${source?.title || id}${source?.uri ? ` — ${source.uri}` : ''}`;
+      });
+      if (evidence.length) list(details, evidence); else paragraph(details, 'None.');
+      paragraph(details, `Retained claims (${progress.retained_claim_ids.length}):`);
+      const claims = progress.retained_claim_ids.map(id => {
+        const claim = report.claims.find(item => item.id === id);
+        return `Claim: ${claim?.statement || id}`;
+      });
+      if (claims.length) list(details, claims); else paragraph(details, 'None.');
+      article.append(details);
+    }
     function render() {
       byId('title').textContent = report.title;
       byId('summary').textContent = report.summary;
@@ -283,6 +312,7 @@
         article.append(objectives);
         if (cycle.result_summary) paragraph(article, cycle.result_summary);
         paragraph(article, `${cycle.evidence_ids.length} sources · ${cycle.claim_ids.length} claims`);
+        renderAttemptProgress(article, cycle);
         if (cycle.unresolved_objectives.length) {
           paragraph(article, 'Unresolved objectives:');
           const unresolved = document.createElement('ul');
@@ -345,9 +375,17 @@
     async function loadReport() {
       try {
         report = await request('/report');
+        const progress = await Promise.all(report.cycles.map(async cycle => {
+          const response = await fetch(`/investigations/${taskId}/cycles/${cycle.number}/attempts/latest`);
+          if (response.status === 404) return [cycle.number, null];
+          if (!response.ok) throw new Error(`Request failed (${response.status}).`);
+          return [cycle.number, await response.json()];
+        }));
+        progressByCycle = new Map(progress);
         render();
       } catch (error) {
         report = null;
+        progressByCycle = new Map();
         byId('status').textContent = 'Investigation status: unavailable';
         throw error;
       } finally { controls(); }

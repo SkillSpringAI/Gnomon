@@ -1,7 +1,7 @@
 # Gnomon Current Source of Truth
 
-**Current verified baseline:** `4ea2693d368eee016b6f0436a0366faf17922c5d`, checkpoint `checkpoint-2026-09-19-authority-foundations`, with [hosted Quality run #14 successful](https://github.com/SkillSpringAI/Gnomon/actions/runs/35418622604) (confirmed 20 September 2026).
-**Current slice:** Bounded interrupted-cycle closure and mutation/lockdown ordering are closed. See the [archived closure checklist](../archive/completed-slices/2026-09-20-slice-closure-gaps.md) and implementation status for evidence.
+**Committed baseline:** `2fb0710` (license update). The closing Slice 2/3 changes are locally verified in the current uncommitted working tree; no hosted Quality run or closing SHA is claimed for that tree.
+**Current slice:** Bounded interrupted-cycle closure, retained-progress observability, and stable persistence-error boundaries are locally closed. See the implementation status for exact local evidence.
 **Purpose:** Concise current implementation truth, open release gaps, and immediate work.
 **Status:** Current authority for repository state; completed history belongs in [development history](development-history.md), and future work belongs in the [roadmap](roadmap.md).
 
@@ -19,6 +19,7 @@ Current supported behavior includes:
 - Exact evidence and claim reuse, provenance links, deterministic claim extraction, and redacted audit events.
 - Evidence-aware next-cycle planning with bounded objectives, persisted planning reasons, reviews, evidence fingerprints, and unresolved work.
 - Durable cycle attempts, partial-progress retention, operator recovery, late-write fencing, and explicit blocked/failed outcomes.
+- A read-only latest-attempt progress projection and workspace surface for retained evidence, claims, stages, timestamps, objective state, and unresolved active cycles.
 - Versioned governed memory for claims and hypothesis assessments with actor context, optimistic concurrency, append-only history, and eligible 48-hour reversal.
 - Deterministic snapshots and reports that preserve uncertainty, provenance, cycle outcomes, unresolved objectives, and non-authoritative agent comparison metadata.
 - Local rule-based and optional Bedrock provider boundaries with idempotent attempts, bounded output limits, dispatch fencing, and explicit unknown outcomes.
@@ -34,6 +35,9 @@ Current supported behavior includes:
   and recovery bootstrap. Recovery entry becomes effectively RECOVERY_REQUIRED before
   requests, keeps restored active-looking records inert, and exposes no reconciliation
   or restoration-completion path.
+- Recognized PostgreSQL integrity failures are translated at reviewed write boundaries
+  using structured constraint diagnostics; unknown failures remain unexpected, and
+  public authority-invariant responses are generic and redacted.
 
 ## Current guarantees and limits
 
@@ -58,10 +62,10 @@ No current document should claim full autonomous operation, complete security co
 |---|---|---|---|
 | P1 | Backup and restore conformance | Deferred behind authority lineage, transition/restoration authority, bootstrap semantics, and RecoveryContext | Supported PostgreSQL backup/restore procedure, fixture, state/history/provenance/audit comparison, credential non-persistence checks, and release verification. |
 | P1/P2 | Historical journal compatibility | Partial | Define compatibility behavior for older memory journal formats and add reconstruction coverage. |
-| P1/P2 | Workflow atomicity observability | Partial | Clearly expose retained evidence and progress in failed-cycle responses and workspace UI. |
-| P1/P2 | Lowest-layer invariant enforcement | Partial | Inventory application-only invariants, classify DB-critical rules, and improve understandable database-error translation. |
+| P1/P2 | Workflow atomicity observability | Closed locally | Latest-attempt read projection and workspace rendering expose retained progress without observation-side mutation; hosted verification remains pending. |
+| P1/P2 | Lowest-layer invariant enforcement | Closed locally for reviewed scope | Migration 025 constraints and bounded translation cover reviewed authority/duplicate paths; broader lifecycle and memory vocabulary constraints remain deferred. |
 | P1/P2 | Security authority foundations | Partial | Epoch persistence, transition policy, direction-aware administration and the restrictive recovery-bootstrap entry boundary are implemented. RecoveryContext, reconciliation, protected restoration and backup reconstruction remain unimplemented. |
-| P1/P2 | Hosted CI evidence | Verified for `4ea2693` | Quality runs #13 and #14 passed, including checks and minimal-install jobs. |
+| P1/P2 | Hosted CI evidence | Pending for uncommitted closing tree | Earlier Quality runs verified prior committed baselines; no hosted run is claimed for the current local closing tree. |
 | P1 | Interrupted-cycle closure authority | Closed | Exact-attempt closure, runner failure propagation, complete preservation snapshots, restrictive-state coverage, and atomic audit/race tests pass. |
 | P1 | Selected mutation/lockdown ordering | Closed for five paths | Task then security SHARE locking covers memory stage/reverse, source creation, general outcome and containment closure; same-task composition and both race orders are proven. Cross-task batching is unsupported. |
 

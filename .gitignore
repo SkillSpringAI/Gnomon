@@ -19,3 +19,6 @@ coverage.xml
 # Local logs and editor state
 *.log
 .vscode/
+
+# Temporary planning and review artifacts
+docs/temporary-docs/

@@ -4,8 +4,10 @@ from dataclasses import dataclass
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from research_agent.application.persistence_error_translation import translate_integrity_error
 from research_agent.application.security_capability import (
     AuthorityDirection,
     SecurityCapability,
@@ -130,6 +132,9 @@ class SecurityStateTransitionService:
         )
         try:
             self.session.commit()
+        except IntegrityError as exc:
+            self.session.rollback()
+            translate_integrity_error(exc)
         except Exception:
             self.session.rollback()
             raise
