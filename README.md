@@ -128,5 +128,9 @@ The full verification stack also includes PostgreSQL integration, fresh-database
 Use `make` targets where available for common local workflows. Do not run live provider or external-agent operations without the required configuration and authorization.
 
 ## License
+This project is licensed under the Mozilla Public License, version 2.0.
 
-No license file is currently included in this repository.
+This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this project, you can obtain one at https://mozilla.org/MPL/2.0/.
+
+SPDX-License-Identifier: MPL-2.0
+
