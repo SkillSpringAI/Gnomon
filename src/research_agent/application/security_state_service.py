@@ -69,6 +69,8 @@ class SecurityStateTransitionService:
         )
         if record is None:
             raise SecurityTransitionDenied("Persisted security state is unavailable")
+        if record.recovery_bootstrap_pending:
+            raise SecurityTransitionDenied("Recovery bootstrap is pending reconciliation")
         try:
             current = SecurityState(record.state)
             epoch = AuthorityEpochId(record.authority_epoch_id)

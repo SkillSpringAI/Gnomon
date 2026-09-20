@@ -140,6 +140,33 @@ broad authorization refactor was introduced. Slice regression: **1,503 passed,
 5 skipped** (opt-in browser checks); Ruff, strict mypy (79 source files), and
 conformance pass.
 
+## Recovery/bootstrap entry boundary (20 September 2026)
+
+**Implemented for entry only.** `AUTHORITY_STARTUP_MODE` distinguishes pristine
+fresh deployment, ordinary continuation and recovery bootstrap. Continuing startup
+does not change state, version or epoch. Recovery startup takes the canonical row
+lock before request handling, records a durable pending fence plus restored origin,
+advances the version once, retains the epoch and exposes effective
+RECOVERY_REQUIRED. Repeated recovery startup and later continuing restart preserve
+that restrictive identity.
+
+While pending, only safe read/audit/report/diagnostic capabilities remain. Ordinary
+mutation/dispatch, directional authority capabilities and normal security transitions
+deny. An adversarial restored-state test includes raw NORMAL, trusted enabled
+configuration, a RUNNING attempt, evidence/claim provenance and a PENDING provider
+reservation; it proves no provider/source/agent dispatch, no START_CYCLE, no ordinary
+memory mutation and no historical authorization consumption before reconciliation.
+
+Migration 024 persists and constrains the fence. There is intentionally no clearing
+or reconciliation operation, RecoveryContext, protected restoration, external
+recovery, backup tooling, OperatorAuthorization or epoch-replacement API. See the
+[entry-boundary record](../development/recovery-bootstrap-boundary.md).
+
+Final bounded-scope regression: **1,512 passed, 5 skipped** (opt-in browser tests).
+Ruff and strict mypy pass across 80 source files; conformance, smoke, real HTTP
+restart, fresh/upgrade/rerun/drift verification for all 24 migrations, and both
+clean-wheel modes pass on the final tree.
+
 ## Historical checks (15 September 2026)
 
 Slice 12B local verification: **296 passed, 5 skipped** (opt-in browser tests),

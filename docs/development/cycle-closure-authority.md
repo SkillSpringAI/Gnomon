@@ -204,6 +204,7 @@ calls, or authority continuity since an attempt started.
 ## Outside this decision
 
 Protected human restoration, automatic restoration semantics, RecoveryContext,
-OperatorAuthorization, recovery bootstrap, epoch replacement, deployment cloning,
-and backup reconstruction remain deferred. Contracts #1–#5 remain untouched.
-This document does not authorize those implementations.
+OperatorAuthorization, epoch replacement, deployment cloning, and backup
+reconstruction remain deferred. The separately implemented recovery-bootstrap entry
+fence does not broaden this closure operation. Contracts #1–#5 remain untouched.
+This document does not authorize restoration or reconciliation implementations.

@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     llm_base_url: str | None = None
     provider_session_enabled: bool = False
     persistence_backend: Literal["memory", "postgres"] = "postgres"
+    authority_startup_mode: Literal["fresh", "continuing", "recovery"] = "continuing"
     require_trusted_sources: bool = True
 
     @field_validator("llm_provider", mode="before")

@@ -88,6 +88,11 @@ Gnomon is in an implementation-hardening phase. The current baseline has strong 
 
 Open release work includes backup/restore conformance, security-state authority reconciliation, historical journal compatibility, deeper dependency-aware reassessment, complete operational recovery, hosted CI evidence, and broader external-boundary testing.
 
+PostgreSQL startup defaults to `AUTHORITY_STARTUP_MODE=continuing`. Use `fresh` only
+for a pristine newly migrated deployment and `recovery` only to establish the
+restrictive recovery-bootstrap fence before requests. Recovery mode has no
+reconciliation or fence-clearing operation in the current scope.
+
 The [current source of truth](docs/development/source-of-truth.md) describes the supported implementation and active gaps. The [roadmap](docs/development/roadmap.md) contains future work. The [development history](docs/development/development-history.md) preserves completed slices and verification evidence.
 
 ## Documentation

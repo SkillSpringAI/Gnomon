@@ -66,6 +66,8 @@ def require_locked_capability(
             raise SecurityCapabilityDenied(
                 "Security state is unavailable; capability denied"
             ) from exc
+    if current.recovery_bootstrap_pending and capability not in _ALWAYS_SAFE:
+        raise SecurityCapabilityDenied("Recovery bootstrap is pending; capability denied")
     if not allows(current.state, capability, direction):
         raise SecurityCapabilityDenied("Security policy denied capability")
     return current
@@ -133,6 +135,10 @@ def require_capability(
         current = SecurityStateStore(session).load()
     except SecurityStateUnavailable as exc:
         raise SecurityCapabilityDenied("Security state is unavailable; capability denied") from exc
+    if current.recovery_bootstrap_pending and capability not in _ALWAYS_SAFE:
+        raise SecurityCapabilityDenied(
+            f"Capability {capability.value} is denied during recovery bootstrap"
+        )
     if not allows(current.state, capability, direction):
         raise SecurityCapabilityDenied(
             f"Capability {capability.value} is denied in security state {current.state.value}"

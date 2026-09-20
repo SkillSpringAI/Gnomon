@@ -20,12 +20,15 @@ from research_agent.api.routes.reports import router as reports_router
 from research_agent.api.routes.security import router as security_router
 from research_agent.api.routes.snapshots import router as snapshots_router
 from research_agent.api.routes.source_registry import router as source_registry_router
+from research_agent.application.authority_bootstrap import (
+    AuthorityBootstrapService,
+    AuthorityStartupMode,
+)
 from research_agent.application.research_service import (
     InMemoryResearchTaskRepository,
     ResearchService,
 )
 from research_agent.application.security_capability import SecurityCapabilityDenied
-from research_agent.application.security_state_store import SecurityStateStore
 from research_agent.config.settings import get_settings
 from research_agent.domain.memory import MemoryConflict, MemoryDenied
 from research_agent.persistence.database import SessionFactory
@@ -48,9 +51,13 @@ def create_app(
     @application.on_event("startup")
     def load_security_state() -> None:
         if repository is not None:
+            if settings.authority_startup_mode == AuthorityStartupMode.RECOVERY.value:
+                raise RuntimeError("Recovery bootstrap requires PostgreSQL persistence")
             return
         with SessionFactory() as session:
-            SecurityStateStore(session).load()
+            AuthorityBootstrapService(session).initialize(
+                AuthorityStartupMode(settings.authority_startup_mode)
+            )
     application.include_router(health_router)
     application.include_router(memory_router)
 

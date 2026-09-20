@@ -30,6 +30,10 @@ Current supported behavior includes:
 - Direction-aware `AUTHORITY_ADMINISTRATION`: containment cannot broaden, recovery
   is not a superuser capability, and recovery purpose cannot replace authorization
   for the actual authority-bearing effect.
+- Startup distinguishes pristine fresh bootstrap, authority-preserving continuation,
+  and recovery bootstrap. Recovery entry becomes effectively RECOVERY_REQUIRED before
+  requests, keeps restored active-looking records inert, and exposes no reconciliation
+  or restoration-completion path.
 
 ## Current guarantees and limits
 
@@ -56,7 +60,7 @@ No current document should claim full autonomous operation, complete security co
 | P1/P2 | Historical journal compatibility | Partial | Define compatibility behavior for older memory journal formats and add reconstruction coverage. |
 | P1/P2 | Workflow atomicity observability | Partial | Clearly expose retained evidence and progress in failed-cycle responses and workspace UI. |
 | P1/P2 | Lowest-layer invariant enforcement | Partial | Inventory application-only invariants, classify DB-critical rules, and improve understandable database-error translation. |
-| P1/P2 | Security authority foundations | Partial | Epoch persistence and transition actor/reason hardening are implemented and hosted-verified. Protected restoration, bootstrap and frozen recovery architecture remain unimplemented. |
+| P1/P2 | Security authority foundations | Partial | Epoch persistence, transition policy, direction-aware administration and the restrictive recovery-bootstrap entry boundary are implemented. RecoveryContext, reconciliation, protected restoration and backup reconstruction remain unimplemented. |
 | P1/P2 | Hosted CI evidence | Verified for `4ea2693` | Quality runs #13 and #14 passed, including checks and minimal-install jobs. |
 | P1 | Interrupted-cycle closure authority | Closed | Exact-attempt closure, runner failure propagation, complete preservation snapshots, restrictive-state coverage, and atomic audit/race tests pass. |
 | P1 | Selected mutation/lockdown ordering | Closed for five paths | Task then security SHARE locking covers memory stage/reverse, source creation, general outcome and containment closure; same-task composition and both race orders are proven. Cross-task batching is unsupported. |
@@ -78,7 +82,7 @@ The current hardening baseline advances only when:
 
 1. Preserve the closed interruption/ordering guarantees and exact five-path scope.
 2. Preserve the closed direction-aware capability policy and its negative matrix.
-3. Implement only the bounded startup distinction approved for fresh, continuing, and recovery bootstrap; stop before RecoveryContext, OperatorAuthorization, protected restoration, deployment cloning, or backup reconstruction.
+3. Stop before RecoveryContext, reconciliation, OperatorAuthorization, protected restoration, deployment cloning, backup reconstruction or a generic epoch-replacement API.
 
 ### Known implementation question
 

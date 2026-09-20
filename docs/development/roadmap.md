@@ -14,9 +14,10 @@ checks are implemented in `9c82544d` (successful hosted Quality run #12).
 The epoch foundation and bounded actor/reason matrix are hosted-verified in `4ea2693`;
 see [authority foundations](authority-foundations.md) for the completed scope.
 
-Recovery bootstrap, new-epoch replacement, RecoveryContext, OperatorAuthorization,
-ExecutionAuthorization epoch binding, deployment cloning, and backup reconstruction
-remain deferred. Backup/restore depends on authority lineage, transition/restoration
+The restrictive recovery-bootstrap entry boundary is implemented; reconciliation,
+new-epoch replacement, RecoveryContext, OperatorAuthorization, ExecutionAuthorization
+epoch binding, deployment cloning, and backup reconstruction remain deferred.
+Backup/restore depends on authority lineage, transition/restoration
 authority, bootstrap semantics, and RecoveryContext; it is not the next implementation slice.
 
 The canonical runtime state vocabulary is NORMAL, DEGRADED, COMPROMISED_SUSPECTED,

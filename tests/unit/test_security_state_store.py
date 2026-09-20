@@ -37,6 +37,10 @@ def record(state: str = "normal", version: int = 1) -> SecurityStateRecord:
         version=version,
         authority_epoch_id=uuid4(),
         updated_at=datetime.now(UTC),
+        recovery_bootstrap_pending=False,
+        recovery_bootstrap_started_at=None,
+        recovery_bootstrap_from_state=None,
+        recovery_bootstrap_from_version=None,
     )
 
 
@@ -63,6 +67,39 @@ def test_valid_epoch_is_not_a_capability_grant() -> None:
     assert SecurityStateStore(SessionDouble(persisted)).load().authority_epoch_id
     with pytest.raises(SecurityCapabilityDenied):
         require_capability(SessionDouble(persisted), SecurityCapability.PROVIDER_DISPATCH)
+
+
+def test_pending_recovery_bootstrap_makes_historical_normal_restrictive() -> None:
+    persisted = record("normal", 7)
+    persisted.recovery_bootstrap_pending = True
+    persisted.recovery_bootstrap_started_at = datetime.now(UTC)
+    persisted.recovery_bootstrap_from_state = "normal"
+    persisted.recovery_bootstrap_from_version = 6
+    loaded = SecurityStateStore(SessionDouble(persisted)).load()
+    assert loaded.state.value == "recovery_required"
+    assert loaded.version == 7
+    assert loaded.recovery_bootstrap_pending
+    with pytest.raises(SecurityCapabilityDenied):
+        require_capability(SessionDouble(persisted), SecurityCapability.PROVIDER_DISPATCH)
+
+
+@pytest.mark.parametrize(
+    "pending,started,state,version",
+    [
+        (True, None, "normal", 1),
+        (True, datetime.now(UTC), "unknown", 1),
+        (True, datetime.now(UTC), "normal", 0),
+        (False, datetime.now(UTC), None, None),
+    ],
+)
+def test_invalid_recovery_bootstrap_metadata_fails_closed(pending, started, state, version) -> None:
+    persisted = record()
+    persisted.recovery_bootstrap_pending = pending
+    persisted.recovery_bootstrap_started_at = started
+    persisted.recovery_bootstrap_from_state = state
+    persisted.recovery_bootstrap_from_version = version
+    with pytest.raises(SecurityStateUnavailable):
+        SecurityStateStore(SessionDouble(persisted)).load()
 
 
 @pytest.mark.parametrize(

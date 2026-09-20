@@ -24,6 +24,14 @@ class SecurityStateRecord(Base):
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     authority_epoch_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    recovery_bootstrap_pending: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    recovery_bootstrap_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    recovery_bootstrap_from_state: Mapped[str | None] = mapped_column(String(32))
+    recovery_bootstrap_from_version: Mapped[int | None] = mapped_column(Integer)
 
 
 class SecurityTransitionRecord(Base):

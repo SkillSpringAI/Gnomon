@@ -119,10 +119,11 @@ across an external network effect.
 
 ## Deferred authority machinery
 
-Recovery bootstrap, new-epoch replacement, RecoveryContext, OperatorAuthorization,
+The restrictive recovery-bootstrap entry boundary is now implemented separately.
+Reconciliation, new-epoch replacement, RecoveryContext, OperatorAuthorization,
 ExecutionAuthorization epoch binding, deployment cloning, and backup reconstruction
-remain unimplemented. Existing bounded recovery transition behavior does not
-establish those architectural capabilities or protected human authentication.
+remain unimplemented. Existing bounded recovery behavior does not establish those
+architectural capabilities or protected human authentication.
 
 The unresolved lifecycle question is: when a restrictive SecurityState transition
 interrupts an already-running cycle, which authority permits a durable
