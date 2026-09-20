@@ -115,6 +115,31 @@ writers are outside the PostgreSQL commit-ordering claim. The earlier
 `checkpoint-2026-09-20-review-closure-gaps-before-continuing` remains an interim,
 open-gaps checkpoint and is not reused as closure evidence.
 
+## Capability-policy hardening v2 (20 September 2026)
+
+**Implemented.** `AUTHORITY_ADMINISTRATION` is canonical and direction-aware rather
+than always safe. `SECURITY_CONTAINMENT` permits only REDUCE/PRESERVE effects and
+cannot broaden authority. `RECOVERY_ACTION` permits only PRESERVE-purpose work in a
+restrictive state; it grants no ordinary execution/mutation and cannot authorize an
+authority change by itself. Security-state modification separately requires
+`AUTHORITY_ADMINISTRATION` for the actual effect direction, so recovery intent never
+replaces actual-effect authority.
+
+Trusted-source registration and activation are the current authority-bearing
+configuration writers. They require PRESERVE and BROADEN administration respectively;
+their security SHARE lock is held through commit so a restrictive transition cannot
+race an activation through on stale authority.
+
+Unknown, invalid and omitted directions fail closed for all three directional
+capabilities. The exhaustive unit matrix covers every current
+state × capability × direction tuple plus unknown/omitted negative cases. Transition
+integration proves that permitted recovery purpose still fails when administration
+is denied, while the existing structural and actor/reason matrix remains intact.
+No OperatorAuthorization, protected restoration, RecoveryContext, new state, or
+broad authorization refactor was introduced. Slice regression: **1,503 passed,
+5 skipped** (opt-in browser checks); Ruff, strict mypy (79 source files), and
+conformance pass.
+
 ## Historical checks (15 September 2026)
 
 Slice 12B local verification: **296 passed, 5 skipped** (opt-in browser tests),

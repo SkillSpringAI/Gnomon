@@ -26,6 +26,15 @@ class SecurityCapability(StrEnum):
     AGENT_DISPATCH = "agent_dispatch"
     SECURITY_CONTAINMENT = "security_containment"
     RECOVERY_ACTION = "recovery_action"
+    AUTHORITY_ADMINISTRATION = "authority_administration"
+
+
+class AuthorityDirection(StrEnum):
+    """Direction of an authority-bearing effect, not a credential or purpose."""
+
+    REDUCE = "reduce"
+    PRESERVE = "preserve"
+    BROADEN = "broaden"
 
 
 class SecurityCapabilityDenied(RuntimeError):
@@ -33,7 +42,9 @@ class SecurityCapabilityDenied(RuntimeError):
 
 
 def require_locked_capability(
-    session: Session, capability: SecurityCapability
+    session: Session,
+    capability: SecurityCapability,
+    direction: AuthorityDirection | None = None,
 ) -> PersistedSecurityState:
     """After locking the task, hold a security SHARE lock through the caller's commit.
 
@@ -55,7 +66,7 @@ def require_locked_capability(
             raise SecurityCapabilityDenied(
                 "Security state is unavailable; capability denied"
             ) from exc
-    if not allows(current.state, capability):
+    if not allows(current.state, capability, direction):
         raise SecurityCapabilityDenied("Security policy denied capability")
     return current
 
@@ -65,8 +76,6 @@ _ALWAYS_SAFE = {
     SecurityCapability.READ_AUDIT,
     SecurityCapability.LOCAL_REPORT,
     SecurityCapability.DIAGNOSTICS,
-    SecurityCapability.SECURITY_CONTAINMENT,
-    SecurityCapability.RECOVERY_ACTION,
 }
 _RESTRICTED = {
     SecurityCapability.MEMORY_MUTATION,
@@ -76,23 +85,55 @@ _RESTRICTED = {
     SecurityCapability.AGENT_DISPATCH,
 }
 
+_DIRECTIONAL = {
+    SecurityCapability.SECURITY_CONTAINMENT,
+    SecurityCapability.RECOVERY_ACTION,
+    SecurityCapability.AUTHORITY_ADMINISTRATION,
+}
 
-def allows(state: SecurityState, capability: SecurityCapability) -> bool:
-    """Return the explicit baseline policy decision for one state/capability pair."""
+
+def allows(
+    state: SecurityState,
+    capability: SecurityCapability,
+    direction: AuthorityDirection | None = None,
+) -> bool:
+    """Return one explicit state/capability/direction policy decision."""
+    if not isinstance(state, SecurityState) or not isinstance(capability, SecurityCapability):
+        return False
+    if direction is not None and not isinstance(direction, AuthorityDirection):
+        return False
     if capability in _ALWAYS_SAFE:
         return True
+    if capability in _DIRECTIONAL and direction is None:
+        return False
+    if capability is SecurityCapability.SECURITY_CONTAINMENT:
+        return direction in {AuthorityDirection.REDUCE, AuthorityDirection.PRESERVE}
+    if capability is SecurityCapability.RECOVERY_ACTION:
+        return state is not SecurityState.NORMAL and direction is AuthorityDirection.PRESERVE
+    if capability is SecurityCapability.AUTHORITY_ADMINISTRATION:
+        if direction in {AuthorityDirection.REDUCE, AuthorityDirection.PRESERVE}:
+            return True
+        return direction is AuthorityDirection.BROADEN and state in {
+            SecurityState.NORMAL,
+            SecurityState.DEGRADED,
+            SecurityState.RECOVERY_REQUIRED,
+        }
     if state is SecurityState.NORMAL:
         return True
     return capability not in _RESTRICTED
 
 
-def require_capability(session: Session, capability: SecurityCapability) -> SecurityState:
+def require_capability(
+    session: Session,
+    capability: SecurityCapability,
+    direction: AuthorityDirection | None = None,
+) -> SecurityState:
     """Load state fail-closed and reject a capability before its side effect."""
     try:
         current = SecurityStateStore(session).load()
     except SecurityStateUnavailable as exc:
         raise SecurityCapabilityDenied("Security state is unavailable; capability denied") from exc
-    if not allows(current.state, capability):
+    if not allows(current.state, capability, direction):
         raise SecurityCapabilityDenied(
             f"Capability {capability.value} is denied in security state {current.state.value}"
         )

@@ -7,6 +7,7 @@ from sqlalchemy import delete, event, select, text
 
 from research_agent.application.evidence_service import EvidenceService
 from research_agent.application.security_capability import (
+    AuthorityDirection,
     SecurityCapability,
     SecurityCapabilityDenied,
     require_capability,
@@ -17,13 +18,15 @@ from research_agent.application.security_state_service import (
     SecurityTransitionDenied,
 )
 from research_agent.application.security_state_store import SecurityStateStore
-from research_agent.domain.research import SourceCreate, SourceType
+from research_agent.application.source_registry import SourceRegistryService
+from research_agent.domain.research import SourceCreate, SourceType, TrustedSourceCreate
 from research_agent.domain.security import SecurityActor, SecurityReasonCode, SecurityState
 from research_agent.persistence.database import SessionFactory, engine
 from research_agent.persistence.models import (
     ResearchSourceRecord,
     SecurityStateRecord,
     SecurityTransitionRecord,
+    TrustedSourceRecord,
 )
 
 
@@ -312,6 +315,87 @@ def test_transition_service_applies_centralized_recovery_capability_policy() -> 
         reason_code=SecurityReasonCode.RECOVERY_VERIFIED,
     )
     assert result.state is SecurityState.NORMAL
+
+
+def test_recovery_purpose_cannot_replace_authority_administration(monkeypatch) -> None:
+    import research_agent.application.security_state_service as state_service
+
+    transition(
+        expected_version=1,
+        requested_state=SecurityState.DEGRADED,
+        actor_type=SecurityActor.SECURITY_DETECTOR,
+        actor_id="detector-1",
+        reason_code=SecurityReasonCode.SECURITY_DEPENDENCY_DEGRADED,
+    )
+    original_allows = state_service.allows
+
+    def deny_administration(state, capability, direction=None):
+        if capability is SecurityCapability.AUTHORITY_ADMINISTRATION:
+            return False
+        return original_allows(state, capability, direction)
+
+    monkeypatch.setattr(state_service, "allows", deny_administration)
+    assert original_allows(
+        SecurityState.DEGRADED,
+        SecurityCapability.RECOVERY_ACTION,
+        AuthorityDirection.PRESERVE,
+    )
+    with pytest.raises(SecurityCapabilityDenied, match="authority_administration"):
+        transition(
+            expected_version=2,
+            requested_state=SecurityState.NORMAL,
+            actor_type=SecurityActor.SECURITY_RECOVERY_SERVICE,
+            actor_id="recovery-1",
+            reason_code=SecurityReasonCode.RECOVERY_VERIFIED,
+        )
+    with SessionFactory() as session:
+        current = SecurityStateStore(session).load()
+        assert current.state is SecurityState.DEGRADED
+        assert current.version == 2
+
+
+def test_trusted_source_activation_requires_broaden_administration() -> None:
+    enabled_domain = f"enabled-{uuid4().hex}.example"
+    denied_domain = f"denied-{uuid4().hex}.example"
+    try:
+        with SessionFactory() as session:
+            registry = SourceRegistryService(session)
+            registry.register(
+                TrustedSourceCreate(
+                    domain=enabled_domain,
+                    display_name="Enabled",
+                    verification_method="test",
+                )
+            )
+            assert registry.enable(enabled_domain).status.value == "enabled"
+            registry.register(
+                TrustedSourceCreate(
+                    domain=denied_domain,
+                    display_name="Denied",
+                    verification_method="test",
+                )
+            )
+        transition(
+            expected_version=1,
+            requested_state=SecurityState.LOCKDOWN,
+            actor_type=SecurityActor.LOCAL_OPERATOR,
+            actor_id="operator",
+            reason_code=SecurityReasonCode.OPERATOR_LOCKDOWN,
+        )
+        with SessionFactory() as session, pytest.raises(SecurityCapabilityDenied):
+            SourceRegistryService(session).enable(denied_domain)
+        with SessionFactory() as session:
+            denied = session.scalar(
+                select(TrustedSourceRecord).where(TrustedSourceRecord.domain == denied_domain)
+            )
+            assert denied is not None and denied.status == "review"
+    finally:
+        with engine.begin() as connection:
+            connection.execute(
+                delete(TrustedSourceRecord).where(
+                    TrustedSourceRecord.domain.in_([enabled_domain, denied_domain])
+                )
+            )
 
 
 @pytest.mark.parametrize(

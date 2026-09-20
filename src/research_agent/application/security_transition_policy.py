@@ -1,29 +1,16 @@
 """Explicit state/actor/reason authorization and current capability direction."""
 
-from enum import StrEnum
-
-from research_agent.application.security_capability import SecurityCapability, allows
+from research_agent.application.security_capability import AuthorityDirection
 from research_agent.domain.security import SecurityActor, SecurityReasonCode, SecurityState
-
-
-class AuthorityDirection(StrEnum):
-    """Direction of implemented capability sets, not a restoration credential."""
-
-    REDUCE = "reduce"
-    PRESERVE = "preserve"
-    BROADEN = "broaden"
 
 
 def authority_direction(current: SecurityState, requested: SecurityState) -> AuthorityDirection:
     """Classify capability effect independently of structural legality or permission."""
-    before = {capability for capability in SecurityCapability if allows(current, capability)}
-    after = {capability for capability in SecurityCapability if allows(requested, capability)}
-    if before == after:
-        return AuthorityDirection.PRESERVE
-    if after < before:
+    if current is SecurityState.NORMAL and requested is not SecurityState.NORMAL:
         return AuthorityDirection.REDUCE
-    # Mixed changes also broaden authority and must never count as containment.
-    return AuthorityDirection.BROADEN
+    if current is not SecurityState.NORMAL and requested is SecurityState.NORMAL:
+        return AuthorityDirection.BROADEN
+    return AuthorityDirection.PRESERVE
 
 
 _FINDINGS = frozenset(

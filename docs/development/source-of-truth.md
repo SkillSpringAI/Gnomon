@@ -27,6 +27,9 @@ Current supported behavior includes:
 - Point-of-effect enforcement for `READ_AUDIT` on audit/history reads, source retrieval in the cycle runner, and provider dispatch after reservation. Admission alone does not authorize a later effect.
 - Authority Epoch persistence and epoch-bound new transition audit records, with fail-closed lineage loading and no runtime epoch creation.
 - Explicit transition actor/reason authorization and REDUCE/PRESERVE/BROADEN classification of current capability sets. See [authority foundations](authority-foundations.md) for the matrix and limits.
+- Direction-aware `AUTHORITY_ADMINISTRATION`: containment cannot broaden, recovery
+  is not a superuser capability, and recovery purpose cannot replace authorization
+  for the actual authority-bearing effect.
 
 ## Current guarantees and limits
 
@@ -74,7 +77,7 @@ The current hardening baseline advances only when:
 ## Immediate next work
 
 1. Preserve the closed interruption/ordering guarantees and exact five-path scope.
-2. Harden capability policy with explicit authority direction without creating a containment or recovery superuser path.
+2. Preserve the closed direction-aware capability policy and its negative matrix.
 3. Implement only the bounded startup distinction approved for fresh, continuing, and recovery bootstrap; stop before RecoveryContext, OperatorAuthorization, protected restoration, deployment cloning, or backup reconstruction.
 
 ### Known implementation question

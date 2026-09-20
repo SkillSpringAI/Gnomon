@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from research_agent.application.audit_service import AuditService
 from research_agent.application.research_service import TaskStateConflict
 from research_agent.application.security_capability import (
+    AuthorityDirection,
     SecurityCapability,
     require_locked_capability,
 )
@@ -56,7 +57,9 @@ class CycleInterruptionService:
             if task is None:
                 raise TaskStateConflict("Interruption task is unavailable")
             authority = require_locked_capability(
-                self.session, SecurityCapability.SECURITY_CONTAINMENT
+                self.session,
+                SecurityCapability.SECURITY_CONTAINMENT,
+                AuthorityDirection.REDUCE,
             )
             cycle = self.session.scalar(
                 select(ResearchCycleRecord)

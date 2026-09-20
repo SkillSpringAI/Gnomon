@@ -62,7 +62,43 @@ restrictive state is REDUCE; restrictive to NORMAL is BROADEN; transitions betwe
 restrictive states are currently PRESERVE because those states share a capability
 set. This is not a claim that their incident or restoration semantics are equivalent.
 Mixed capability changes classify as BROADEN. Broadened capability paths require
-RECOVERY_ACTION; direction never substitutes for actor/reason authorization.
+both the recovery-purpose check and direction-aware authority administration;
+direction never substitutes for actor/reason authorization.
+
+### Capability-policy hardening v2 — 20 September 2026
+
+The canonical capability set now includes `AUTHORITY_ADMINISTRATION`. It is not an
+always-safe capability. Direction is an explicit input for the three authority
+control capabilities; an omitted, unknown or unclassified direction denies them.
+The deterministic policy is:
+
+| Capability | REDUCE | PRESERVE | BROADEN |
+| --- | --- | --- | --- |
+| `SECURITY_CONTAINMENT` | Allow in every state | Allow in every state | Deny in every state |
+| `RECOVERY_ACTION` | Deny | Allow only outside NORMAL | Deny |
+| `AUTHORITY_ADMINISTRATION` | Allow in every state | Allow in every state | Allow only from NORMAL, DEGRADED or RECOVERY_REQUIRED |
+
+Read/diagnostic capabilities remain safe, and ordinary execution/mutation remains
+NORMAL-only. Direction does not turn an ordinary capability into an administrative
+one. Every security-state modification now requires `AUTHORITY_ADMINISTRATION` for
+its actual REDUCE/PRESERVE/BROADEN effect. A containment-purpose transition also
+requires `SECURITY_CONTAINMENT`; a recovery-purpose transition separately requires
+`RECOVERY_ACTION` at PRESERVE. Thus recovery purpose cannot replace the capability
+for the actual effect, and neither recovery nor containment is a superuser route.
+Trusted-source registration requires PRESERVE administration, while enabling a
+domain requires BROADEN administration under a security SHARE lock held through
+commit. A concurrent restrictive transition therefore either follows the completed
+activation or wins first and denies it; restored enabled rows still cannot dispatch
+without the separate current retrieval capability.
+
+The state direction classifier remains independent of these purpose capabilities:
+NORMAL to restrictive is REDUCE, restrictive to NORMAL is BROADEN, and transitions
+among the currently equal ordinary-authority restrictive states are PRESERVE. This
+avoids recursively deriving direction from the direction-aware policy itself.
+Exhaustive tests cover every current state × capability × direction tuple, omitted
+directions for all three directional capabilities, unknown directions, containment
+broadening, and a transition where permitted recovery purpose cannot substitute for
+denied authority administration.
 
 Same-state requests retain the existing matching-version no-op behavior: they
 neither change state/version nor append a transition. They still require valid

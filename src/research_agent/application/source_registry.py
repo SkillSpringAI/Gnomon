@@ -7,6 +7,11 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from research_agent.application.security_capability import (
+    AuthorityDirection,
+    SecurityCapability,
+    require_locked_capability,
+)
 from research_agent.domain.research import (
     SourceType,
     TrustedSourceCreate,
@@ -27,19 +32,28 @@ class SourceRegistryService:
         self.session = session
 
     def register(self, source: TrustedSourceCreate) -> TrustedSourceResponse:
-        domain = source.domain.lower().strip().rstrip(".")
-        record = TrustedSourceRecord(
-            id=uuid4(),
-            domain=domain,
-            display_name=source.display_name,
-            source_type=source.source_type.value,
-            verification_method=source.verification_method,
-            requires_attribution=source.requires_attribution,
-            status=TrustedSourceStatus.REVIEW.value,
-        )
-        self.session.add(record)
-        self.session.commit()
-        return self._response(record)
+        try:
+            require_locked_capability(
+                self.session,
+                SecurityCapability.AUTHORITY_ADMINISTRATION,
+                AuthorityDirection.PRESERVE,
+            )
+            domain = source.domain.lower().strip().rstrip(".")
+            record = TrustedSourceRecord(
+                id=uuid4(),
+                domain=domain,
+                display_name=source.display_name,
+                source_type=source.source_type.value,
+                verification_method=source.verification_method,
+                requires_attribution=source.requires_attribution,
+                status=TrustedSourceStatus.REVIEW.value,
+            )
+            self.session.add(record)
+            self.session.commit()
+            return self._response(record)
+        except Exception:
+            self.session.rollback()
+            raise
 
     def list_sources(self) -> list[TrustedSourceResponse]:
         records = self.session.scalars(
@@ -49,16 +63,28 @@ class SourceRegistryService:
 
     def enable(self, domain: str) -> TrustedSourceResponse:
         """Enable a reviewed domain for controlled retrieval."""
-        normalized = domain.lower().strip().rstrip(".")
-        record = self.session.scalar(
-            select(TrustedSourceRecord).where(TrustedSourceRecord.domain == normalized)
-        )
-        if record is None:
-            raise UntrustedSourceError("Source domain is not registered")
-        record.status = TrustedSourceStatus.ENABLED.value
-        record.verified_at = datetime.now(UTC)
-        self.session.commit()
-        return self._response(record)
+        try:
+            require_locked_capability(
+                self.session,
+                SecurityCapability.AUTHORITY_ADMINISTRATION,
+                AuthorityDirection.BROADEN,
+            )
+            normalized = domain.lower().strip().rstrip(".")
+            record = self.session.scalar(
+                select(TrustedSourceRecord)
+                .where(TrustedSourceRecord.domain == normalized)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+            if record is None:
+                raise UntrustedSourceError("Source domain is not registered")
+            record.status = TrustedSourceStatus.ENABLED.value
+            record.verified_at = datetime.now(UTC)
+            self.session.commit()
+            return self._response(record)
+        except Exception:
+            self.session.rollback()
+            raise
 
     def require_enabled(self, uri: str) -> TrustedSourceRecord:
         hostname = (urlparse(uri).hostname or "").lower().rstrip(".")

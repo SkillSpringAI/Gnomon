@@ -7,12 +7,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from research_agent.application.security_capability import (
+    AuthorityDirection,
     SecurityCapability,
     SecurityCapabilityDenied,
     allows,
 )
 from research_agent.application.security_transition_policy import (
-    AuthorityDirection,
     authority_direction,
     authorized_transition,
 )
@@ -86,20 +86,26 @@ class SecurityStateTransitionService:
             version = record.version
             self.session.rollback()
             return SecurityTransitionResult(current, version, None, epoch)
-        capability = (
-            SecurityCapability.RECOVERY_ACTION
-            if authority_direction(current, requested_state) is AuthorityDirection.BROADEN
-            or requested_state is SecurityState.RECOVERY_REQUIRED
-            else SecurityCapability.SECURITY_CONTAINMENT
-        )
-        if not allows(current, capability):
-            raise SecurityCapabilityDenied(
-                f"Capability {capability.value} is denied in security state {current.value}"
-            )
         if not is_valid_transition(current, requested_state):
             raise SecurityTransitionDenied(f"Invalid transition {current} -> {requested_state}")
         if not self._authorized(current, requested_state, actor_type, reason_code):
             raise SecurityTransitionDenied("Actor is not authorized for this transition")
+        direction = authority_direction(current, requested_state)
+        required = [(SecurityCapability.AUTHORITY_ADMINISTRATION, direction)]
+        if (
+            direction is AuthorityDirection.BROADEN
+            or requested_state is SecurityState.RECOVERY_REQUIRED
+        ):
+            # Recovery purpose remains non-authoritative: administration separately
+            # authorizes the actual direction-bearing state modification above.
+            required.append((SecurityCapability.RECOVERY_ACTION, AuthorityDirection.PRESERVE))
+        else:
+            required.append((SecurityCapability.SECURITY_CONTAINMENT, direction))
+        for capability, capability_direction in required:
+            if not allows(current, capability, capability_direction):
+                raise SecurityCapabilityDenied(
+                    f"Capability {capability.value} is denied in security state {current.value}"
+                )
 
         transition_id = uuid4()
         new_version = record.version + 1
