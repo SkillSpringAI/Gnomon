@@ -1,15 +1,38 @@
 # Temporary closure checklist — 20 September slices
 
-Status: OPEN. Both slices are implemented locally; neither is declared fully closed.
+Status: CLOSED. G1–G5 were resolved at the 20 September closure checkpoint before
+capability-policy hardening began. This archived checklist records the exit evidence.
 Base: main at `4ea2693d368eee016b6f0436a0366faf17922c5d`.
 Interim tag: `checkpoint-2026-09-20-review-closure-gaps-before-continuing`.
 Read this checklist before continuing. The tag preserves unfinished closure work.
 Scope: bounded interrupted-cycle closure and the five selected PostgreSQL mutation
 paths. This checklist does not authorize additional runtime scope or contract edits.
 
-This is a documentation/code-inspection review, not a new execution of tests.
-No new confirmed runtime defect was reproduced in this pass. Distinguish the
-verification gaps below from the explicit implementation limits further down.
+The original review was documentation/code inspection. The closure pass added and
+executed the missing tests below, then ran the full quality stack on the closing
+tree and obtained hosted checks for the exact closing commit.
+
+## Closure disposition
+
+- G2: source and agent runner tests propagate missing authority, injected invalid
+  authority loading and closure-audit failure after committed progress. No later
+  fetch/ask occurs; no BLOCKED/INTERRUPTED state or partial closure audit is
+  manufactured. Direct loader tests separately cover malformed stored epochs.
+- G3: closure is exercised in every restrictive SecurityState. A nonempty fixture
+  covers evidence, claims, objective results, reviews, attempt artifacts,
+  provenance and memory history. Full snapshots prove successful closure changes
+  only the documented fields and audit append; audit failure also preserves task
+  updated_at and every retained record.
+- G4: the production stage callers are `MemoryService.apply`,
+  `EvidenceService.stage_claim` (including extraction batches), and
+  `AssessmentService.save`; all are same-task. Multiple same-task stages remain
+  invisible until the outer commit, and a later-stage conflict plus outer rollback
+  removes the earlier staged work. Cross-task batching is unsupported and no
+  supported caller requires it.
+- G1/G5: the complete local quality stack was rerun after all code and documentation
+  changes, and the hosted checks/minimal-install jobs passed for the exact closing
+  commit. Exact counts, revision and hosted run are retained in
+  `docs/conformance/implementation-status.md` and repository history.
 
 ## Evidence already available
 

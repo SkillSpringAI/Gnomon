@@ -335,7 +335,12 @@ class MemoryService:
         proposal: MemoryChangeProposal,
         authority: MemoryAuthority,
     ) -> AppliedMemoryChange:
-        """Caller owns atomic transaction, including extraction batches."""
+        """Stage one same-task change in a caller-owned atomic transaction.
+
+        Multiple calls may compose only when every authority names the same task.
+        Cross-task batching is unsupported because the lock protocol is task then
+        security state; callers must commit or roll back before selecting another task.
+        """
         self._authorize(authority)
         self._task(authority.task_id)
         require_locked_capability(self.session, SecurityCapability.MEMORY_MUTATION)

@@ -67,10 +67,11 @@ checks and minimal-install jobs successful (confirmed 20 September).
 
 ## Interruption closure and mutation ordering (20 September 2026)
 
-**Implemented locally; closure pending.** The [temporary gap checklist](../temporary-docs/2026-09-20-slice-closure-gaps.md)
-tracks final-tree verification, runner failure propagation, preservation coverage,
-transaction composition and hosted checkpoint evidence. Passing tests below do not
-close those outstanding gates. Base is `4ea2693`; no new hosted result is claimed. The
+**Closed.** The [archived gap checklist](../archive/completed-slices/2026-09-20-slice-closure-gaps.md)
+records final-tree verification, runner failure propagation, preservation coverage,
+transaction composition and hosted checkpoint evidence. The implementation base was
+`4ea2693`; the closing checkpoint is
+`checkpoint-2026-09-20-interruption-ordering-closed`. The
 [closure/locking record](../development/cycle-closure-authority.md) documents the
 lock order before implementation and the exact bounded mutation fields.
 
@@ -87,22 +88,32 @@ lock order before implementation and the exact bounded mutation fields.
 - PostgreSQL tests observe actual row blocking through pg_blocking_pids for both
   race orders of all five paths. Ordinary mutation denies when lockdown wins;
   bounded containment closure remains permitted and records current authority.
+- Both runners propagate missing authority, injected invalid-authority loading and
+  closure-audit failure after committed progress. They make no later adapter call,
+  manufacture no BLOCKED/INTERRUPTED state, and retain the unresolved cycle/attempt.
+- Full snapshots with nonempty evidence, claims, objective results, reviews,
+  provenance, memory history and attempt artifacts prove closure changes only its
+  documented fields. Closure succeeds in all four restrictive states.
+- The complete production `MemoryService.stage()` inventory is same-task. Multiple
+  stages commit under one outer transaction and later-stage failure rolls the batch
+  back. Cross-task batching is unsupported and is not required by a supported caller.
 
-Broad regression: **1,244 passed, 5 skipped** (opt-in browser checks). Ruff and
+Final broad regression: **1,256 passed, 5 skipped** (opt-in browser checks). Ruff and
 strict mypy pass (79 source files). Clean-wheel validation passes, including all
 23 migration resources, populated upgrade, rerun and checksum drift rejection.
 No schema migration was needed: the closure event uses the existing JSON audit
 payload. Existing FastAPI deprecation and intermittent Pydantic alias warnings
-remain. A final missing-row guard was added to the locking helper after broad
-verification; the final focused closure/ordering suite passes **30 tests**, and
-smoke plus real HTTP lifecycle/restart verification both pass with that guard.
+remain. The final focused closure/ordering suite passes **42 tests**. Ruff, strict
+mypy, conformance, smoke, real HTTP lifecycle/restart, and both clean-wheel modes
+pass on the same tree. Hosted Quality checks and minimal-install also pass for the
+exact tagged closing commit.
 
 Contracts #1–#5 remain unchanged. No recovery/bootstrap, epoch replacement,
 protected restoration, generic containment mutation API, or external-call
 cancellation was added. The development memory backend and unrelated/direct ORM
-writers are outside the PostgreSQL commit-ordering claim. Interim checkpoint:
-`checkpoint-2026-09-20-review-closure-gaps-before-continuing`. This checkpoint
-preserves work in progress; it does not close the slices or their remaining gates.
+writers are outside the PostgreSQL commit-ordering claim. The earlier
+`checkpoint-2026-09-20-review-closure-gaps-before-continuing` remains an interim,
+open-gaps checkpoint and is not reused as closure evidence.
 
 ## Historical checks (15 September 2026)
 

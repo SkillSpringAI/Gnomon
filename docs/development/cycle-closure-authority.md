@@ -1,7 +1,9 @@
 # Interrupted-cycle closure authority
 
 Date: 20 September 2026.
-Status: implemented locally; slice closure pending the [temporary gap checklist](../temporary-docs/2026-09-20-slice-closure-gaps.md).
+Status: implemented and closed at the 20 September closure checkpoint. The archived
+[closure checklist](../archive/completed-slices/2026-09-20-slice-closure-gaps.md)
+records the gap-by-gap disposition.
 This is bounded containment bookkeeping, not restoration authority. Contracts #1–#5
 are unchanged. Verification is recorded in implementation-status.md.
 Baseline: `4ea2693d368eee016b6f0436a0366faf17922c5d`, checkpoint
@@ -167,11 +169,37 @@ orders, reversal API/direct denial, and stale cached NORMAL state. It observes
 five covered paths. Ordinary writers deny when lockdown wins; containment closure
 waits and then records the current restrictive authority under its narrow scope.
 
-This ordering applies to the listed PostgreSQL paths, each operating on one task
-per transaction. The development memory repository does not gain PostgreSQL security
-or concurrency guarantees. No claim is made for direct ORM writers, other lifecycle
-operations, cancellation of dispatched network calls, or authority continuity since
-an attempt started.
+Runner-level negative coverage now exercises both source and agent runners after
+committed progress for a missing canonical authority row, an accurately described
+injected invalid-authority load, and closure-audit insertion failure. Every path
+propagates the closure error, stops before another fetch/ask, retains committed
+evidence, claims, provenance, journal history and attempt progress, leaves the
+cycle/attempt ACTIVE/RUNNING, and appends no partial interruption audit. The direct
+loader tests remain the evidence for malformed stored epoch representations.
+
+Closure succeeds under DEGRADED, COMPROMISED_SUSPECTED, LOCKDOWN and
+RECOVERY_REQUIRED. Its preservation fixture contains nonempty evidence IDs, claim
+IDs, objective results, reviews, unresolved and attempted objectives, attempt
+artifact lists, source/claim provenance and memory history. The before/after check
+allows only the documented cycle fields, attempt fields, task updated_at and one
+interruption audit; all other retained records compare exactly. Audit failure uses
+the same full snapshot, including task updated_at and underlying retained history.
+
+The complete `MemoryService.stage()` caller inventory is: its public `apply()`
+wrapper; `EvidenceService.stage_claim()` (including the same-task extraction batch);
+and `AssessmentService.save()`. Direct stage use is otherwise confined to ordering
+tests. Every supported production caller operates on one task per transaction.
+Tests stage multiple changes for one task under one outer transaction, prove neither
+is externally visible before commit, and prove a later-stage conflict followed by
+outer rollback removes the earlier staged record and journal entry.
+
+Cross-task batching is explicitly unsupported. A caller must commit or roll back
+before selecting another task; no supported caller requires cross-task composition.
+This boundary avoids claiming a lock order the implementation does not provide and
+does not add a generic multi-task transaction API. The development memory repository
+does not gain PostgreSQL security or concurrency guarantees. No claim is made for
+direct ORM writers, other lifecycle operations, cancellation of dispatched network
+calls, or authority continuity since an attempt started.
 
 ## Outside this decision
 

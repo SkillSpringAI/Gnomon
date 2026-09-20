@@ -1,7 +1,7 @@
 # Gnomon Current Source of Truth
 
 **Current verified baseline:** `4ea2693d368eee016b6f0436a0366faf17922c5d`, checkpoint `checkpoint-2026-09-19-authority-foundations`, with [hosted Quality run #14 successful](https://github.com/SkillSpringAI/Gnomon/actions/runs/35418622604) (confirmed 20 September 2026).
-**Current slice:** Bounded interrupted-cycle closure and mutation/lockdown ordering are implemented locally but not yet closed. See the [temporary closure gaps](../temporary-docs/2026-09-20-slice-closure-gaps.md) and implementation status for evidence.
+**Current slice:** Bounded interrupted-cycle closure and mutation/lockdown ordering are closed. See the [archived closure checklist](../archive/completed-slices/2026-09-20-slice-closure-gaps.md) and implementation status for evidence.
 **Purpose:** Concise current implementation truth, open release gaps, and immediate work.
 **Status:** Current authority for repository state; completed history belongs in [development history](development-history.md), and future work belongs in the [roadmap](roadmap.md).
 
@@ -55,8 +55,8 @@ No current document should claim full autonomous operation, complete security co
 | P1/P2 | Lowest-layer invariant enforcement | Partial | Inventory application-only invariants, classify DB-critical rules, and improve understandable database-error translation. |
 | P1/P2 | Security authority foundations | Partial | Epoch persistence and transition actor/reason hardening are implemented and hosted-verified. Protected restoration, bootstrap and frozen recovery architecture remain unimplemented. |
 | P1/P2 | Hosted CI evidence | Verified for `4ea2693` | Quality runs #13 and #14 passed, including checks and minimal-install jobs. |
-| P1 | Interrupted-cycle closure authority | Implemented locally; closure pending | Exact-attempt closure, general outcome guard, runner parity, and atomic audit/race tests; see the decision below. |
-| P1 | Selected mutation/lockdown ordering | Implemented locally; closure pending | Task then security SHARE locking covers memory stage/reverse, source creation, general outcome and containment closure; separate-session tests prove both race orders. |
+| P1 | Interrupted-cycle closure authority | Closed | Exact-attempt closure, runner failure propagation, complete preservation snapshots, restrictive-state coverage, and atomic audit/race tests pass. |
+| P1 | Selected mutation/lockdown ordering | Closed for five paths | Task then security SHARE locking covers memory stage/reverse, source creation, general outcome and containment closure; same-task composition and both race orders are proven. Cross-task batching is unsupported. |
 
 The dated architecture review findings are historical evidence. They were reconciled into the current ledger where applicable and should not be treated as the active defect list without checking this document and the conformance records.
 
@@ -73,13 +73,13 @@ The current hardening baseline advances only when:
 
 ## Immediate next work
 
-1. Resolve the [temporary closure gaps](../temporary-docs/2026-09-20-slice-closure-gaps.md): runner failure propagation, nonempty preservation/state coverage, and the transaction-composition boundary.
-2. Verify the final tree, then checkpoint and obtain matching hosted evidence. Contracts #1–#5 remain untouched; protected restoration remains separate.
-3. Stop before recovery bootstrap, new-epoch replacement, RecoveryContext, OperatorAuthorization, ExecutionAuthorization epoch binding, deployment cloning, and backup reconstruction.
+1. Preserve the closed interruption/ordering guarantees and exact five-path scope.
+2. Harden capability policy with explicit authority direction without creating a containment or recovery superuser path.
+3. Implement only the bounded startup distinction approved for fresh, continuing, and recovery bootstrap; stop before RecoveryContext, OperatorAuthorization, protected restoration, deployment cloning, or backup reconstruction.
 
 ### Known implementation question
 
-When a restrictive SecurityState transition interrupts an already-running cycle, which authority permits Gnomon to durably mark that cycle BLOCKED/INTERRUPTED? Resolve this before generalizing capability policy; it affects containment bookkeeping, recovery semantics, and MEMORY_MUTATION. The [implemented bounded decision](cycle-closure-authority.md) uses SECURITY_CONTAINMENT for exact-attempt interruption closure and MEMORY_MUTATION for general outcome writes. Missing authority or persistence failure leaves state unresolved rather than manufacturing closure. Broader recovery and restoration questions remain deferred.
+The closed [bounded decision](cycle-closure-authority.md) uses SECURITY_CONTAINMENT for exact-attempt interruption closure and MEMORY_MUTATION for general outcome writes. Missing/invalid authority or persistence failure propagates through both runners and leaves state unresolved rather than manufacturing closure. Broader recovery and restoration questions remain deferred.
 
 ## Navigation
 

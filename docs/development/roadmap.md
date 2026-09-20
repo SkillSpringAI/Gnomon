@@ -23,15 +23,17 @@ The canonical runtime state vocabulary is NORMAL, DEGRADED, COMPROMISED_SUSPECTE
 LOCKDOWN, and RECOVERY_REQUIRED. Historical security vocabulary is not an additional
 runtime state machine. Full recovery conformance remains open.
 
-### Local slices awaiting closure gates: interruption and mutation ordering
+### Closed local slices: interruption and mutation ordering
 
 The [20 September implementation](cycle-closure-authority.md) adds exact-attempt
 containment closure, the general outcome guard and runner integration, reversal
 authorization, and commit ordering for the five selected writers. Atomic audit and
 real PostgreSQL interleaving checks cover the bounded scope.
-Resolve the [temporary closure gaps](../temporary-docs/2026-09-20-slice-closure-gaps.md)
-before declaring these slices closed or recording a new hosted baseline.
-Protected restoration and recovery/bootstrap remain separate.
+The [interruption/ordering closure checklist](../archive/completed-slices/2026-09-20-slice-closure-gaps.md)
+is closed with runner failure propagation, full preservation snapshots, all
+restrictive states, same-task transaction composition and matching hosted evidence.
+Cross-task batching remains unsupported. Protected restoration and broader recovery
+semantics remain separate.
 
 ### Workflow and persistence hardening
 
