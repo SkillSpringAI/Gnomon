@@ -44,6 +44,25 @@ Important mutable state is versioned or otherwise historically recoverable. Stat
 
 State-changing operations should be idempotent where practical. Critical transitions use compare-and-set or equivalent version checks so an old process cannot silently overwrite newer state. Concurrent changes must be serialized, merged, explicitly rejected, or raised as a conflict; processing order alone is not a valid resolution.
 
+### Legacy governed-memory compatibility
+
+Migration 007 added version-one and lifecycle fields to existing claims and
+hypothesis assessments without an original journal row. The supported upgrade
+shape is therefore a first retained journal mutation with
+`previous_version=1`, `version=2`, and a non-null `previous_state`. That state
+is a supported version-one reconstruction baseline for claims and assessments,
+but it does not establish the original creation event, actor, timestamp, or
+change identity. The API reports no synthetic change ID for that baseline.
+
+Newly governed targets continue to require a version-one `CREATE` journal row.
+A target with no journal is not reconstructable and is reported as missing
+history. Missing intermediate versions, mismatched previous state, malformed
+state, invalid target types, and unsupported starting shapes are rejected as
+conflicts. Historical reads validate the chain and state shapes without
+writing records, changing current state, or fabricating history. This contract
+covers claims and hypothesis assessments only; it is not backup restoration or
+disaster recovery.
+
 ## Provenance dependencies
 
 Important dependencies should be representable as a directed provenance graph. Typical relationships include `DERIVED_FROM`, `SUPPORTS`, `CONTRADICTS`, `INFERRED_FROM`, `SUPERSEDES`, `REPORTED_BY`, `CORROBORATES`, and `DEPENDS_ON`.
@@ -139,7 +158,7 @@ For any significant mutation, Gnomon should be able to answer:
 | Requirement area | Current evidence and limitation |
 |---|---|
 | Governed proposal, validation, commit, actor context, and audit | Implemented for claims and hypothesis assessments, with deterministic validation and redacted audit metadata. |
-| Versioned state and append-only history | Implemented for governed claims and assessments with optimistic versions and a change journal; not every planned memory category exists yet. |
+| Versioned state and append-only history | Implemented for governed claims and assessments with optimistic versions and a change journal, including the bounded migration-007 version-one baseline rule; not every planned memory category exists yet. |
 | 48-hour rollback | Implemented for eligible claim and assessment changes with stale, duplicate, concurrent, dependent, expired, and conflict checks. |
 | Lifecycle and task state integrity | Implemented for current investigation, cycle, provider-attempt, and memory paths; broader purge and retention policy remain open. |
 | Provenance and dependencies | Current sources, claims, assessments, cycle associations, and agent observations retain provenance; full dependency-aware propagation and graph reconstruction remain partial. |

@@ -65,7 +65,7 @@ Audit records are security evidence, not a replacement for current domain state 
 
 Audit events should retain an immutable identity, event type, actor or initiating process, timestamp, task or scope, affected records, operation/correlation identity, result category, and redacted structured metadata. Audit payloads must avoid raw source text, credentials, unrestricted provider errors, and sensitive data not required for accountability.
 
-Audit integrity requires protection against ordinary deletion or mutation, tamper evidence appropriate to the deployment, retention policy, and access controls. The current repository has broad redacted audit coverage for task, cycle, evidence, memory, rollback, provider, and security-denial paths, while complete audit retention, tamper-evidence, and operator identity remain open.
+Audit integrity requires protection against ordinary deletion or mutation, tamper evidence appropriate to the deployment, retention policy, and access controls. The current repository has broad redacted audit coverage for task, cycle, evidence, memory, rollback, provider dispatch, provider-session lifecycle, security-denial, and trusted-source registration/activation paths. Complete audit retention, tamper-evidence, authenticated multi-user identity, and unrelated configuration-writer coverage remain open.
 
 ## Security state and containment
 
@@ -144,7 +144,7 @@ Security controls enforce bounded time, tokens, requests, bytes, concurrency, re
 | Boundary guards, least authority, and untrusted input handling | Implemented for current HTTP, provider, fake-agent, capability, source-domain, and lifecycle paths; broader adapter coverage remains open. |
 | Secrets and provider configuration | Current settings and provider status expose credential mode without secret values; full authentication and rotation operations remain open. |
 | State integrity, concurrency, idempotency, and explicit unknown outcomes | Implemented across migrations, lifecycle, provider attempts, memory governance, cycle recovery, and audit transactions for the current scope. |
-| Auditability and redaction | Broad task-scoped redacted audit coverage exists; complete retention, tamper evidence, operator identity, and all provider/session security events remain open. |
+| Auditability and redaction | Broad task-scoped redacted audit coverage exists; provider-session create/delete lifecycle metadata is now durable; complete retention, tamper evidence, operator identity, and unrelated provider/configuration-writer coverage remain open. |
 | Security state machine | Slice 13 state persistence and transitions exist, but the authority document’s state vocabulary and the Slice 13 vocabulary require reconciliation. |
 | Failure containment and degraded operation | Current provider, cycle, and retrieval failures preserve explicit outcomes and local state; full incident isolation and operational safe-mode controls remain partial. |
 | Backup, restore, and recovery | Transactional rollback/recovery tests exist; documented backup/restore procedure and restore drill are not complete. |

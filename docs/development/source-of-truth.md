@@ -1,7 +1,7 @@
 # Gnomon Current Source of Truth
 
-**Committed baseline:** `2fb0710` (license update). The closing Slice 2/3 changes are locally verified in the current uncommitted working tree; no hosted Quality run or closing SHA is claimed for that tree.
-**Current slice:** Bounded interrupted-cycle closure, retained-progress observability, and stable persistence-error boundaries are locally closed. See the implementation status for exact local evidence.
+**Committed implementation baseline:** `4157917` (Slices 3F–3H, including provider-session lifecycle audit). Hosted Quality run [35548463523](https://github.com/SkillSpringAI/Gnomon/actions/runs/35548463523) verified the exact SHA `41579173fd19e8316d020d4f9c59c624b684fdac`; `checks`, `minimal-install`, and required `browser` all passed.
+**Current slice:** Slices 3F–3H implementation and hosted evidence are complete; this documentation commit records the closure state. Recovery is implemented only for restrictive entry; reconciliation and restoration completion remain unimplemented.
 **Purpose:** Concise current implementation truth, open release gaps, and immediate work.
 **Status:** Current authority for repository state; completed history belongs in [development history](development-history.md), and future work belongs in the [roadmap](roadmap.md).
 
@@ -61,11 +61,12 @@ No current document should claim full autonomous operation, complete security co
 | Priority | Issue | Current status | Next evidence required |
 |---|---|---|---|
 | P1 | Backup and restore conformance | Deferred behind authority lineage, transition/restoration authority, bootstrap semantics, and RecoveryContext | Supported PostgreSQL backup/restore procedure, fixture, state/history/provenance/audit comparison, credential non-persistence checks, and release verification. |
-| P1/P2 | Historical journal compatibility | Partial | Define compatibility behavior for older memory journal formats and add reconstruction coverage. |
-| P1/P2 | Workflow atomicity observability | Closed locally | Latest-attempt read projection and workspace rendering expose retained progress without observation-side mutation; hosted verification remains pending. |
+| P1/P2 | Historical journal compatibility | Locally implemented for migration-007 claims/assessments | First retained version-one baseline is reconstructable without invented metadata; malformed, missing, and unsupported chains fail closed. Broader memory categories remain deferred. |
+| P1/P2 | Workflow atomicity observability | Implementing baseline hosted-verified | Latest-attempt read projection and workspace rendering expose retained progress without observation-side mutation; hosted run `35548463523` passed for exact SHA `41579173fd19e8316d020d4f9c59c624b684fdac`. |
 | P1/P2 | Lowest-layer invariant enforcement | Closed locally for reviewed scope | Migration 025 constraints and bounded translation cover reviewed authority/duplicate paths; broader lifecycle and memory vocabulary constraints remain deferred. |
 | P1/P2 | Security authority foundations | Partial | Epoch persistence, transition policy, direction-aware administration and the restrictive recovery-bootstrap entry boundary are implemented. RecoveryContext, reconciliation, protected restoration and backup reconstruction remain unimplemented. |
-| P1/P2 | Hosted CI evidence | Pending for uncommitted closing tree | Earlier Quality runs verified prior committed baselines; no hosted run is claimed for the current local closing tree. |
+| P1/P2 | Hosted CI evidence | Implementing baseline verified | Quality run [35548463523](https://github.com/SkillSpringAI/Gnomon/actions/runs/35548463523) tested exact SHA `41579173fd19e8316d020d4f9c59c624b684fdac`; checks, minimal-install, and browser passed. |
+| P1/P2 | Trusted-source/provider-session policy audit | Locally and hosted-verified for the reviewed registry and provider-session boundaries | Configuration-scoped events preserve authority epoch/version, require READ_AUDIT to read, and replacement emits revoke-then-create evidence; authenticated identity, memory-backend durability, and unrelated writer audit remain open. |
 | P1 | Interrupted-cycle closure authority | Closed | Exact-attempt closure, runner failure propagation, complete preservation snapshots, restrictive-state coverage, and atomic audit/race tests pass. |
 | P1 | Selected mutation/lockdown ordering | Closed for five paths | Task then security SHARE locking covers memory stage/reverse, source creation, general outcome and containment closure; same-task composition and both race orders are proven. Cross-task batching is unsupported. |
 
@@ -81,6 +82,22 @@ The current hardening baseline advances only when:
 - CI runs the claimed quality, migration, smoke, packaging, conformance, and relevant integration checks.
 - No enabled adapter treats external content as authority or silently converts unknown outcomes into success.
 - The authority matrix and implementation status remain synchronized with code and tests.
+
+## Completion-record template
+
+Use this compact record in the relevant maintained status section when a slice closes:
+
+```text
+Implementation SHA: <commit tested>
+Working tree: <clean or dirty; list relevant uncommitted follow-up>
+Commands and results: <exact commands, pass/fail counts, and skips>
+Hosted run: <URL, or explicitly pending>
+Hosted tested SHA: <SHA, or explicitly pending>
+Supported scope: <what the evidence covers>
+Remaining gaps: <what is still deferred>
+```
+
+Implementation evidence and documentation-only follow-up evidence must remain distinct. A commit must not claim verification of documentation changes that were added after that commit.
 
 ## Immediate next work
 

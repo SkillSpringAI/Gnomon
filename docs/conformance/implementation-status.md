@@ -1,17 +1,20 @@
 # Gnomon implementation status
 
-## Implementation status updated on 2026-09-20
+## Implementation status updated on 2026-09-21
 
-Latest committed baseline: `2fb0710` (license update). The closing Slice 2/3
-changes are locally verified in the current uncommitted working tree; no hosted
-Quality run or closing commit SHA is claimed for that tree.
+Latest implementation baseline: `4157917` (Slices 3F–3H, including
+provider-session lifecycle audit). Hosted Quality run
+[35548463523](https://github.com/SkillSpringAI/Gnomon/actions/runs/35548463523)
+tested exact SHA `41579173fd19e8316d020d4f9c59c624b684fdac`; `checks`,
+`minimal-install`, and `browser` all passed.
 
 Point-of-effect enforcement is implemented for READ_AUDIT on audit and security
 transition history, source retrieval, and provider dispatch. Canonical runtime
 security states and capability policy are implemented; this does not establish
 full restoration or recovery authority. Authority Epoch and actor/reason hardening
 are implemented in the verified checkpoint described below. Recovery/bootstrap
-machinery remains unimplemented.
+is implemented only for the restrictive entry boundary; reconciliation and
+restoration completion remain unimplemented.
 Contracts #1–#5 remain untouched. The lifecycle-closure authority question is
 tracked in [source of truth](../development/source-of-truth.md#known-implementation-question).
 
@@ -185,6 +188,73 @@ files, conformance, smoke, disposable PostgreSQL prototype/restart verification,
 fresh/upgrade/rerun/drift migration checks, and clean-wheel verification passed.
 The default skips are only the opt-in browser tests. This local evidence is not a
 hosted release or v0.1 conformance claim.
+
+## Verification synchronization and hosted browser coverage (21 September 2026)
+
+Priority 1 adds a required `browser` job to the Quality workflow. It uses the
+PostgreSQL service, installs the `[dev,browser]` extra and Chromium with Linux
+dependencies, sets `RUN_BROWSER_TESTS=1` and `PLAYWRIGHT_CHANNEL=chromium`,
+applies migrations, and runs the workspace browser suite. When enabled, missing
+Playwright or a browser launch failure is a hard failure rather than a silent
+skip. The browser tests bridge requests to the in-process test application; they
+do not establish live external services or a deployed browser-to-server stack.
+
+Implementation evidence for this follow-up is the committed baseline `4157917`
+and hosted run `35548463523`. The hosted browser gate recorded **5 browser tests
+passed with zero skips, failures, or errors** through the JUnit gate. The final
+local default suite recorded **1,559 passed and 5 skipped**.
+The browser cases used an installed Windows Chrome executable because this host
+cannot spawn Playwright's downloaded Chromium; hosted CI remains pinned to its
+downloaded Ubuntu Chromium installation.
+
+## Legacy governed-memory history compatibility (21 September 2026)
+
+Migration 007 assigned pre-existing claims and hypothesis assessments version one
+without an original journal row. The first governed mutation may therefore be
+the supported `(previous_version=1, version=2)` shape when its non-null
+`previous_state` validates as the version-one baseline. Historical reads expose
+that baseline without inventing an actor, timestamp, or change ID; new targets
+retain the ordinary version-one `CREATE` row.
+
+History validation now rejects targets with no journal, missing intermediate
+versions, mismatched prior state, malformed state, invalid target types, and
+unsupported starting shapes as stable conflicts. Reads remain side-effect free.
+Focused PostgreSQL integration evidence: **15 passed**, including both claim and
+assessment upgrade shapes, baseline reconstruction, no-journal behavior,
+missing-intermediate rejection, malformed-state rejection, and unchanged journal
+rows after reads. No migration resource changed for this memory slice. Final
+regression and hosted verification are recorded in the closure section below.
+
+## Trusted-source policy audit (21 September 2026)
+
+Trusted-source registration and activation now stage redacted configuration-scoped
+events in the same transaction as the registry write. Events retain only the
+registry ID, operation, old/new status, trusted local-operator context, observed
+authority epoch/version, bounded result/reason, and event time. Duplicate
+registration remains a conflict without a second event; repeated enable is an
+explicit `no_op`, not a new authority expansion. Audit persistence failure rolls
+back the registry change.
+
+The audit read endpoint enforces `READ_AUDIT` at the service boundary and does
+not expose domains, source prose, verification text, URLs, secrets, raw request
+data, or SQL diagnostics. PostgreSQL interleaving tests cover activation-before-
+lockdown and lockdown-before-activation orders. Focused evidence: **10 passed**
+for atomicity, rollback, redaction, capability enforcement, duplicate/repeat
+semantics, actor validation, and both race orders. Coverage is limited to these
+two registry operations. Provider-session creation/deletion now also has a
+separate redacted lifecycle event table and `READ_AUDIT` endpoint; authenticated
+multi-user identity and unrelated configuration writers remain open.
+
+Provider-session lifecycle evidence (21 September 2026) records only provider,
+credential mode, bounded TTL, trusted local-operator context, authority
+epoch/version, result/reason, and event time. Bearer tokens, cookies/session
+identifiers, and provider diagnostics are never persisted. Creation requires
+authority broadening; deletion requires authority reduction. The in-memory
+development backend remains intentionally non-durable and returns an empty
+audit collection. Replacement of an active session emits deletion evidence
+before the new creation evidence without persisting either session's secret or
+identifier. Focused provider-session evidence is **3 PostgreSQL integration
+tests plus 7 existing provider unit tests**.
 
 ## Historical checks (15 September 2026)
 

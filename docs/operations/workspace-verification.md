@@ -23,8 +23,16 @@ Install the optional dependencies and run:
 python -m pip install -e ".[dev,browser]"
 # On machines without Edge: python -m playwright install chromium
 # Then set PLAYWRIGHT_CHANNEL=chromium for that browser.
+# On Windows hosts where Playwright cannot spawn its downloaded browser, set
+# PLAYWRIGHT_EXECUTABLE_PATH to an installed Chromium-compatible browser.
 $env:RUN_BROWSER_TESTS = "1"
 python -m pytest tests/integration/test_workspace_browser.py
 ```
 
-The browser suite covers exact objective/URL payloads, successful and partial collection, busy controls, invalid URLs, stale-state recovery, reload, unavailable reports, narrow-screen layout, objective review, and interrupted-cycle recovery. Tests are skipped unless explicitly enabled.
+The browser suite covers exact objective/URL payloads, successful and partial collection, busy controls, invalid URLs, stale-state recovery, reload, unavailable reports, narrow-screen layout, objective review, and interrupted-cycle recovery. Tests are skipped unless explicitly enabled locally. When `RUN_BROWSER_TESTS=1` is set, missing Playwright is a hard failure rather than a skip, and the selected browser must launch successfully.
+
+## Hosted browser boundary
+
+The required `browser` job in `.github/workflows/quality.yml` runs against the PostgreSQL service, installs the browser extra and Chromium with its Linux dependencies, sets `RUN_BROWSER_TESTS=1` and `PLAYWRIGHT_CHANNEL=chromium`, applies migrations, and executes the browser suite. It also checks the JUnit result so all five current browser cases execute with zero skips, failures, or errors. A missing Python dependency, browser binary, or system prerequisite fails that job. The default Quality job and the minimal-install job remain separate: the former preserves the broad non-browser regression and the latter verifies the package without optional browser dependencies.
+
+These tests bridge browser requests to the in-process test application through the fixture transport. They establish workspace request/rendering behavior and browser prerequisites in CI; they are not proof of live external services, a deployed browser-to-server stack, production networking, or hosted database operations beyond the test fixture.

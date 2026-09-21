@@ -75,6 +75,18 @@ state and transition state/version checks stable explicit names for bounded erro
 translation. It preserves the predicates introduced by migrations 021 and 022, validates
 fallback-created checks against populated databases, and does not rewrite authority data.
 
+Migration `026_trusted_source_policy_audit.sql` adds a separate append-only,
+configuration-scoped event table for trusted-source registration and activation.
+Events retain only the registry ID, operation, old/new status, trusted actor
+context, authority epoch/version, bounded result/reason, and event time. They do
+not replace task-scoped research events or store source prose, URLs, secrets, or
+raw request data.
+
+Migration `027_provider_session_audit.sql` adds a separate append-only,
+configuration-scoped event table for ephemeral provider-session creation,
+deletion, and replacement. It stores only bounded lifecycle metadata; bearer
+tokens, cookie/session identifiers, and provider diagnostics are never recorded.
+
 The canonical SQL files are now in `src/research_agent/migrations/` and ship as
 Python package resources. This directory retains migration documentation only.
 The move preserves original filenames and byte-for-byte checksums. Never edit an

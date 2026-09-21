@@ -41,8 +41,9 @@ semantics remain separate.
 - Retained evidence and durable progress are exposed through one read-only latest-attempt projection and the workspace; broader UI redesign remains deferred.
 - The reviewed DB-critical authority invariants are constrained by migration 025; broader task/cycle/provider vocabulary constraints remain deferred.
 - Recognized database constraint failures now translate through structured diagnostics at reviewed boundaries; broader persistence taxonomy remains deferred.
-- Define compatibility behavior for older governed-memory journal formats.
-- Obtain hosted verification for each subsequent implementation baseline.
+- Required hosted browser verification now has an explicit PostgreSQL-backed job, Chromium installation, and fail-fast prerequisite behavior; run [35548463523](https://github.com/SkillSpringAI/Gnomon/actions/runs/35548463523) passed for exact implementation SHA `41579173fd19e8316d020d4f9c59c624b684fdac`.
+- Migration-007 claims and assessments now have an explicit version-one baseline reconstruction rule; broader governed-memory formats and categories remain deferred.
+- Trusted-source registration/activation and provider-session create/delete/replacement now write bounded redacted configuration-scoped audit events; authenticated identity and unrelated configuration-writer audit remain deferred.
 
 ## Future capability phases
 

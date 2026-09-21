@@ -62,6 +62,15 @@ Persistent changes are explicit operations such as create, update, merge, archiv
 
 Mutation records should preserve operation identity, actor, reason, prior and resulting state or versions, affected relationships, task/cycle scope, timestamps, provenance, and audit outcome. Reports do not replace this history.
 
+Governed claims and hypothesis assessments upgraded by migration 007 may have a
+version-one current record without an original journal row. Their first
+governed mutation is reconstructable only when it retains a valid version-one
+`previous_state` and records the mutation as version two. The baseline is
+historical state, not an invented creation event: its actor, timestamp, and
+change identity remain unknown. New targets still require a version-one create
+row; gaps, mismatched states, malformed payloads, and unsupported starting
+shapes fail closed. History and version reads are side-effect free.
+
 ## Transactions and concurrency
 
 Related state changes commit atomically where practical. For example, a claim, required provenance, evidence relationships, and audit record should succeed or fail as one logical operation. If a multi-step operation cannot be atomic, intermediate or unknown state is explicit and recoverable; it is not reported as successful completion.
