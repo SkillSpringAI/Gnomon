@@ -53,6 +53,7 @@ class SqlAlchemyResearchTaskRepository:
                 plan=task.plan.model_dump(mode="json"),
                 created_at=task.created_at,
                 updated_at=task.updated_at,
+                revision=task.revision,
             )
             self.session.add(record)
             # Establish the task row before inserting its foreign-keyed audit event.
@@ -71,6 +72,7 @@ class SqlAlchemyResearchTaskRepository:
             record.brief = task.brief.model_dump(mode="json")
             record.plan = task.plan.model_dump(mode="json")
             record.updated_at = task.updated_at
+            record.revision = task.revision
 
         existing = {cycle.cycle_number: cycle for cycle in record.cycles}
         numbers = [cycle.number for cycle in task.cycles]
@@ -139,6 +141,7 @@ class SqlAlchemyResearchTaskRepository:
             before = task.model_copy(deep=True)
             yield task
             if task != before:
+                task.revision = before.revision + 1
                 self._stage(task)
                 operation_id = uuid4()
                 audit = AuditService(self.session)
@@ -275,6 +278,7 @@ class SqlAlchemyResearchTaskRepository:
             ],
             created_at=record.created_at,
             updated_at=record.updated_at,
+            revision=record.revision,
         )
 
     def planning_snapshot(self, task_id: UUID) -> InvestigationSnapshot:

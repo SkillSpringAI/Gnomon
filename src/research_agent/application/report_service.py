@@ -14,15 +14,22 @@ from research_agent.domain.report import (
     ReportCycle,
     ReportHypothesis,
     ReportSource,
+    ReportStoppingDecision,
 )
-from research_agent.domain.research import CycleStatus, recovery_fingerprint
+from research_agent.domain.research import CycleStatus, StoppingDecision, recovery_fingerprint
 from research_agent.domain.snapshot import InvestigationSnapshot
 
 
 class ReportService:
     """Build an evidence inventory without generating unsupported conclusions."""
 
-    def build(self, snapshot: InvestigationSnapshot) -> InvestigationReport:
+    def build(
+        self,
+        snapshot: InvestigationSnapshot,
+        *,
+        stopping_decision: StoppingDecision | None = None,
+        stopping_decision_stale: bool = False,
+    ) -> InvestigationReport:
         assessments = {row.hypothesis.id: row.assessment for row in snapshot.hypotheses}
         hypotheses = []
         for row in snapshot.hypotheses:
@@ -147,6 +154,23 @@ class ReportService:
             limitations=limitations,
             agent_comparison=agent_comparison if observations else None,
             source_dependence=dependence,
+            stopping_decision=(
+                ReportStoppingDecision(
+                    decision_id=stopping_decision.decision_id,
+                    reason=stopping_decision.reason.value,
+                    rationale=stopping_decision.rationale,
+                    evidence_fingerprint=stopping_decision.evidence_fingerprint,
+                    stale=stopping_decision_stale,
+                    limitations=stopping_decision.limitations,
+                )
+                if stopping_decision is not None
+                else ReportStoppingDecision(
+                    reason="unspecified",
+                    limitations=[
+                        "This investigation was concluded without a persisted stopping decision."
+                    ],
+                )
+            ),
         )
 
 

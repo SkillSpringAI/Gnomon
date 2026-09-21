@@ -65,12 +65,58 @@ class ResearchTaskRecord(Base):
     plan: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
 
     cycles: Mapped[list["ResearchCycleRecord"]] = relationship(
         back_populates="task",
         cascade="all, delete-orphan",
         order_by="ResearchCycleRecord.cycle_number",
     )
+
+
+class StoppingDecisionRecord(Base):
+    """Current operator stopping decision projection."""
+
+    __tablename__ = "stopping_decisions"
+
+    decision_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    task_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("research_tasks.id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+    )
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    operation_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    reason: Mapped[str] = mapped_column(String(64), nullable=False)
+    rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    source_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    claim_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    objective_indices: Mapped[list[int]] = mapped_column(JSONB, nullable=False, default=list)
+    review_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    limitations: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    evidence_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    runtime_limit_evidence: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    actor_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    actor_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class StoppingDecisionChangeRecord(Base):
+    """Immutable stopping-decision history row."""
+
+    __tablename__ = "stopping_decision_changes"
+
+    change_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    decision_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    task_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    operation_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    previous_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    resulting_state: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    actor_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    actor_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class ResearchCycleRecord(Base):

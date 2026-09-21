@@ -47,6 +47,7 @@ def test_workspace_contains_state_driven_controls_and_no_credentials(workspace_t
         "Unresolved objectives", "Agent comparisons", "Retained progress",
         "Attempt status", "explicit operator action",
         "Attempted objectives",
+        "Stopping decision", "evidence basis changed; review required",
     ):
         assert control in response.text
     assert "__TASK_ID__" not in response.text

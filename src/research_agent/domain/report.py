@@ -1,6 +1,7 @@
 """Structured, evidence-aware report read models."""
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -16,6 +17,25 @@ from research_agent.domain.research import (
     SourceType,
     TaskStatus,
 )
+
+
+class ReportStoppingDecision(BaseModel):
+    """Decision provenance shown with the structured report."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    decision_id: UUID | None = None
+    reason: Literal[
+        "evidence_sufficient",
+        "resource_limited",
+        "evidence_unavailable",
+        "operator_stopped",
+        "unspecified",
+    ]
+    rationale: str | None = None
+    evidence_fingerprint: str | None = None
+    stale: bool = False
+    limitations: list[str] = Field(default_factory=list)
 
 
 class ReportSource(BaseModel):
@@ -86,6 +106,7 @@ class InvestigationReport(BaseModel):
     limitations: list[str]
     agent_comparison: AgentObservationComparison | None = None
     source_dependence: SourceDependenceProjection | None = None
+    stopping_decision: ReportStoppingDecision
 
 
 class ReportUsage(BaseModel):

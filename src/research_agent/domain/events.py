@@ -28,6 +28,7 @@ class EventType(StrEnum):
     AGENT_OBSERVATION_RECORDED = "agent.observation_recorded"
     AGENT_OBSERVATION_FAILED = "agent.observation_failed"
     SOURCE_DEPENDENCE_CHANGED = "source.dependence_changed"
+    STOPPING_DECISION_RECORDED = "task.stopping_decision_recorded"
     CLAIM_CREATED = "claim.created"
     CLAIM_REUSED = "claim.reused"
     EXTRACTION_COMPLETED = "extraction.completed"
@@ -83,6 +84,15 @@ class EventPayload(BaseModel):
     dependence_direction: Literal["low_to_high", "high_to_low", "none"] | None = None
     relationship_lifecycle: Literal["active", "retracted"] | None = None
     relationship_revision: int | None = Field(default=None, ge=1)
+    stopping_decision_id: UUID | None = None
+    stopping_reason: Literal[
+        "evidence_sufficient",
+        "resource_limited",
+        "evidence_unavailable",
+        "operator_stopped",
+    ] | None = None
+    stopping_revision: int | None = Field(default=None, ge=1)
+    evidence_fingerprint: str | None = None
     claim_count: int | None = None
     unresolved_count: int | None = None
     provider: str | None = None

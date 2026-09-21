@@ -123,38 +123,39 @@ def create_provider_session(
     previous_session_id = request.cookies.get("provider_session")
     token = payload.bearer_token.get_secret_value()
     if settings.persistence_backend == "memory":
-        provider_sessions.delete(previous_session_id)
-        session_id, expires_at = provider_sessions.create(token, payload.ttl_seconds)
+        with provider_sessions.transaction():
+            provider_sessions.delete(previous_session_id)
+            session_id, expires_at = provider_sessions.create(token, payload.ttl_seconds)
     else:
         with SessionFactory() as db_session:
             audit = ProviderSessionAuditService(db_session)
             authority = audit.authorize_create()
-            replacing_active_session = provider_sessions.get(previous_session_id) is not None
-            provider_sessions.delete(previous_session_id)
-            session_id, expires_at = provider_sessions.create(token, payload.ttl_seconds)
-            try:
-                if replacing_active_session:
+            with provider_sessions.transaction():
+                replacing_active_session = provider_sessions.get(previous_session_id) is not None
+                provider_sessions.delete(previous_session_id)
+                session_id, expires_at = provider_sessions.create(token, payload.ttl_seconds)
+                try:
+                    if replacing_active_session:
+                        audit.stage(
+                            authority,
+                            operation="DELETE",
+                            provider=settings.llm_provider,
+                            ttl_seconds=None,
+                            result="accepted",
+                            reason="deleted",
+                        )
                     audit.stage(
                         authority,
-                        operation="DELETE",
+                        operation="CREATE",
                         provider=settings.llm_provider,
-                        ttl_seconds=None,
+                        ttl_seconds=payload.ttl_seconds,
                         result="accepted",
-                        reason="deleted",
+                        reason="created",
                     )
-                audit.stage(
-                    authority,
-                    operation="CREATE",
-                    provider=settings.llm_provider,
-                    ttl_seconds=payload.ttl_seconds,
-                    result="accepted",
-                    reason="created",
-                )
-                db_session.commit()
-            except Exception:
-                db_session.rollback()
-                provider_sessions.delete(session_id)
-                raise
+                    db_session.commit()
+                except Exception:
+                    db_session.rollback()
+                    raise
     response.set_cookie(
         "provider_session",
         session_id,
@@ -174,21 +175,23 @@ def delete_provider_session(request: Request, response: Response) -> None:
     settings = get_settings()
     active = provider_sessions.get(session_id) is not None
     if settings.persistence_backend == "memory":
-        provider_sessions.delete(session_id)
+        with provider_sessions.transaction():
+            provider_sessions.delete(session_id)
     else:
         with SessionFactory() as db_session:
             audit = ProviderSessionAuditService(db_session)
             authority = audit.authorize_delete()
-            audit.stage(
-                authority,
-                operation="DELETE",
-                provider=settings.llm_provider,
-                ttl_seconds=None,
-                result="accepted" if active else "no_op",
-                reason="deleted" if active else "already_absent",
-            )
-            db_session.commit()
-            provider_sessions.delete(session_id)
+            with provider_sessions.transaction():
+                audit.stage(
+                    authority,
+                    operation="DELETE",
+                    provider=settings.llm_provider,
+                    ttl_seconds=None,
+                    result="accepted" if active else "no_op",
+                    reason="deleted" if active else "already_absent",
+                )
+                db_session.commit()
+                provider_sessions.delete(session_id)
     response.delete_cookie("provider_session")
 
 

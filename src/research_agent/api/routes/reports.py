@@ -35,6 +35,10 @@ from research_agent.application.security_capability import (
     require_capability,
 )
 from research_agent.application.snapshot_service import SnapshotService
+from research_agent.application.stopping_decision_service import (
+    StoppingDecisionNotFound,
+    StoppingDecisionService,
+)
 from research_agent.config.settings import get_settings
 from research_agent.domain.events import EventPayload, EventType
 from research_agent.domain.report import InvestigationReport, ReportDraft
@@ -100,7 +104,20 @@ def get_report(
 ) -> InvestigationReport:
     try:
         session.connection(execution_options={"isolation_level": "REPEATABLE READ"})
-        return ReportService().build(SnapshotService(session).get(task_id))
+        snapshot = SnapshotService(session).get(task_id)
+        stopping_service = StoppingDecisionService(session)
+        try:
+            stopping_decision = stopping_service.get(task_id)
+            readiness = stopping_service.readiness(task_id)
+            stale = stopping_decision.evidence_fingerprint != readiness.evidence_fingerprint
+        except StoppingDecisionNotFound:
+            stopping_decision = None
+            stale = False
+        return ReportService().build(
+            snapshot,
+            stopping_decision=stopping_decision,
+            stopping_decision_stale=stale,
+        )
     except ResearchTaskNotFound as exc:
         raise HTTPException(status_code=404, detail="Investigation not found") from exc
 

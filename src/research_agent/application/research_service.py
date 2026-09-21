@@ -93,7 +93,10 @@ class InMemoryResearchTaskRepository:
     def edit(self, task_id: UUID) -> Iterator[ResearchTask]:
         with self._lock:
             task = self.get(task_id)
+            before = task.model_copy(deep=True)
             yield task
+            if task != before:
+                task.revision = before.revision + 1
             self.save(task)
 
 

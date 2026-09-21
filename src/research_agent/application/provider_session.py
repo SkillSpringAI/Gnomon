@@ -1,5 +1,7 @@
 """Ephemeral local provider credential sessions."""
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from secrets import token_urlsafe
@@ -36,6 +38,17 @@ class ProviderSessionStore:
                 self._sessions.pop(next(iter(self._sessions)))
             self._sessions[session_id] = _Session(token=token, expires_at=expires_at)
         return session_id, expires_at
+
+    @contextmanager
+    def transaction(self) -> Iterator[None]:
+        """Hold the store lock and restore every mutation if the caller fails."""
+        with self._lock:
+            before = self._sessions.copy()
+            try:
+                yield
+            except Exception:
+                self._sessions = before
+                raise
 
     def get(self, session_id: str | None) -> str | None:
         if not session_id:

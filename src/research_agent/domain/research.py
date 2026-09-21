@@ -281,6 +281,7 @@ class ResearchTask(BaseModel):
     cycles: list[ResearchCycle] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
+    revision: int = Field(default=1, ge=1)
 
 
 class ResearchTaskResponse(BaseModel):
@@ -562,6 +563,108 @@ class TaskStatusChange(BaseModel):
 
     status: TaskStatus
     expected_status: TaskStatus
+
+
+class StoppingDecisionReason(StrEnum):
+    EVIDENCE_SUFFICIENT = "evidence_sufficient"
+    RESOURCE_LIMITED = "resource_limited"
+    EVIDENCE_UNAVAILABLE = "evidence_unavailable"
+    OPERATOR_STOPPED = "operator_stopped"
+
+
+class StoppingDecisionCreate(BaseModel):
+    """Operator-controlled request to conclude with an evidence basis."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    reason: StoppingDecisionReason
+    rationale: str = Field(min_length=1, max_length=4000)
+    expected_status: TaskStatus
+    expected_revision: int = Field(ge=1, strict=True)
+    expected_evidence_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
+    source_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    claim_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    objective_indices: list[int] = Field(default_factory=list, max_length=50)
+    review_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    limitations: list[str] = Field(default_factory=list, max_length=20)
+    runtime_limit_evidence: list[str] = Field(default_factory=list, max_length=20)
+    operation_id: UUID = Field(default_factory=uuid4)
+
+
+class StoppingDecision(BaseModel):
+    """Current or historical accepted stopping decision."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    decision_id: UUID
+    task_id: UUID
+    revision: int = Field(ge=1)
+    operation_id: UUID
+    reason: StoppingDecisionReason
+    rationale: str
+    source_ids: list[UUID]
+    claim_ids: list[UUID]
+    objective_indices: list[int]
+    review_ids: list[UUID]
+    limitations: list[str]
+    evidence_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
+    runtime_limit_evidence: list[str]
+    actor_type: Literal["local_operator"]
+    actor_id: str
+    created_at: datetime
+
+
+class StoppingDecisionChange(BaseModel):
+    """Immutable accepted stopping-decision history."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    change_id: UUID
+    decision_id: UUID
+    task_id: UUID
+    operation_id: UUID
+    previous_revision: int = Field(ge=0)
+    revision: int = Field(ge=1)
+    resulting_state: StoppingDecision
+    actor_type: Literal["local_operator"]
+    actor_id: str
+    created_at: datetime
+
+
+class StoppingReadinessItem(BaseModel):
+    """Read-only advisory stopping checklist item."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    code: Literal[
+        "unresolved_objectives",
+        "missing_assessment",
+        "mixed_assessment",
+        "contradictory_claims",
+        "dependence_unknown",
+        "active_attempt",
+    ]
+    status: Literal["satisfied", "attention", "unknown"]
+    detail: str
+    source_ids: list[UUID] = Field(default_factory=list)
+    claim_ids: list[UUID] = Field(default_factory=list)
+
+
+class StoppingReadiness(BaseModel):
+    """Advisory checklist; never a semantic conclusion."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    task_id: UUID
+    task_status: TaskStatus
+    task_revision: int
+    evidence_fingerprint: str
+    items: list[StoppingReadinessItem]
+    current_decision: StoppingDecision | None = None
+    note: str = (
+        "This checklist supports operator review only. It does not establish truth, "
+        "sufficiency, independence, or claim status."
+    )
 
 
 class CycleOutcomeCreate(BaseModel):

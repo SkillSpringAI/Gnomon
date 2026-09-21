@@ -130,8 +130,11 @@ def test_duplicate_registration_has_no_second_audit_event():
                     )
                 )
             events = session.scalars(
-                select(TrustedSourcePolicyEventRecord).where(
-                    TrustedSourcePolicyEventRecord.source_id == source.id
+                select(TrustedSourcePolicyEventRecord)
+                .where(TrustedSourcePolicyEventRecord.source_id == source.id)
+                .order_by(
+                    TrustedSourcePolicyEventRecord.created_at,
+                    TrustedSourcePolicyEventRecord.event_id,
                 )
             ).all()
         assert len(events) == 1
@@ -179,8 +182,11 @@ def test_audit_failure_rolls_back_activation():
         with SessionFactory() as session:
             record = session.get(TrustedSourceRecord, source.id)
             events = session.scalars(
-                select(TrustedSourcePolicyEventRecord).where(
-                    TrustedSourcePolicyEventRecord.source_id == source.id
+                select(TrustedSourcePolicyEventRecord)
+                .where(TrustedSourcePolicyEventRecord.source_id == source.id)
+                .order_by(
+                    TrustedSourcePolicyEventRecord.created_at,
+                    TrustedSourcePolicyEventRecord.event_id,
                 )
             ).all()
         assert record is not None and record.status == "review"

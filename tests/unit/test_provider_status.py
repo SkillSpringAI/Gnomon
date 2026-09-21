@@ -126,3 +126,29 @@ def test_provider_session_store_bounds_live_sessions():
 
     assert store.get(first_id) is None
     assert store.get(second_id) == "second"
+
+
+def test_provider_session_store_transaction_restores_capacity_eviction_on_failure():
+    store = ProviderSessionStore(max_sessions=1)
+    first_id, _ = store.create("first", 600)
+
+    with pytest.raises(RuntimeError, match="abort"):
+        with store.transaction():
+            store.delete(first_id)
+            store.create("second", 600)
+            raise RuntimeError("abort")
+
+    assert store.get(first_id) == "first"
+
+
+def test_provider_session_store_transaction_does_not_restore_expired_session():
+    store = ProviderSessionStore(max_sessions=1)
+    expired_id, _ = store.create("expired", -1)
+
+    with pytest.raises(RuntimeError, match="abort"):
+        with store.transaction():
+            assert store.get(expired_id) is None
+            store.create("replacement", 600)
+            raise RuntimeError("abort")
+
+    assert store.get(expired_id) is None
