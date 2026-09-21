@@ -2,12 +2,11 @@
 
 ## Implementation status updated on 2026-09-21
 
-Latest implementation baseline: `b22d2e8` (bounded source-dependence contract,
-API, report/planner/workspace consumers, with the prior 3F–3H/provider-session
-baseline retained). Hosted Quality run
-[35554268153](https://github.com/SkillSpringAI/Gnomon/actions/runs/35554268153)
-tested exact SHA `b22d2e83075bf22e2f73e39572ce662e0b8272b9`; `checks`,
-`minimal-install`, and `browser` all passed.
+Latest implementation baseline: `ca08943` (`ca08943cf8baf3d8fb9d2d8d01dfb6c01cbe30e5`),
+covering Step 1 provider-session failure/concurrency/upgrade evidence and Step 3
+stopping decisions on top of the bounded source-dependence contract. Hosted
+Quality run [35558052346](https://github.com/SkillSpringAI/Gnomon/actions/runs/35558052346)
+tested this exact SHA; `checks`, `minimal-install`, and `browser` all passed.
 
 Point-of-effect enforcement is implemented for READ_AUDIT on audit and security
 transition history, source retrieval, and provider dispatch. Canonical runtime
@@ -280,8 +279,28 @@ authority broadening; deletion requires authority reduction. The in-memory
 development backend remains intentionally non-durable and returns an empty
 audit collection. Replacement of an active session emits deletion evidence
 before the new creation evidence without persisting either session's secret or
-identifier. Focused provider-session evidence is **3 PostgreSQL integration
-tests plus 7 existing provider unit tests**.
+identifier. Focused provider-session evidence is **8 PostgreSQL integration
+tests plus 8 provider unit tests**, including stage/commit rollback,
+expiry/capacity rollback, replacement/delete races, two-replacement races,
+redaction, and authority reads.
+
+## Evidence-bound stopping decisions (21 September 2026)
+
+**Implemented and hosted-verified.** Migration 029 adds a monotonic task revision,
+current stopping-decision projection, immutable decision history, four structured
+reasons, bounded evidence references, readiness/fingerprint checks, and atomic
+conclusion with redacted audit. Exact retries are idempotent; stale, conflicting,
+active-attempt, capability, audit, and concurrent transition cases are rejected
+without partial state.
+
+Reports and the credential-free workspace expose the persisted reason, rationale,
+limitations, and stale evidence basis. Legacy direct `CONCLUDED` transitions remain
+compatible and report `unspecified` rather than fabricated sufficiency. Automatic
+semantic stopping, automatic reopening, authenticated multi-operator identity,
+and distributed PostgreSQL/process-memory crash atomicity remain deferred.
+
+Focused stopping/workspace coverage is **18 tests**, and the populated migration
+upgrade fixture verifies pre-007 claim and assessment records through current HEAD.
 
 ## Historical checks (15 September 2026)
 

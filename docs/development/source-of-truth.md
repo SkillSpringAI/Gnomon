@@ -1,7 +1,7 @@
 # Gnomon Current Source of Truth
 
-**Committed implementation baseline:** `b22d2e8` (bounded source-dependence contract, API, report/planner/workspace consumers; prior 3F–3H/provider-session baseline retained). Hosted Quality run [35554268153](https://github.com/SkillSpringAI/Gnomon/actions/runs/35554268153) verified the exact SHA `b22d2e83075bf22e2f73e39572ce662e0b8272b9`; `checks`, `minimal-install`, and required `browser` all passed.
-**Current slice:** Slices 3F–3H and Step 2 source-dependence implementation and hosted evidence are complete. Recovery is implemented only for restrictive entry; reconciliation and restoration completion remain unimplemented.
+**Committed implementation baseline:** `ca08943` (`ca08943cf8baf3d8fb9d2d8d01dfb6c01cbe30e5`) (Step 1 provider-session failure/concurrency/upgrade evidence and Step 3 stopping-decision contract, with the prior source-dependence baseline retained). Hosted Quality run [35558052346](https://github.com/SkillSpringAI/Gnomon/actions/runs/35558052346) verified this exact SHA; `checks`, `minimal-install`, and `browser` all passed.
+**Current slice:** Step 1 provider-session auditing and Step 3 stopping decisions are implemented and hosted-verified. Recovery is implemented only for restrictive entry; reconciliation and restoration completion remain unimplemented.
 **Purpose:** Concise current implementation truth, open release gaps, and immediate work.
 **Status:** Current authority for repository state; completed history belongs in [development history](development-history.md), and future work belongs in the [roadmap](roadmap.md).
 
@@ -24,6 +24,7 @@ Current supported behavior includes:
 - Versioned governed memory for claims and hypothesis assessments with actor context, optimistic concurrency, append-only history, and eligible 48-hour reversal.
 - Deterministic snapshots and reports that preserve uncertainty, provenance, cycle outcomes, unresolved objectives, and non-authoritative agent comparison metadata.
 - Local rule-based and optional Bedrock provider boundaries with idempotent attempts, bounded output limits, dispatch fencing, and explicit unknown outcomes.
+- Local provider-session replacement and deletion are bounded by redacted durable audit, transactional in-memory rollback on stage/commit failure, controlled replacement/delete races, expiry/capacity protections, and populated migration-upgrade evidence. The process-memory crash boundary and authenticated operator identity remain explicit limitations.
 - A platform-neutral fake agent network with bounded adversarial scenarios, persisted agent-message evidence, deterministic comparison, and local cycle integration.
 - Versioned canonical security state persistence, controlled transitions, and centralized capability policy.
 - Point-of-effect enforcement for `READ_AUDIT` on audit/history reads, source retrieval in the cycle runner, and provider dispatch after reservation. Admission alone does not authorize a later effect.
@@ -39,6 +40,10 @@ Current supported behavior includes:
 - Recognized PostgreSQL integrity failures are translated at reviewed write boundaries
   using structured constraint diagnostics; unknown failures remain unexpected, and
   public authority-invariant responses are generic and redacted.
+- Operator-controlled stopping decisions use structured reasons, persisted current
+  and immutable history records, evidence fingerprints, readiness limitations,
+  stale-basis reporting, atomic lifecycle conclusion, and legacy `unspecified`
+  compatibility for direct historical conclusions.
 
 ## Current guarantees and limits
 
@@ -63,13 +68,14 @@ No current document should claim full autonomous operation, complete security co
 | Priority | Issue | Current status | Next evidence required |
 |---|---|---|---|
 | P1 | Backup and restore conformance | Deferred behind authority lineage, transition/restoration authority, bootstrap semantics, and RecoveryContext | Supported PostgreSQL backup/restore procedure, fixture, state/history/provenance/audit comparison, credential non-persistence checks, and release verification. |
-| P1/P2 | Historical journal compatibility | Locally implemented for migration-007 claims/assessments | First retained version-one baseline is reconstructable without invented metadata; malformed, missing, and unsupported chains fail closed. Broader memory categories remain deferred. |
+| P1/P2 | Historical journal compatibility | Hosted-verified for migration-007 claims/assessments | Populated pre-007 claim/assessment data remains readable through current HEAD without mutation; malformed, missing, and unsupported chains fail closed. Broader memory categories remain deferred. |
 | P1/P2 | Workflow atomicity observability | Implementing baseline hosted-verified | Latest-attempt read projection and workspace rendering expose retained progress without observation-side mutation; hosted run `35548463523` passed for exact SHA `41579173fd19e8316d020d4f9c59c624b684fdac`. |
 | P1/P2 | Lowest-layer invariant enforcement | Closed locally for reviewed scope | Migration 025 constraints and bounded translation cover reviewed authority/duplicate paths; broader lifecycle and memory vocabulary constraints remain deferred. |
 | P1/P2 | Security authority foundations | Partial | Epoch persistence, transition policy, direction-aware administration and the restrictive recovery-bootstrap entry boundary are implemented. RecoveryContext, reconciliation, protected restoration and backup reconstruction remain unimplemented. |
-| P1/P2 | Hosted CI evidence | Implementing baseline verified | Quality run [35554268153](https://github.com/SkillSpringAI/Gnomon/actions/runs/35554268153) tested exact SHA `b22d2e83075bf22e2f73e39572ce662e0b8272b9`; checks, minimal-install, and browser passed. |
+| P1/P2 | Hosted CI evidence | Closed for current Step 1/Step 3 baseline | Quality run [35558052346](https://github.com/SkillSpringAI/Gnomon/actions/runs/35558052346) tested exact SHA `ca08943cf8baf3d8fb9d2d8d01dfb6c01cbe30e5`; checks, minimal-install, and browser passed. |
 | P1/P2 | Source-dependence contract | Implementing baseline hosted-verified | Migration 028, task-scoped API, immutable history, bounded projection, report/planner/workspace consumers, and negative tests are implemented. Invalid persisted-graph recovery, transitive causal inference, and automatic independence evaluation remain deferred. |
-| P1/P2 | Trusted-source/provider-session policy audit | Locally and hosted-verified for the reviewed registry and provider-session boundaries | Configuration-scoped events preserve authority epoch/version, require READ_AUDIT to read, and replacement emits revoke-then-create evidence; authenticated identity, memory-backend durability, and unrelated writer audit remain open. |
+| P1/P2 | Trusted-source/provider-session policy audit | Hosted-verified for the reviewed registry and provider-session boundaries | Configuration-scoped events preserve authority epoch/version, require READ_AUDIT to read, and provider-session failure/race/upgrade evidence now covers the reviewed scope; authenticated identity, memory-backend durability, distributed crash atomicity, and unrelated writer audit remain open. |
+| P1/P2 | Evidence-bound stopping decisions | Hosted-verified for the current contract | Migration 029, structured reasons, readiness, atomic lifecycle transition, stale/retry/race/audit guards, report/workspace visibility, and legacy `unspecified` compatibility are implemented. Semantic automatic stopping, authenticated multi-operator identity, and automatic reopening remain deferred. |
 | P1 | Interrupted-cycle closure authority | Closed | Exact-attempt closure, runner failure propagation, complete preservation snapshots, restrictive-state coverage, and atomic audit/race tests pass. |
 | P1 | Selected mutation/lockdown ordering | Closed for five paths | Task then security SHARE locking covers memory stage/reverse, source creation, general outcome and containment closure; same-task composition and both race orders are proven. Cross-task batching is unsupported. |
 
