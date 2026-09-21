@@ -6,6 +6,7 @@ from datetime import timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
+from pydantic import ValidationError
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
@@ -93,6 +94,23 @@ class MemoryService:
             return self.session.get(ResearchClaimRecord, target_id, populate_existing=True)
         return self.session.get(HypothesisAssessmentRecord, target_id, populate_existing=True)
 
+    @staticmethod
+    def _validate_historical_state(kind: MemoryTarget, state: dict[str, Any] | None) -> None:
+        if not isinstance(state, dict) or state.get("lifecycle") not in {
+            "active",
+            "archived",
+            "logically_deleted",
+        }:
+            raise MemoryConflict("Memory history has malformed state")
+        try:
+            if kind == MemoryTarget.CLAIM:
+                ClaimCreate.model_validate(state["data"])
+            else:
+                HypothesisAssessmentCreate.model_validate(state["data"])
+                UUID(state["hypothesis_id"])
+        except (KeyError, TypeError, ValueError, ValidationError) as exc:
+            raise MemoryConflict("Memory history has malformed state") from exc
+
     def history(self, task_id: UUID, target_id: UUID) -> MemoryHistory:
         """Return and validate the complete append-only history for a target."""
         changes = self.session.scalars(
@@ -105,20 +123,53 @@ class MemoryService:
         ).all()
         if not changes:
             raise ResearchTaskNotFound
-        target_type = MemoryTarget(changes[0].target_type)
-        expected_version = 0
-        for change in changes:
-            if (
-                MemoryTarget(change.target_type) != target_type
-                or change.previous_version != expected_version
+        try:
+            target_type = MemoryTarget(changes[0].target_type)
+        except ValueError as exc:
+            raise MemoryConflict("Memory history has an invalid target type") from exc
+        first = changes[0]
+        legacy_baseline_state: dict[str, Any] | None = None
+        if first.previous_version == 0 and first.version == 1 and first.previous_state is None:
+            expected_version = 0
+        elif (
+            first.previous_version == 1
+            and first.version == 2
+            and first.previous_state is not None
+        ):
+            # Migration 007 assigned existing records version one without an
+            # original journal row. The first governed mutation may retain the
+            # version-one state, but it cannot establish its original metadata.
+            self._validate_historical_state(target_type, first.previous_state)
+            legacy_baseline_state = first.previous_state
+            expected_version = 1
+        else:
+            raise MemoryConflict("Memory history has an invalid version chain")
+
+        previous_result: dict[str, Any] | None = None
+        for index, change in enumerate(changes):
+            try:
+                change_type = MemoryTarget(change.target_type)
+            except ValueError as exc:
+                raise MemoryConflict("Memory history has an invalid target type") from exc
+            if change_type != target_type or change.target_id != target_id:
+                raise MemoryConflict("Memory history has an invalid target chain")
+            if index > 0 and (
+                change.previous_version != expected_version
                 or change.version != expected_version + 1
+                or change.previous_state != previous_result
             ):
                 raise MemoryConflict("Memory history has an invalid version chain")
+            self._validate_historical_state(target_type, change.proposed_state)
+            self._validate_historical_state(target_type, change.resulting_state)
+            if change.proposed_state != change.resulting_state:
+                raise MemoryConflict("Memory history has mismatched proposed state")
+            previous_result = change.resulting_state
             expected_version = change.version
         return MemoryHistory(
             target_type=target_type,
             target_id=target_id,
             current_version=expected_version,
+            legacy_baseline_state=legacy_baseline_state,
             changes=[
                 AppliedMemoryChange.model_validate(item, from_attributes=True)
                 for item in changes
@@ -131,6 +182,14 @@ class MemoryService:
         if version < 1:
             raise MemoryConflict("Memory versions start at one")
         history = self.history(task_id, target_id)
+        if version == 1 and history.legacy_baseline_state is not None:
+            return HistoricalMemoryState(
+                target_type=history.target_type,
+                target_id=target_id,
+                version=version,
+                state=history.legacy_baseline_state,
+                change_id=None,
+            )
         change = next((item for item in history.changes if item.version == version), None)
         if change is None:
             raise MemoryConflict("Requested memory version does not exist")

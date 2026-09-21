@@ -96,6 +96,7 @@ class MemoryHistory(BaseModel):
     target_id: UUID
     current_version: int
     changes: list[AppliedMemoryChange]
+    legacy_baseline_state: dict[str, Any] | None = None
 
 
 class HistoricalMemoryState(BaseModel):
@@ -105,7 +106,7 @@ class HistoricalMemoryState(BaseModel):
     target_id: UUID
     version: int
     state: dict[str, Any]
-    change_id: UUID
+    change_id: UUID | None
 
 
 class MemoryReversal(BaseModel):

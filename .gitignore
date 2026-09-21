@@ -15,6 +15,7 @@ src/research_agent.egg-info/
 # Local development data and generated output
 postgres-data/
 coverage.xml
+browser-results*.xml
 
 # Local logs and editor state
 *.log

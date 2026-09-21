@@ -6,10 +6,15 @@ from uuid import UUID, uuid4
 import pytest
 from conftest import purge_test_tasks
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 
 from research_agent.api.app import create_app
 from research_agent.application.memory_service import MemoryService
-from research_agent.domain.memory import MemoryAuthority, MemoryChangeProposal, MemoryDenied
+from research_agent.domain.memory import (
+    MemoryAuthority,
+    MemoryChangeProposal,
+    MemoryDenied,
+)
 from research_agent.domain.research import ClaimCreate, ClaimSourceLink, SupportType
 from research_agent.persistence.database import SessionFactory, engine
 from research_agent.persistence.models import (
@@ -94,6 +99,163 @@ def test_normal_rollback_creates_new_version_and_preserves_history(memory_task):
     assert history.json()["resulting_state"]["data"]["statement"] == "Updated governed statement."
     current = client.get(f"/investigations/{task_id}").json()
     assert current["task"]["id"] == task_id
+
+
+def test_migration_007_legacy_first_mutation_reproduces_version_gap(memory_task):
+    """Reproduce v1 legacy records whose first journal row is version 2."""
+    client, task_id, claim_id, source_id, _ = memory_task
+    with engine.begin() as connection:
+        connection.execute(
+            text("DELETE FROM memory_changes WHERE target_id = :claim_id"),
+            {"claim_id": claim_id},
+        )
+
+    claim_update = client.post(
+        f"/investigations/{task_id}/memory/changes",
+        json={
+            "target_type": "claim",
+            "target_id": claim_id,
+            "operation": "UPDATE",
+            "expected_version": 1,
+            "reason": "first governed legacy claim mutation",
+            "claim": {
+                "statement": "Legacy claim after first governed mutation.",
+                "confidence": 0.6,
+                "source_links": [{"source_id": source_id, "support_type": "supporting"}],
+            },
+        },
+    )
+    assert claim_update.status_code == 200, claim_update.text
+
+    hypothesis_id = client.get(f"/investigations/{task_id}").json()["task"]["brief"][
+        "hypotheses"
+    ][0]["id"]
+    assessment = client.put(
+        f"/investigations/{task_id}/hypotheses/{hypothesis_id}/assessment",
+        json={
+            "status": "supported",
+            "summary": "Legacy assessment baseline.",
+            "evidence_links": [{"claim_id": claim_id, "relation": "supporting"}],
+        },
+    )
+    assert assessment.status_code == 200, assessment.text
+    assessment_id = assessment.json()["id"]
+    with engine.begin() as connection:
+        connection.execute(
+            text("DELETE FROM memory_changes WHERE target_id = :assessment_id"),
+            {"assessment_id": assessment_id},
+        )
+
+    assessment_update = client.put(
+        f"/investigations/{task_id}/hypotheses/{hypothesis_id}/assessment",
+        json={
+            "status": "mixed",
+            "summary": "Legacy assessment after first governed mutation.",
+            "evidence_links": [{"claim_id": claim_id, "relation": "contradicting"}],
+        },
+    )
+    assert assessment_update.status_code == 200, assessment_update.text
+
+    with SessionFactory() as session:
+        before_rows = session.execute(
+            text(
+                "SELECT target_id, previous_version, version, previous_state, resulting_state "
+                "FROM memory_changes WHERE target_id IN (:claim_id, :assessment_id) "
+                "ORDER BY target_id, version"
+            ),
+            {"claim_id": claim_id, "assessment_id": assessment_id},
+        ).all()
+        for target_id, _target_type in (
+            (UUID(claim_id), "claim"),
+            (UUID(assessment_id), "assessment"),
+        ):
+            changes = session.execute(
+                text(
+                    "SELECT previous_version, version FROM memory_changes "
+                    "WHERE target_id = :target_id ORDER BY version"
+                ),
+                {"target_id": target_id},
+            ).all()
+            assert changes == [(1, 2)]
+            history = MemoryService(session).history(UUID(task_id), target_id)
+            assert history.current_version == 2
+            assert history.legacy_baseline_state is not None
+            baseline = MemoryService(session).state_at_version(UUID(task_id), target_id, 1)
+            assert baseline.change_id is None
+            assert baseline.state == history.legacy_baseline_state
+            assert (
+                MemoryService(session).state_at_version(UUID(task_id), target_id, 2).change_id
+                == history.changes[0].change_id
+            )
+        after_rows = session.execute(
+            text(
+                "SELECT target_id, previous_version, version, previous_state, resulting_state "
+                "FROM memory_changes WHERE target_id IN (:claim_id, :assessment_id) "
+                "ORDER BY target_id, version"
+            ),
+            {"claim_id": claim_id, "assessment_id": assessment_id},
+        ).all()
+        assert after_rows == before_rows
+
+
+def test_target_with_no_journal_is_not_reconstructable(memory_task):
+    client, task_id, claim_id, _, _ = memory_task
+    with engine.begin() as connection:
+        connection.execute(
+            text("DELETE FROM memory_changes WHERE target_id = :target_id"),
+            {"target_id": claim_id},
+        )
+    history = client.get(f"/investigations/{task_id}/memory/{claim_id}/history")
+    version = client.get(f"/investigations/{task_id}/memory/{claim_id}/versions/1")
+    assert history.status_code == version.status_code == 404
+
+
+def test_history_rejects_missing_intermediate_version(memory_task):
+    client, task_id, claim_id, source_id, _ = memory_task
+    for statement, expected_version in (("Second version", 1), ("Third version", 2)):
+        response = client.post(
+            f"/investigations/{task_id}/memory/changes",
+            json={
+                "target_type": "claim",
+                "target_id": claim_id,
+                "operation": "UPDATE",
+                "expected_version": expected_version,
+                "reason": statement,
+                "claim": {
+                    "statement": statement,
+                    "source_links": [{"source_id": source_id, "support_type": "supporting"}],
+                },
+            },
+        )
+        assert response.status_code == 200, response.text
+    with SessionFactory() as session:
+        second = session.query(MemoryChangeRecord).filter_by(
+            target_id=UUID(claim_id), version=2
+        ).one()
+        second_id = second.change_id
+    with engine.begin() as connection:
+        connection.execute(
+            text("DELETE FROM memory_changes WHERE change_id = :change_id"),
+            {"change_id": second_id},
+        )
+    response = client.get(f"/investigations/{task_id}/memory/{claim_id}/history")
+    assert response.status_code == 409
+    assert response.json() == {"detail": "Memory history has an invalid version chain"}
+
+
+def test_history_rejects_malformed_resulting_state(memory_task):
+    client, task_id, claim_id, _, _ = memory_task
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "UPDATE memory_changes SET resulting_state = '{}'::jsonb "
+                "WHERE target_id = :target_id"
+            ),
+            {"target_id": claim_id},
+        )
+    response = client.get(f"/investigations/{task_id}/memory/{claim_id}/history")
+    assert response.status_code == 409
+    assert response.json() == {"detail": "Memory history has malformed state"}
 
 
 def test_target_history_and_version_reconstruction(memory_task):

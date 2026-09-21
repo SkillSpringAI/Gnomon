@@ -46,3 +46,36 @@ jobs:
           python-version: "3.11"
       - run: python -m pip install --upgrade pip
       - run: python scripts/verify_wheel.py
+
+  browser:
+    runs-on: ubuntu-latest
+    env:
+      RUN_BROWSER_TESTS: "1"
+      PLAYWRIGHT_CHANNEL: chromium
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: research_agent
+          POSTGRES_PASSWORD: research_agent
+          POSTGRES_DB: research_agent
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U research_agent -d research_agent"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev,browser]"
+      - run: python -m playwright install --with-deps chromium
+      - run: python -m research_agent.cli migrate
+      - name: Run browser regression suite
+        run: |
+          python -m pytest tests/integration/test_workspace_browser.py -ra --junitxml=browser-results.xml
+          python -c "import xml.etree.ElementTree as ET; root=ET.parse('browser-results.xml').getroot(); suites=[root] if root.tag == 'testsuite' else root.findall('testsuite'); attrs={key: sum(int(s.attrib.get(key, '0')) for s in suites) for key in ('tests', 'failures', 'errors', 'skipped')}; assert attrs['tests'] == 5, attrs; assert attrs['failures'] == attrs['errors'] == attrs['skipped'] == 0, attrs"

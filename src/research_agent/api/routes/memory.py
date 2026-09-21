@@ -90,6 +90,8 @@ def target_history(
         return MemoryService(session).history(authority.task_id, target_id)
     except ResearchTaskNotFound as exc:
         raise HTTPException(404, "Target history not found") from exc
+    except MemoryConflict as exc:
+        raise HTTPException(409, str(exc)) from exc
 
 
 @router.get("/{target_id}/versions/{version}", response_model=HistoricalMemoryState)

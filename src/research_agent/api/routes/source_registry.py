@@ -3,14 +3,18 @@
 from collections.abc import Generator
 from typing import Annotated, Final
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from research_agent.application.persistence_error_translation import (
     PersistenceBoundaryError,
     PersistenceErrorCategory,
 )
 from research_agent.application.source_registry import SourceRegistryService, UntrustedSourceError
-from research_agent.domain.research import TrustedSourceCreate, TrustedSourceResponse
+from research_agent.domain.research import (
+    TrustedSourceCreate,
+    TrustedSourcePolicyEvent,
+    TrustedSourceResponse,
+)
 from research_agent.persistence.database import SessionFactory
 
 router: Final = APIRouter(prefix="/source-registry", tags=["source-registry"])
@@ -31,6 +35,15 @@ def list_trusted_sources(
 ) -> list[TrustedSourceResponse]:
     """List registered source domains."""
     return service.list_sources()
+
+
+@router.get("/audit", response_model=list[TrustedSourcePolicyEvent])
+def list_trusted_source_audit(
+    service: Annotated[SourceRegistryService, Depends(get_registry_service)],
+    limit: int = Query(default=100, ge=1, le=100),
+) -> list[TrustedSourcePolicyEvent]:
+    """List redacted trusted-source policy changes for authorized operators."""
+    return service.list_policy_events(limit)
 
 
 @router.post("", response_model=TrustedSourceResponse, status_code=status.HTTP_201_CREATED)

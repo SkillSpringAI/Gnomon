@@ -4,12 +4,18 @@ import os
 from typing import Literal
 from urllib.parse import urlsplit
 
-from fastapi import APIRouter, HTTPException, Request, Response, status
+from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from fastapi.responses import HTMLResponse
 
 from research_agent.application.provider_session import ProviderSessionStore
+from research_agent.application.provider_session_audit import ProviderSessionAuditService
 from research_agent.config.settings import get_settings
-from research_agent.domain.provider import ProviderSessionCreate, ProviderStatusResponse
+from research_agent.domain.provider import (
+    ProviderSessionAuditEvent,
+    ProviderSessionCreate,
+    ProviderStatusResponse,
+)
+from research_agent.persistence.database import SessionFactory
 
 router = APIRouter(prefix="/provider", tags=["provider"])
 provider_sessions = ProviderSessionStore()
@@ -114,10 +120,41 @@ def create_provider_session(
     origin_host = urlsplit(origin).hostname if origin else None
     if origin and origin_host not in {"127.0.0.1", "::1", "localhost"}:
         raise HTTPException(status_code=403, detail="Provider session origin is not allowed")
-    provider_sessions.delete(request.cookies.get("provider_session"))
-    session_id, expires_at = provider_sessions.create(
-        payload.bearer_token.get_secret_value(), payload.ttl_seconds
-    )
+    previous_session_id = request.cookies.get("provider_session")
+    token = payload.bearer_token.get_secret_value()
+    if settings.persistence_backend == "memory":
+        provider_sessions.delete(previous_session_id)
+        session_id, expires_at = provider_sessions.create(token, payload.ttl_seconds)
+    else:
+        with SessionFactory() as db_session:
+            audit = ProviderSessionAuditService(db_session)
+            authority = audit.authorize_create()
+            replacing_active_session = provider_sessions.get(previous_session_id) is not None
+            provider_sessions.delete(previous_session_id)
+            session_id, expires_at = provider_sessions.create(token, payload.ttl_seconds)
+            try:
+                if replacing_active_session:
+                    audit.stage(
+                        authority,
+                        operation="DELETE",
+                        provider=settings.llm_provider,
+                        ttl_seconds=None,
+                        result="accepted",
+                        reason="deleted",
+                    )
+                audit.stage(
+                    authority,
+                    operation="CREATE",
+                    provider=settings.llm_provider,
+                    ttl_seconds=payload.ttl_seconds,
+                    result="accepted",
+                    reason="created",
+                )
+                db_session.commit()
+            except Exception:
+                db_session.rollback()
+                provider_sessions.delete(session_id)
+                raise
     response.set_cookie(
         "provider_session",
         session_id,
@@ -133,5 +170,35 @@ def create_provider_session(
 @router.delete("/session", status_code=status.HTTP_204_NO_CONTENT)
 def delete_provider_session(request: Request, response: Response) -> None:
     """Forget the local provider token and expire the session cookie."""
-    provider_sessions.delete(request.cookies.get("provider_session"))
+    session_id = request.cookies.get("provider_session")
+    settings = get_settings()
+    active = provider_sessions.get(session_id) is not None
+    if settings.persistence_backend == "memory":
+        provider_sessions.delete(session_id)
+    else:
+        with SessionFactory() as db_session:
+            audit = ProviderSessionAuditService(db_session)
+            authority = audit.authorize_delete()
+            audit.stage(
+                authority,
+                operation="DELETE",
+                provider=settings.llm_provider,
+                ttl_seconds=None,
+                result="accepted" if active else "no_op",
+                reason="deleted" if active else "already_absent",
+            )
+            db_session.commit()
+            provider_sessions.delete(session_id)
     response.delete_cookie("provider_session")
+
+
+@router.get("/audit", response_model=list[ProviderSessionAuditEvent])
+def provider_session_audit(
+    limit: int = Query(default=100, ge=1, le=100),
+) -> list[ProviderSessionAuditEvent]:
+    """Return bounded redacted provider-session lifecycle evidence."""
+    settings = get_settings()
+    if settings.persistence_backend == "memory":
+        return []
+    with SessionFactory() as db_session:
+        return ProviderSessionAuditService(db_session).list_events(limit)

@@ -347,6 +347,25 @@ class TrustedSourceResponse(TrustedSourceCreate):
     verified_at: datetime | None
 
 
+class TrustedSourcePolicyEvent(BaseModel):
+    """Redacted configuration audit evidence for trusted-source policy changes."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    event_id: UUID
+    source_id: UUID
+    operation: Literal["REGISTER", "ENABLE"]
+    previous_status: TrustedSourceStatus | None
+    new_status: TrustedSourceStatus
+    actor_type: Literal["local_operator"]
+    actor_id: str
+    authority_epoch_id: UUID
+    security_state_version: int = Field(ge=1)
+    result: Literal["accepted", "no_op"]
+    reason: Literal["registered", "enabled", "already_enabled"]
+    created_at: datetime
+
+
 class ClaimSourceLink(BaseModel):
     """Provenance relationship between a claim and a source."""
 

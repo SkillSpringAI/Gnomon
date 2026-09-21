@@ -1,4 +1,4 @@
-"""Opt-in browser tests: RUN_BROWSER_TESTS=1; install the browser extra first."""
+"""Browser regression tests: RUN_BROWSER_TESTS=1; install Chromium first."""
 
 import os
 from urllib.parse import urlsplit
@@ -15,11 +15,22 @@ pytestmark = pytest.mark.skipif(
 @pytest.fixture
 def workspace_browser(request):
     fixture = request.getfixturevalue("source_cycle")
-    playwright = pytest.importorskip("playwright.sync_api")
+    try:
+        from playwright import sync_api as playwright
+    except ImportError:
+        if os.environ.get("RUN_BROWSER_TESTS") == "1":
+            raise
+        pytest.skip("Playwright is not installed")
     client, task_id, url, calls, settings = fixture
     with playwright.sync_playwright() as runtime:
         channel = os.environ.get("PLAYWRIGHT_CHANNEL", "msedge" if os.name == "nt" else "chromium")
-        browser = runtime.chromium.launch(channel=channel, headless=True)
+        executable_path = os.environ.get("PLAYWRIGHT_EXECUTABLE_PATH")
+        launch_options = {"headless": True}
+        if executable_path:
+            launch_options["executable_path"] = executable_path
+        else:
+            launch_options["channel"] = channel
+        browser = runtime.chromium.launch(**launch_options)
         page = browser.new_page(viewport={"width": 1100, "height": 900})
         errors = []
         page.on("pageerror", lambda error: errors.append(str(error)))
