@@ -44,6 +44,7 @@ semantics remain separate.
 - Required hosted browser verification now has an explicit PostgreSQL-backed job, Chromium installation, and fail-fast prerequisite behavior; run [35548463523](https://github.com/SkillSpringAI/Gnomon/actions/runs/35548463523) passed for exact implementation SHA `41579173fd19e8316d020d4f9c59c624b684fdac`.
 - Migration-007 claims and assessments now have an explicit version-one baseline reconstruction rule; broader governed-memory formats and categories remain deferred.
 - Trusted-source registration/activation and provider-session create/delete/replacement now write bounded redacted configuration-scoped audit events; authenticated identity and unrelated configuration-writer audit remain deferred.
+- Source dependence now has a hosted-verified bounded baseline: task-scoped operator declarations, immutable relationship history, deterministic overflow behavior, and limitation-aware report/planner/workspace consumers. Causal inference, automatic independence evaluation, invalid-graph recovery, and broader source discovery remain future work.
 
 ## Future capability phases
 

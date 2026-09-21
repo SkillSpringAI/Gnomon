@@ -2,10 +2,11 @@
 
 ## Implementation status updated on 2026-09-21
 
-Latest implementation baseline: `4157917` (Slices 3F–3H, including
-provider-session lifecycle audit). Hosted Quality run
-[35548463523](https://github.com/SkillSpringAI/Gnomon/actions/runs/35548463523)
-tested exact SHA `41579173fd19e8316d020d4f9c59c624b684fdac`; `checks`,
+Latest implementation baseline: `b22d2e8` (bounded source-dependence contract,
+API, report/planner/workspace consumers, with the prior 3F–3H/provider-session
+baseline retained). Hosted Quality run
+[35554268153](https://github.com/SkillSpringAI/Gnomon/actions/runs/35554268153)
+tested exact SHA `b22d2e83075bf22e2f73e39572ce662e0b8272b9`; `checks`,
 `minimal-install`, and `browser` all passed.
 
 Point-of-effect enforcement is implemented for READ_AUDIT on audit and security
@@ -27,6 +28,32 @@ changes, and expanded redacted audit events. Agent-network research remains
 limited to a read-only domain contract, deterministic adversarial fake, persisted
 agent-message evidence, derived report comparisons, and a local bounded cycle runner;
 live platform adapters and long-running orchestration remain absent.
+
+## Bounded source-dependence baseline (21 September 2026)
+
+**Implemented and hosted-verified.** Migration 028 adds canonical task-scoped
+`derived_from` and `common_origin` relationships with active/retracted lifecycle,
+immutable change history, optimistic revisions, exact operation retry, atomic
+redacted audit, and source-ownership constraints. API adapters expose create,
+read, mutation, reversal, history, and bounded projection operations.
+
+Reports, rule-based drafts, planner inputs, and the credential-free workspace
+expose declared relationships and bounded limitations. Missing, partial, or
+truncated dependence remains unknown; the implementation does not infer causal
+independence, increase confidence, upgrade claim status, or treat repeated
+sources as independent evidence.
+
+Local focused contract coverage is 11 tests; consumer-focused coverage is 29
+tests. Fresh migration/restart, wheel, conformance, and browser checks pass.
+The full local suite reached 1,570 passed and 5 skipped on the changed tree;
+one unrelated unordered policy-event concurrency assertion failed once and
+passed in isolation. Hosted Quality run 35554268153 passed the exact baseline
+SHA across checks, minimal-install, and browser.
+
+Deferred limitations are invalid persisted-graph recovery, causal/transitive
+source inference, automatic independence evaluation, broad source discovery,
+and authenticated multi-operator identity. Step 1 provider-session follow-up
+changes remain outside this baseline and uncommitted for separate review.
 
 “Phase 1–4 foundation” accurately describes the repository. “Phases 1–4 complete”
 does not: entity models, raw-source storage, cross-task retrieval, general claim

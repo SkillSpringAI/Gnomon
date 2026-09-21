@@ -1,7 +1,7 @@
 # Gnomon Current Source of Truth
 
-**Committed implementation baseline:** `4157917` (Slices 3F–3H, including provider-session lifecycle audit). Hosted Quality run [35548463523](https://github.com/SkillSpringAI/Gnomon/actions/runs/35548463523) verified the exact SHA `41579173fd19e8316d020d4f9c59c624b684fdac`; `checks`, `minimal-install`, and required `browser` all passed.
-**Current slice:** Slices 3F–3H implementation and hosted evidence are complete; this documentation commit records the closure state. Recovery is implemented only for restrictive entry; reconciliation and restoration completion remain unimplemented.
+**Committed implementation baseline:** `b22d2e8` (bounded source-dependence contract, API, report/planner/workspace consumers; prior 3F–3H/provider-session baseline retained). Hosted Quality run [35554268153](https://github.com/SkillSpringAI/Gnomon/actions/runs/35554268153) verified the exact SHA `b22d2e83075bf22e2f73e39572ce662e0b8272b9`; `checks`, `minimal-install`, and required `browser` all passed.
+**Current slice:** Slices 3F–3H and Step 2 source-dependence implementation and hosted evidence are complete. Recovery is implemented only for restrictive entry; reconciliation and restoration completion remain unimplemented.
 **Purpose:** Concise current implementation truth, open release gaps, and immediate work.
 **Status:** Current authority for repository state; completed history belongs in [development history](development-history.md), and future work belongs in the [roadmap](roadmap.md).
 
@@ -17,6 +17,7 @@ Current supported behavior includes:
 - PostgreSQL persistence with ordered migrations, checksums, fresh bootstrap, populated upgrades, and idempotent reruns.
 - Registered-domain HTTP retrieval with redirect, private-address, content-type, size, and deadline controls.
 - Exact evidence and claim reuse, provenance links, deterministic claim extraction, and redacted audit events.
+- Task-scoped, operator-attributed `derived_from` and `common_origin` relationships with immutable history, bounded traversal, API adapters, and report/planner/workspace limitation views. Missing relationships remain unknown and never establish independence or increase confidence.
 - Evidence-aware next-cycle planning with bounded objectives, persisted planning reasons, reviews, evidence fingerprints, and unresolved work.
 - Durable cycle attempts, partial-progress retention, operator recovery, late-write fencing, and explicit blocked/failed outcomes.
 - A read-only latest-attempt progress projection and workspace surface for retained evidence, claims, stages, timestamps, objective state, and unresolved active cycles.
@@ -53,6 +54,7 @@ The following are current guarantees only within the tested and supported scope:
 | External agents | Only the bounded fake/read-only network is implemented; live outbound networks are not enabled. |
 | Security | Current boundary guards, redaction, security-state persistence, and transition tests exist; full incident, authentication, purge, and operational recovery controls remain open. |
 | Reports | Reports are derived read-only views and do not establish new knowledge or conclusions. |
+| Source dependence | Current relationships are explicit, bounded, task-scoped, and auditable; absent or truncated relationships remain unknown. Invalid persisted-graph recovery and causal/semantic independence evaluation remain deferred. |
 
 No current document should claim full autonomous operation, complete security conformance, semantic memory, live agent networking, backup/restore readiness, or v0.1 release conformance.
 
@@ -65,7 +67,8 @@ No current document should claim full autonomous operation, complete security co
 | P1/P2 | Workflow atomicity observability | Implementing baseline hosted-verified | Latest-attempt read projection and workspace rendering expose retained progress without observation-side mutation; hosted run `35548463523` passed for exact SHA `41579173fd19e8316d020d4f9c59c624b684fdac`. |
 | P1/P2 | Lowest-layer invariant enforcement | Closed locally for reviewed scope | Migration 025 constraints and bounded translation cover reviewed authority/duplicate paths; broader lifecycle and memory vocabulary constraints remain deferred. |
 | P1/P2 | Security authority foundations | Partial | Epoch persistence, transition policy, direction-aware administration and the restrictive recovery-bootstrap entry boundary are implemented. RecoveryContext, reconciliation, protected restoration and backup reconstruction remain unimplemented. |
-| P1/P2 | Hosted CI evidence | Implementing baseline verified | Quality run [35548463523](https://github.com/SkillSpringAI/Gnomon/actions/runs/35548463523) tested exact SHA `41579173fd19e8316d020d4f9c59c624b684fdac`; checks, minimal-install, and browser passed. |
+| P1/P2 | Hosted CI evidence | Implementing baseline verified | Quality run [35554268153](https://github.com/SkillSpringAI/Gnomon/actions/runs/35554268153) tested exact SHA `b22d2e83075bf22e2f73e39572ce662e0b8272b9`; checks, minimal-install, and browser passed. |
+| P1/P2 | Source-dependence contract | Implementing baseline hosted-verified | Migration 028, task-scoped API, immutable history, bounded projection, report/planner/workspace consumers, and negative tests are implemented. Invalid persisted-graph recovery, transitive causal inference, and automatic independence evaluation remain deferred. |
 | P1/P2 | Trusted-source/provider-session policy audit | Locally and hosted-verified for the reviewed registry and provider-session boundaries | Configuration-scoped events preserve authority epoch/version, require READ_AUDIT to read, and replacement emits revoke-then-create evidence; authenticated identity, memory-backend durability, and unrelated writer audit remain open. |
 | P1 | Interrupted-cycle closure authority | Closed | Exact-attempt closure, runner failure propagation, complete preservation snapshots, restrictive-state coverage, and atomic audit/race tests pass. |
 | P1 | Selected mutation/lockdown ordering | Closed for five paths | Task then security SHARE locking covers memory stage/reverse, source creation, general outcome and containment closure; same-task composition and both race orders are proven. Cross-task batching is unsupported. |
