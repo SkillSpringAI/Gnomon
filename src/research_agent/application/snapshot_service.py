@@ -6,11 +6,14 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from research_agent.application.source_dependence_service import SourceDependenceService
 from research_agent.domain.research import (
     AssessmentEvidenceLink,
     ClaimResponse,
     ClaimSourceLink,
     HypothesisAssessmentResponse,
+    SourceDependenceLimits,
+    SourceDependenceProjection,
     SourceResponse,
 )
 from research_agent.domain.snapshot import HypothesisSnapshot, InvestigationSnapshot
@@ -95,6 +98,33 @@ class SnapshotService:
                 )
             )
         }
+        dependence_roots = sorted((source.id for source in sources), key=lambda item: item.int)
+        if dependence_roots:
+            source_dependence = SourceDependenceService(self.session).project(
+                task_id, dependence_roots[: SourceDependenceService.LIMITS.max_roots]
+            )
+            if len(dependence_roots) > SourceDependenceService.LIMITS.max_roots:
+                source_dependence = source_dependence.model_copy(
+                    update={
+                        "complete": False,
+                        "truncated": True,
+                        "overflow_reason": "node_limit",
+                        "frontier_source_ids": dependence_roots[
+                            SourceDependenceService.LIMITS.max_roots :
+                        ],
+                    }
+                )
+        else:
+            source_dependence = SourceDependenceProjection(
+                task_id=task_id,
+                complete=True,
+                truncated=False,
+                limits=SourceDependenceLimits(),
+                visited_source_ids=[],
+                examined_relationships=[],
+                frontier_source_ids=[],
+                unknown_dependence=True,
+            )
         return InvestigationSnapshot(
             task=task,
             hypotheses=[
@@ -125,4 +155,5 @@ class SnapshotService:
                 SourceResponse.model_validate(source, from_attributes=True) for source in sources
             ],
             open_questions=task.plan.open_questions,
+            source_dependence=source_dependence,
         )

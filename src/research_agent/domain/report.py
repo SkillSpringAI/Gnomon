@@ -12,6 +12,7 @@ from research_agent.domain.research import (
     CycleStatus,
     HypothesisAssessmentStatus,
     ObjectiveReview,
+    SourceDependenceProjection,
     SourceType,
     TaskStatus,
 )
@@ -84,6 +85,7 @@ class InvestigationReport(BaseModel):
     unresolved_objectives: list[str]
     limitations: list[str]
     agent_comparison: AgentObservationComparison | None = None
+    source_dependence: SourceDependenceProjection | None = None
 
 
 class ReportUsage(BaseModel):

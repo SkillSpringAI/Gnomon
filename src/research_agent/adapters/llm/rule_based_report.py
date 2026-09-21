@@ -38,6 +38,22 @@ class RuleBasedReportDraftGenerator:
                     f"- [{claim.status.value}; confidence {claim.confidence:.2f}] "
                     f"{claim.statement} (Claim ID: {claim.id}; Sources: {source_ids})"
                 )
+        if report.source_dependence:
+            dependence = report.source_dependence
+            lines.extend(["", "## Source dependence"])
+            lines.append(
+                f"Observed {len(dependence.examined_relationships)} declared relationship(s); "
+                f"{len(dependence.visited_source_ids)} source(s) were visited."
+            )
+            lines.append(
+                "Missing or partial dependence data remains unknown and does not establish "
+                "independence."
+            )
+            if dependence.truncated:
+                lines.append(
+                    f"Projection truncated at {dependence.overflow_reason}; "
+                    "review the bounded result before relying on source counts."
+                )
         if report.cycles:
             lines.extend(["", "## Cycle history"])
             for cycle in report.cycles:

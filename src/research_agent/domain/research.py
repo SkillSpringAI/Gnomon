@@ -154,6 +154,7 @@ class CyclePlanningBasis(BaseModel):
         "agent_contradiction",
         "agent_comparison_limit",
         "agent_corroboration",
+        "source_dependence_unknown",
     ]
     hypothesis_id: UUID | None = None
     assessment_id: UUID | None = None
@@ -315,6 +316,123 @@ class SourceResponse(BaseModel):
     reliability_score: float
     observed_at: datetime
     source_metadata: dict[str, str] = Field(default_factory=dict)
+
+
+class SourceDependenceKind(StrEnum):
+    DERIVED_FROM = "derived_from"
+    COMMON_ORIGIN = "common_origin"
+
+
+class SourceRelationshipLifecycle(StrEnum):
+    ACTIVE = "active"
+    RETRACTED = "retracted"
+
+
+class SourceRelationship(BaseModel):
+    """Canonical current source-dependence relationship."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    relationship_id: UUID
+    task_id: UUID
+    source_low_id: UUID
+    source_high_id: UUID
+    kind: SourceDependenceKind
+    direction: Literal["low_to_high", "high_to_low", "none"]
+    lifecycle: SourceRelationshipLifecycle
+    revision: int = Field(ge=1)
+    latest_change_id: UUID
+    updated_at: datetime
+
+
+class SourceRelationshipChange(BaseModel):
+    """Immutable source-dependence relationship change."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    change_id: UUID
+    operation_id: UUID
+    relationship_id: UUID
+    task_id: UUID
+    previous_revision: int = Field(ge=0)
+    revision: int = Field(ge=1)
+    operation: Literal["CREATE", "SET", "RETRACT", "REVERSE"]
+    previous_state: SourceRelationship | None
+    resulting_state: SourceRelationship
+    actor_type: Literal["local_operator"]
+    actor_id: str
+    reason: str = Field(min_length=1, max_length=255)
+    authority_epoch_id: UUID
+    security_state_version: int = Field(ge=1)
+    reverses_change_id: UUID | None
+    created_at: datetime
+
+
+class SourceRelationshipCreate(BaseModel):
+    """Operator assertion of a source relationship."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    derived_source_id: UUID | None = None
+    upstream_source_id: UUID | None = None
+    source_a_id: UUID | None = None
+    source_b_id: UUID | None = None
+    kind: SourceDependenceKind
+    reason: str = Field(min_length=1, max_length=255)
+    operation_id: UUID = Field(default_factory=uuid4)
+
+
+class SourceRelationshipMutation(BaseModel):
+    """Versioned correction or retraction of a relationship."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    relationship_id: UUID
+    expected_revision: int = Field(ge=1, strict=True)
+    operation: Literal["SET", "RETRACT"]
+    lifecycle: SourceRelationshipLifecycle | None = None
+    direction: Literal["low_to_high", "high_to_low", "none"] | None = None
+    reason: str = Field(min_length=1, max_length=255)
+    operation_id: UUID = Field(default_factory=uuid4)
+
+
+class SourceRelationshipReversal(BaseModel):
+    """Bounded reversal of an eligible accepted relationship change."""
+
+    relationship_id: UUID
+    change_id: UUID
+    expected_revision: int = Field(ge=1, strict=True)
+    reason: str = Field(min_length=1, max_length=255)
+    operation_id: UUID = Field(default_factory=uuid4)
+
+
+class SourceDependenceLimits(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    max_roots: int = 100
+    max_visited_sources: int = 100
+    max_examined_relationships: int = 500
+    max_hops: int = 8
+
+
+class SourceDependenceProjection(BaseModel):
+    """Bounded source-dependence read, never an independence judgment."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    task_id: UUID
+    complete: bool
+    truncated: bool
+    limits: SourceDependenceLimits
+    visited_source_ids: list[UUID]
+    examined_relationships: list[SourceRelationship]
+    frontier_source_ids: list[UUID]
+    overflow_reason: Literal["node_limit", "edge_limit", "depth_limit"] | None = None
+    unknown_dependence: bool = True
+    note: str = (
+        "Declared relationships describe dependence only. Missing or partial graph "
+        "data remains unknown and does not establish independence."
+    )
 
 
 class SourceFetchRequest(BaseModel):

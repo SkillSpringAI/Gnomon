@@ -105,6 +105,17 @@ class ReportService:
                 f"Agent comparisons omit {agent_comparison.omitted_observation_count} older "
                 "observations; absence of a reported contradiction is not exhaustive."
             )
+        dependence = snapshot.source_dependence
+        if snapshot.sources:
+            limitations.append(
+                "Source dependence is only partially known; absent relationships do not "
+                "establish independent evidence."
+            )
+            if dependence and dependence.truncated:
+                limitations.append(
+                    "The source-dependence view is bounded and incomplete; review its "
+                    "overflow limitation before relying on source counts."
+                )
         summary = (
             f"Evidence inventory for {snapshot.task.brief.title}: "
             f"{len(snapshot.sources)} sources, {len(snapshot.claims)} claims, "
@@ -135,6 +146,7 @@ class ReportService:
             unresolved_objectives=unresolved_objectives,
             limitations=limitations,
             agent_comparison=agent_comparison if observations else None,
+            source_dependence=dependence,
         )
 
 

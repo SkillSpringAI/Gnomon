@@ -19,6 +19,7 @@ from research_agent.api.routes.provider import router as provider_router
 from research_agent.api.routes.reports import router as reports_router
 from research_agent.api.routes.security import router as security_router
 from research_agent.api.routes.snapshots import router as snapshots_router
+from research_agent.api.routes.source_dependence import router as source_dependence_router
 from research_agent.api.routes.source_registry import router as source_registry_router
 from research_agent.application.authority_bootstrap import (
     AuthorityBootstrapService,
@@ -82,6 +83,7 @@ def create_app(
     application.include_router(evidence_router)
     application.include_router(assessments_router)
     application.include_router(source_registry_router)
+    application.include_router(source_dependence_router)
     application.include_router(snapshots_router)
     application.include_router(reports_router)
     application.include_router(provider_router)

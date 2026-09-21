@@ -27,6 +27,7 @@ class EventType(StrEnum):
     SOURCE_REUSED = "source.reused"
     AGENT_OBSERVATION_RECORDED = "agent.observation_recorded"
     AGENT_OBSERVATION_FAILED = "agent.observation_failed"
+    SOURCE_DEPENDENCE_CHANGED = "source.dependence_changed"
     CLAIM_CREATED = "claim.created"
     CLAIM_REUSED = "claim.reused"
     EXTRACTION_COMPLETED = "extraction.completed"
@@ -76,6 +77,12 @@ class EventPayload(BaseModel):
     objective_index: int | None = None
     source_id: UUID | None = None
     claim_id: UUID | None = None
+    relationship_id: UUID | None = None
+    related_source_id: UUID | None = None
+    dependence_kind: Literal["derived_from", "common_origin"] | None = None
+    dependence_direction: Literal["low_to_high", "high_to_low", "none"] | None = None
+    relationship_lifecycle: Literal["active", "retracted"] | None = None
+    relationship_revision: int | None = Field(default=None, ge=1)
     claim_count: int | None = None
     unresolved_count: int | None = None
     provider: str | None = None

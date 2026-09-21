@@ -50,7 +50,7 @@ def _with_evidence(
     hypotheses = [
         item for item in snapshot.hypotheses if broad or item.hypothesis.id == basis.hypothesis_id
     ]
-    payload = {
+    payload: dict[str, object] = {
         "claims": [
             item.model_dump(mode="json") for item in sorted(claims, key=lambda c: str(c.id))
         ],
@@ -62,6 +62,8 @@ def _with_evidence(
             for item in sorted(hypotheses, key=lambda h: str(h.hypothesis.id))
         ],
     }
+    if basis.reason == "source_dependence_unknown" and snapshot.source_dependence:
+        payload["source_dependence"] = snapshot.source_dependence.model_dump(mode="json")
     digest = sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
     return basis.model_copy(update={"evidence_fingerprint": digest})
 
@@ -296,6 +298,19 @@ def plan_cycle_objectives(
                 1,
                 "Review older agent observations omitted from the bounded comparison.",
                 CyclePlanningBasis(reason="agent_comparison_limit"),
+            )
+        )
+    dependence = snapshot.source_dependence
+    if dependence and dependence.examined_relationships:
+        candidates.append(
+            (
+                2,
+                "Review declared source dependence and remaining unknowns before relying "
+                "on corroboration.",
+                CyclePlanningBasis(
+                    reason="source_dependence_unknown",
+                    source_ids=dependence.visited_source_ids[:100],
+                ),
             )
         )
     if not candidates and not snapshot.sources:

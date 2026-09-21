@@ -9,6 +9,7 @@ from research_agent.domain.research import (
     Hypothesis,
     HypothesisAssessmentResponse,
     ResearchTask,
+    SourceDependenceProjection,
     SourceResponse,
 )
 
@@ -27,3 +28,4 @@ class InvestigationSnapshot(BaseModel):
     claims: list[ClaimResponse]
     sources: list[SourceResponse]
     open_questions: list[str]
+    source_dependence: SourceDependenceProjection | None = None
