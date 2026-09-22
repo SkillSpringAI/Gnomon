@@ -100,3 +100,12 @@ PostgreSQL advisory lock, applies pending files in filename order, and records e
 completed filename. Tracking-table bootstrap also holds the advisory lock so two
 fresh installers cannot race its creation. Each migration runs in its own transaction; a failure rolls back
 that migration and stops the command. The numbered SQL remains additive and repeatable.
+
+## Source-dependence command compatibility (030)
+
+`030_source_dependence_command_requests.sql` adds nullable versioned command JSON
+to relationship history. Existing rows are preserved with null metadata; their
+history remains readable but exact command replay is refused rather than inferred.
+New commands retain their accepted identity and historical result. Apply migrations
+before serving the new code. The 4fa785b closure verifies all 30 packaged resources,
+including a populated pre-030 fixture, rerun and checksum-drift checks.

@@ -1,12 +1,48 @@
 # Gnomon implementation status
 
-## Implementation status updated on 2026-09-21
+## Implementation status updated on 2026-09-23
 
-Latest implementation baseline: `ca08943` (`ca08943cf8baf3d8fb9d2d8d01dfb6c01cbe30e5`),
-covering Step 1 provider-session failure/concurrency/upgrade evidence and Step 3
-stopping decisions on top of the bounded source-dependence contract. Hosted
-Quality run [35558052346](https://github.com/SkillSpringAI/Gnomon/actions/runs/35558052346)
-tested this exact SHA; `checks`, `minimal-install`, and `browser` all passed.
+Latest implementation baseline: `4fa785b98dfaf33b372284cc4b271aa753ab386e` (`4fa785b`).
+Hosted [Quality run 35676307231](https://github.com/SkillSpringAI/Gnomon/actions/runs/35676307231) tested this exact SHA;
+`checks`, `minimal-install`, and `browser` all passed. This evidence covers the
+implementation commit, not the subsequent documentation-only closure commit.
+
+## Source-dependence contract closure (23 September 2026)
+
+Slice 1 of the 22 September sequence is closed within supported application paths.
+Migration 030 persists versioned canonical commands. Exact authorized retries
+return the historical accepted result; old rows without original command metadata
+remain readable but replay is refused. History reads validate chain continuity,
+identity and current-head agreement without repair.
+
+Task SHARE locks stabilize graph reads against supported task-UPDATE writers.
+Traversal has shared node/edge/depth limits, bounded frontier output and explicit
+omission/invalidity. Examined directed cycles are reported; partial views never
+establish global acyclicity or independence. Review fingerprints preserve broad
+invalidation while unrelated evidence does not reopen complete narrow reviews.
+PostgreSQL tests cover reciprocal writes, both lockdown orders and overflow rollback.
+
+Recorded final implementation-local evidence: 1,620 passed, zero skipped with
+browser enabled; lint, strict mypy (87 source files), conformance traceability,
+smoke, real HTTP restart and clean-wheel checks passed. All 30 migration resources
+were verified with fresh/populated upgrade, rerun and checksum-drift checks. Hosted
+Quality independently passed the exact SHA above, including the existing five
+browser cases. Those cases do not prove the new Slice 3 interactions.
+
+History is appended by supported application operations, not protected against
+privileged database rewriting. The inspected local identity is a superuser/table
+owner. Least-privilege role separation returns at deployment privilege hardening;
+cryptographic tamper evidence returns at the audit-assurance milestone. Legacy
+command backfill requires a trusted reconstruction source and a real compatibility
+need. Graph repair requires a separately governed recovery design. Dense-graph
+performance profiling is due before high-volume use; bounded fetched rows are not
+a guarantee of bounded physical database work. Direct SQL writers are outside the
+lock-protocol guarantee.
+
+A source-registry audit ordering assertion failed once during an earlier local
+full run and passed standalone and on the full rerun. Retain this flake as a known
+verification risk, not as proof of a source-dependence defect or a reason to erase
+the failed result. Stopping correctness and workspace interactions remain open.
 
 Point-of-effect enforcement is implemented for READ_AUDIT on audit and security
 transition history, source retrieval, and provider dispatch. Canonical runtime
@@ -32,7 +68,7 @@ live platform adapters and long-running orchestration remain absent.
 
 **Implemented and hosted-verified.** Migration 028 adds canonical task-scoped
 `derived_from` and `common_origin` relationships with active/retracted lifecycle,
-immutable change history, optimistic revisions, exact operation retry, atomic
+application-appended change history, optimistic revisions, baseline operation retry, atomic
 redacted audit, and source-ownership constraints. API adapters expose create,
 read, mutation, reversal, history, and bounded projection operations.
 
@@ -51,8 +87,8 @@ SHA across checks, minimal-install, and browser.
 
 Deferred limitations are invalid persisted-graph recovery, causal/transitive
 source inference, automatic independence evaluation, broad source discovery,
-and authenticated multi-operator identity. Step 1 provider-session follow-up
-changes remain outside this baseline and uncommitted for separate review.
+and authenticated multi-operator identity. This section preserves the historical
+21 September baseline; later provider and source-dependence closure is recorded separately.
 
 “Phase 1–4 foundation” accurately describes the repository. “Phases 1–4 complete”
 does not: entity models, raw-source storage, cross-task retrieval, general claim

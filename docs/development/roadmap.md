@@ -46,6 +46,32 @@ semantics remain separate.
 - Trusted-source registration/activation and provider-session create/delete/replacement now write bounded redacted configuration-scoped audit events, with failure, race, capacity/expiry, and populated-upgrade evidence; authenticated identity, distributed crash atomicity, and unrelated configuration-writer audit remain deferred.
 - Source dependence now has a hosted-verified bounded baseline: task-scoped operator declarations, immutable relationship history, deterministic overflow behavior, and limitation-aware report/planner/workspace consumers. Causal inference, automatic independence evaluation, invalid-graph recovery, and broader source discovery remain future work.
 
+## Next bounded implementation sequence (23 September)
+
+Source-dependence contract/traversal Slice 1 is closed at `4fa785b`; hosted
+[Quality run 35676307231](https://github.com/SkillSpringAI/Gnomon/actions/runs/35676307231)
+passed that exact implementation SHA. Next close stopping retry/readiness and
+limitation correctness (Slice 2), then complete relationship editing and stopping
+submission in the workspace with new browser tests (Slice 3).
+
+Deferred work has explicit return triggers:
+
+- Runtime/migration role separation: deployment privilege hardening, before a
+  separately permissioned runtime or database-enforced immutability claim.
+- Cryptographic history protection: deployment audit assurance, before promising
+  privileged-operator tamper evidence.
+- Legacy command backfill: a concrete need to replay pre-030 operations and a
+  trusted source capable of reconstructing their original requests.
+- Invalid graph repair: a governed data-repair/recovery design; detection remains
+  implemented and reads never repair.
+- Dense adjacency profiling: before high-volume use; retain fail-closed limits.
+- Automatic budget/deadline stopping: bounded long-running execution, backed by
+  durable measured runtime evidence. Current operator claims stay attributed.
+
+The intermittent source-registry audit ordering assertion remains a verification
+risk to characterize if it recurs or before relying on deterministic event order.
+Recovery/bootstrap completion remains under the existing authority-design gate.
+
 ## Future capability phases
 
 ### Phase 1 — Investigation and structured planning
