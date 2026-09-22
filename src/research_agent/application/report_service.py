@@ -123,6 +123,11 @@ class ReportService:
                     "The source-dependence view is bounded and incomplete; review its "
                     "overflow limitation before relying on source counts."
                 )
+            if dependence and dependence.invalid:
+                limitations.append(
+                    "Invalid directed source-dependence data was detected; do not rely on "
+                    "this graph as a valid corroboration structure."
+                )
         summary = (
             f"Evidence inventory for {snapshot.task.brief.title}: "
             f"{len(snapshot.sources)} sources, {len(snapshot.claims)} claims, "

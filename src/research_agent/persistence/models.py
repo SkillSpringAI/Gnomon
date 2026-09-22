@@ -297,6 +297,7 @@ class SourceRelationshipChangeRecord(Base):
     operation: Mapped[str] = mapped_column(String(16), nullable=False)
     previous_state: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     resulting_state: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    command_request: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     actor_type: Mapped[str] = mapped_column(String(32), nullable=False)
     actor_id: Mapped[str] = mapped_column(String(255), nullable=False)
     reason: Mapped[str] = mapped_column(String(255), nullable=False)

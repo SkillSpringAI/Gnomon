@@ -62,8 +62,34 @@ def _with_evidence(
             for item in sorted(hypotheses, key=lambda h: str(h.hypothesis.id))
         ],
     }
-    if basis.reason == "source_dependence_unknown" and snapshot.source_dependence:
-        payload["source_dependence"] = snapshot.source_dependence.model_dump(mode="json")
+    if snapshot.source_dependence is not None:
+        dependence = snapshot.source_dependence
+        if broad or basis.reason == "source_dependence_unknown" or not dependence.complete:
+            # Broad reviews and incomplete projections must retain the full known
+            # basis. An incomplete graph cannot prove a change is unrelated.
+            payload["source_dependence"] = dependence.model_dump(mode="json")
+        else:
+            # Narrow reviews depend on the declared component of their referenced
+            # sources, not every unrelated source in the investigation. Connectivity
+            # here only scopes invalidation; it does not infer common-origin facts.
+            related = set(source_ids)
+            while True:
+                expanded = related | {
+                    endpoint
+                    for edge in dependence.examined_relationships
+                    if edge.source_low_id in related or edge.source_high_id in related
+                    for endpoint in (edge.source_low_id, edge.source_high_id)
+                }
+                if expanded == related:
+                    break
+                related = expanded
+            payload["source_dependence"] = [
+                edge.model_dump(mode="json")
+                for edge in sorted(
+                    dependence.examined_relationships, key=lambda item: item.relationship_id.int
+                )
+                if edge.source_low_id in related or edge.source_high_id in related
+            ]
     digest = sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
     return basis.model_copy(update={"evidence_fingerprint": digest})
 
@@ -301,12 +327,17 @@ def plan_cycle_objectives(
             )
         )
     dependence = snapshot.source_dependence
-    if dependence and dependence.examined_relationships:
+    if dependence and (dependence.examined_relationships or dependence.invalid):
         candidates.append(
             (
                 2,
-                "Review declared source dependence and remaining unknowns before relying "
-                "on corroboration.",
+                (
+                    "Review invalid directed source-dependence data before relying on "
+                    "corroboration."
+                    if dependence.invalid
+                    else "Review declared source dependence and remaining unknowns before "
+                    "relying on corroboration."
+                ),
                 CyclePlanningBasis(
                     reason="source_dependence_unknown",
                     source_ids=dependence.visited_source_ids[:100],

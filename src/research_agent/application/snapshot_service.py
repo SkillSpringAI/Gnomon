@@ -23,6 +23,7 @@ from research_agent.persistence.models import (
     HypothesisAssessmentRecord,
     ResearchClaimRecord,
     ResearchSourceRecord,
+    ResearchTaskRecord,
 )
 from research_agent.persistence.repositories import SqlAlchemyResearchTaskRepository
 
@@ -32,6 +33,16 @@ class SnapshotService:
         self.session = session
 
     def get(self, task_id: UUID) -> InvestigationSnapshot:
+        # Supported relationship writers take FOR UPDATE on the task before changing
+        # the graph. Hold a compatible SHARE lock for the whole caller-owned read
+        # transaction so all snapshot consumers see one stable relationship graph.
+        locked_task_id = self.session.scalar(
+            select(ResearchTaskRecord.id)
+            .where(ResearchTaskRecord.id == task_id)
+            .with_for_update(read=True)
+        )
+        if locked_task_id is None:
+            SqlAlchemyResearchTaskRepository(self.session).get(task_id)
         task = SqlAlchemyResearchTaskRepository(self.session).get(task_id)
         sources = self.session.scalars(
             select(ResearchSourceRecord)
@@ -104,14 +115,20 @@ class SnapshotService:
                 task_id, dependence_roots[: SourceDependenceService.LIMITS.max_roots]
             )
             if len(dependence_roots) > SourceDependenceService.LIMITS.max_roots:
+                frontier_limit = SourceDependenceService.LIMITS.max_frontier_sources
+                omitted_roots = dependence_roots[SourceDependenceService.LIMITS.max_roots :]
+                frontier = sorted(
+                    set(source_dependence.frontier_source_ids + omitted_roots),
+                    key=lambda item: item.int,
+                )
                 source_dependence = source_dependence.model_copy(
                     update={
                         "complete": False,
                         "truncated": True,
                         "overflow_reason": "node_limit",
-                        "frontier_source_ids": dependence_roots[
-                            SourceDependenceService.LIMITS.max_roots :
-                        ],
+                        "frontier_source_ids": frontier[:frontier_limit],
+                        "frontier_omitted": source_dependence.frontier_omitted
+                        or len(frontier) > frontier_limit,
                     }
                 )
         else:

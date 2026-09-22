@@ -1,9 +1,10 @@
 """Governed, bounded source-dependence relationships."""
 
 from collections import deque
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Literal, cast
+from typing import Any, Literal, cast
 from uuid import UUID, uuid4
 
 from sqlalchemy import or_, select
@@ -76,15 +77,13 @@ class SourceDependenceService:
             )
             existing_change = self._operation_change(request.operation_id)
             if existing_change is not None:
+                canonical_request = self._canonical_create_request(
+                    request, low_id=low_id, high_id=high_id, direction=direction
+                )
                 return self._retry_or_conflict(
                     existing_change,
                     task_id=task_id,
-                    relationship_id=None,
-                    kind=request.kind.value,
-                    direction=direction,
-                    lifecycle="active",
-                    source_low_id=low_id,
-                    source_high_id=high_id,
+                    command_request=canonical_request,
                 )
             self._validate_sources(task_id, low_id, high_id)
             if request.kind is SourceDependenceKind.DERIVED_FROM:
@@ -130,6 +129,9 @@ class SourceDependenceService:
                     operation="CREATE",
                     reason=request.reason,
                     authority=authority,
+                    command_request=self._canonical_create_request(
+                        request, low_id=low_id, high_id=high_id, direction=direction
+                    ),
                 )
             )
             self._stage_audit(task_id, request.operation_id, state)
@@ -145,21 +147,20 @@ class SourceDependenceService:
             authority = require_locked_capability(
                 self.session, SecurityCapability.MEMORY_MUTATION
             )
-            current = self._relationship_for_update(task_id, request.relationship_id)
             existing_change = self._operation_change(request.operation_id)
             if existing_change is not None:
+                state = existing_change.resulting_state
                 return self._retry_or_conflict(
                     existing_change,
                     task_id=task_id,
-                    relationship_id=request.relationship_id,
-                    kind=current.kind,
-                    direction=request.direction or current.direction,
-                    lifecycle=(
-                        request.lifecycle.value
-                        if request.operation == "SET" and request.lifecycle
-                        else "retracted"
+                    command_request=self._canonical_mutation_request(
+                        request,
+                        kind=str(state["kind"]),
+                        direction=str(state["direction"]),
+                        lifecycle=str(state["lifecycle"]),
                     ),
                 )
+            current = self._relationship_for_update(task_id, request.relationship_id)
             if current.revision != request.expected_revision:
                 raise SourceDependenceConflict("Source relationship revision is stale")
             if request.operation == "RETRACT":
@@ -183,6 +184,9 @@ class SourceDependenceService:
                 operation_id=request.operation_id,
                 reason=request.reason,
                 authority=authority,
+                command_request=self._canonical_mutation_request(
+                    request, kind=current.kind, direction=direction, lifecycle=lifecycle
+                ),
             )
         except Exception:
             self.session.rollback()
@@ -194,17 +198,14 @@ class SourceDependenceService:
             authority = require_locked_capability(
                 self.session, SecurityCapability.MEMORY_MUTATION
             )
-            current = self._relationship_for_update(task_id, request.relationship_id)
             existing_change = self._operation_change(request.operation_id)
             if existing_change is not None:
                 return self._retry_or_conflict(
                     existing_change,
                     task_id=task_id,
-                    relationship_id=request.relationship_id,
-                    kind=current.kind,
-                    direction=current.direction,
-                    lifecycle=current.lifecycle,
+                    command_request=self._canonical_reversal_request(request),
                 )
+            current = self._relationship_for_update(task_id, request.relationship_id)
             target = self.session.scalar(
                 select(SourceRelationshipChangeRecord).where(
                     SourceRelationshipChangeRecord.change_id == request.change_id,
@@ -241,6 +242,7 @@ class SourceDependenceService:
                 authority=authority,
                 reverses_change_id=target.change_id,
                 previous_state_override=previous,
+                command_request=self._canonical_reversal_request(request),
             )
         except Exception:
             self.session.rollback()
@@ -260,26 +262,35 @@ class SourceDependenceService:
 
     def history(self, task_id: UUID, relationship_id: UUID) -> list[SourceRelationshipChange]:
         require_capability(self.session, SecurityCapability.READ_AUDIT)
-        if self.session.scalar(
-            select(SourceRelationshipRecord.relationship_id).where(
+        rows = self.session.execute(
+            select(SourceRelationshipRecord, SourceRelationshipChangeRecord)
+            .outerjoin(
+                SourceRelationshipChangeRecord,
+                (SourceRelationshipChangeRecord.relationship_id
+                 == SourceRelationshipRecord.relationship_id)
+                & (SourceRelationshipChangeRecord.task_id == SourceRelationshipRecord.task_id),
+            )
+            .where(
                 SourceRelationshipRecord.task_id == task_id,
                 SourceRelationshipRecord.relationship_id == relationship_id,
             )
-        ) is None:
-            raise SourceDependenceNotFound("Source relationship was not found")
-        records = self.session.scalars(
-            select(SourceRelationshipChangeRecord)
-            .where(
-                SourceRelationshipChangeRecord.task_id == task_id,
-                SourceRelationshipChangeRecord.relationship_id == relationship_id,
-            )
             .order_by(SourceRelationshipChangeRecord.revision)
-        )
-        return [self._change_from_record(record) for record in records]
+            .execution_options(populate_existing=True)
+        ).all()
+        if not rows:
+            raise SourceDependenceNotFound("Source relationship was not found")
+        projection = rows[0][0]
+        records = [change for _, change in rows if change is not None]
+        changes = self._validated_history(projection, records)
+        return [self._change_from_record(record) for record in changes]
 
     def project(
         self, task_id: UUID, root_source_ids: list[UUID]
     ) -> SourceDependenceProjection:
+        # Match the task-first lock order used by every supported relationship writer.
+        # Holding SHARE through the caller-owned transaction stabilizes this multi-query
+        # traversal without changing isolation or committing/rolling back the session.
+        self._lock_task_for_read(task_id)
         require_capability(self.session, SecurityCapability.READ_AUDIT)
         roots = sorted(set(root_source_ids), key=lambda item: item.int)
         if len(roots) > self.LIMITS.max_roots:
@@ -290,7 +301,10 @@ class SourceDependenceService:
         queue = deque(roots)
         examined: dict[UUID, SourceRelationshipRecord] = {}
         frontier: set[UUID] = set()
+        frontier_omitted = False
         overflow: Literal["node_limit", "edge_limit", "depth_limit"] | None = None
+        if len(visited) > self.LIMITS.max_visited_sources:
+            overflow = "node_limit"
         while queue and overflow is None:
             source_id = queue.popleft()
             depth = depths[source_id]
@@ -321,21 +335,26 @@ class SourceDependenceService:
                 if neighbor in visited:
                     continue
                 if depth >= self.LIMITS.max_hops:
-                    frontier.add(neighbor)
-                    overflow = "depth_limit"
+                    if overflow is None:
+                        overflow = "depth_limit"
+                    frontier_omitted |= self._add_frontier(frontier, neighbor)
                     continue
                 if len(visited) >= self.LIMITS.max_visited_sources:
-                    frontier.add(neighbor)
-                    overflow = "node_limit"
+                    if overflow is None:
+                        overflow = "node_limit"
+                    if self._add_frontier(frontier, neighbor):
+                        frontier_omitted = True
+                        break
                     continue
                 visited.add(neighbor)
                 depths[neighbor] = depth + 1
                 queue.append(neighbor)
         if overflow is None and queue:
             overflow = "node_limit"
+        invalid = self._has_directed_cycle(examined.values())
         return SourceDependenceProjection(
             task_id=task_id,
-            complete=overflow is None,
+            complete=overflow is None and not invalid,
             truncated=overflow is not None,
             limits=self.LIMITS,
             visited_source_ids=sorted(visited, key=lambda item: item.int),
@@ -344,7 +363,10 @@ class SourceDependenceService:
                 for record in sorted(examined.values(), key=lambda item: item.relationship_id.int)
             ],
             frontier_source_ids=sorted(frontier, key=lambda item: item.int),
+            frontier_omitted=frontier_omitted,
             overflow_reason=overflow,
+            invalid=invalid,
+            invalid_reason="directed_cycle" if invalid else None,
             unknown_dependence=True,
         )
 
@@ -359,6 +381,7 @@ class SourceDependenceService:
         operation_id: UUID,
         reason: str,
         authority: PersistedSecurityState,
+        command_request: dict[str, Any],
         reverses_change_id: UUID | None = None,
         previous_state_override: SourceRelationship | None = None,
     ) -> SourceRelationship:
@@ -393,6 +416,7 @@ class SourceDependenceService:
                 reason=reason,
                 authority=authority,
                 reverses_change_id=reverses_change_id,
+                command_request=command_request,
             )
         )
         self._stage_audit(task_id, operation_id, state)
@@ -456,7 +480,7 @@ class SourceDependenceService:
     ) -> None:
         queue: deque[tuple[UUID, int]] = deque([(upstream_id, 0)])
         visited = {upstream_id}
-        examined = 0
+        examined: set[UUID] = set()
         while queue:
             source_id, depth = queue.popleft()
             records = self.session.scalars(
@@ -471,13 +495,17 @@ class SourceDependenceService:
                     ),
                 )
                 .order_by(SourceRelationshipRecord.relationship_id)
+                .limit(self.LIMITS.max_examined_relationships + 1)
             )
             for record in records:
                 if record.relationship_id == excluded_relationship_id:
                     continue
-                examined += 1
-                if examined > self.LIMITS.max_examined_relationships:
-                    raise SourceDependenceConflict("Graph validation limit prevents cycle proof")
+                if record.relationship_id not in examined:
+                    if len(examined) >= self.LIMITS.max_examined_relationships:
+                        raise SourceDependenceConflict(
+                            "Graph validation limit prevents cycle proof"
+                        )
+                    examined.add(record.relationship_id)
                 edge_derived, edge_upstream = self._directional_endpoints(record, record.direction)
                 if edge_derived != source_id:
                     continue
@@ -487,8 +515,52 @@ class SourceDependenceService:
                     continue
                 if depth >= self.LIMITS.max_hops:
                     raise SourceDependenceConflict("Graph validation limit prevents cycle proof")
+                if len(visited) >= self.LIMITS.max_visited_sources:
+                    raise SourceDependenceConflict("Graph validation limit prevents cycle proof")
                 visited.add(edge_upstream)
                 queue.append((edge_upstream, depth + 1))
+
+    def _lock_task_for_read(self, task_id: UUID) -> None:
+        if self.session.scalar(
+            select(ResearchTaskRecord.id)
+            .where(ResearchTaskRecord.id == task_id)
+            .with_for_update(read=True)
+        ) is None:
+            raise SourceDependenceNotFound("Research task was not found")
+
+    def _add_frontier(self, frontier: set[UUID], source_id: UUID) -> bool:
+        if source_id in frontier:
+            return False
+        if len(frontier) >= self.LIMITS.max_frontier_sources:
+            return True
+        frontier.add(source_id)
+        return False
+
+    @classmethod
+    def _has_directed_cycle(cls, records: Iterable[SourceRelationshipRecord]) -> bool:
+        adjacency: dict[UUID, set[UUID]] = {}
+        for record in records:
+            if record.kind != SourceDependenceKind.DERIVED_FROM.value:
+                continue
+            derived_id, upstream_id = cls._directional_endpoints(record, record.direction)
+            adjacency.setdefault(derived_id, set()).add(upstream_id)
+            adjacency.setdefault(upstream_id, set())
+        state: dict[UUID, int] = {}
+
+        def visit(source_id: UUID) -> bool:
+            state[source_id] = 1
+            for neighbor in sorted(adjacency[source_id], key=lambda item: item.int):
+                if state.get(neighbor) == 1 or (
+                    state.get(neighbor, 0) == 0 and visit(neighbor)
+                ):
+                    return True
+            state[source_id] = 2
+            return False
+
+        return any(
+            state.get(source_id, 0) == 0 and visit(source_id)
+            for source_id in sorted(adjacency, key=lambda item: item.int)
+        )
 
     def _lock_task(self, task_id: UUID) -> None:
         if self.session.scalar(
@@ -525,28 +597,129 @@ class SourceDependenceService:
         change: SourceRelationshipChangeRecord,
         *,
         task_id: UUID,
-        relationship_id: UUID | None,
+        command_request: dict[str, Any],
+    ) -> SourceRelationship:
+        if (
+            change.task_id != task_id
+            or change.actor_type != self.actor.actor_type
+            or change.actor_id != self.actor.actor_id
+            or change.command_request is None
+            or change.command_request != command_request
+        ):
+            raise SourceDependenceConflict("Operation identity was reused with different content")
+        return SourceRelationship.model_validate(change.resulting_state)
+
+    @classmethod
+    def _validated_history(
+        cls,
+        projection: SourceRelationshipRecord,
+        records: list[SourceRelationshipChangeRecord],
+    ) -> list[SourceRelationshipChangeRecord]:
+        def invalid() -> SourceDependenceConflict:
+            return SourceDependenceConflict("Source relationship history integrity check failed")
+
+        if not records:
+            raise invalid()
+        previous_result: SourceRelationship | None = None
+        for expected_revision, record in enumerate(records, start=1):
+            if (
+                record.revision != expected_revision
+                or record.previous_revision != expected_revision - 1
+                or record.relationship_id != projection.relationship_id
+                or record.task_id != projection.task_id
+                or (
+                    expected_revision == 1
+                    and (record.operation != "CREATE" or record.previous_state is not None)
+                )
+                or (
+                    expected_revision > 1
+                    and (record.operation == "CREATE" or previous_result is None)
+                )
+            ):
+                raise invalid()
+            try:
+                resulting = SourceRelationship.model_validate(record.resulting_state)
+                previous = (
+                    SourceRelationship.model_validate(record.previous_state)
+                    if record.previous_state is not None
+                    else None
+                )
+            except (TypeError, ValueError, KeyError):
+                raise invalid() from None
+            if (
+                resulting.relationship_id != record.relationship_id
+                or resulting.task_id != record.task_id
+                or resulting.revision != record.revision
+                or resulting.latest_change_id != record.change_id
+                or (previous_result is not None and previous != previous_result)
+            ):
+                raise invalid()
+            previous_result = resulting
+
+        try:
+            current = cls._state_from_record(projection)
+        except (TypeError, ValueError, KeyError):
+            raise invalid() from None
+        if previous_result != current:
+            raise invalid()
+        return records
+
+    def _canonical_create_request(
+        self,
+        request: SourceRelationshipCreate,
+        *,
+        low_id: UUID,
+        high_id: UUID,
+        direction: str,
+    ) -> dict[str, Any]:
+        return {
+            "version": 1,
+            "command": "CREATE",
+            "actor_type": self.actor.actor_type,
+            "actor_id": self.actor.actor_id,
+            "kind": request.kind.value,
+            "source_low_id": str(low_id),
+            "source_high_id": str(high_id),
+            "direction": direction,
+            "lifecycle": "active",
+            "reason": request.reason,
+            "expected_revision": 0,
+        }
+
+    def _canonical_mutation_request(
+        self,
+        request: SourceRelationshipMutation,
+        *,
         kind: str,
         direction: str,
         lifecycle: str,
-        source_low_id: UUID | None = None,
-        source_high_id: UUID | None = None,
-    ) -> SourceRelationship:
-        state = change.resulting_state
-        if (
-            change.task_id != task_id
-            or (relationship_id is not None and change.relationship_id != relationship_id)
-            or state.get("kind") != kind
-            or state.get("direction") != direction
-            or state.get("lifecycle") != lifecycle
-            or (source_low_id is not None and state.get("source_low_id") != str(source_low_id))
-            or (source_high_id is not None and state.get("source_high_id") != str(source_high_id))
-        ):
-            raise SourceDependenceConflict("Operation identity was reused with different content")
-        current = self.session.get(SourceRelationshipRecord, change.relationship_id)
-        if current is None:
-            raise SourceDependenceConflict("Accepted relationship projection is unavailable")
-        return self._state_from_record(current)
+    ) -> dict[str, Any]:
+        return {
+            "version": 1,
+            "command": request.operation,
+            "actor_type": self.actor.actor_type,
+            "actor_id": self.actor.actor_id,
+            "relationship_id": str(request.relationship_id),
+            "kind": kind,
+            "direction": direction,
+            "lifecycle": lifecycle,
+            "reason": request.reason,
+            "expected_revision": request.expected_revision,
+        }
+
+    def _canonical_reversal_request(
+        self, request: SourceRelationshipReversal
+    ) -> dict[str, Any]:
+        return {
+            "version": 1,
+            "command": "REVERSE",
+            "actor_type": self.actor.actor_type,
+            "actor_id": self.actor.actor_id,
+            "relationship_id": str(request.relationship_id),
+            "change_id": str(request.change_id),
+            "reason": request.reason,
+            "expected_revision": request.expected_revision,
+        }
 
     @staticmethod
     def _directional_endpoints(
@@ -622,6 +795,7 @@ class SourceDependenceService:
         reason: str,
         authority: PersistedSecurityState,
         reverses_change_id: UUID | None = None,
+        command_request: dict[str, Any] | None = None,
     ) -> SourceRelationshipChangeRecord:
         return SourceRelationshipChangeRecord(
             change_id=change_id,
@@ -639,6 +813,7 @@ class SourceDependenceService:
             authority_epoch_id=authority.authority_epoch_id.value,
             security_state_version=authority.version,
             reverses_change_id=reverses_change_id,
+            command_request=command_request,
             created_at=state.updated_at,
         )
 

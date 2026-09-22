@@ -414,6 +414,7 @@ class SourceDependenceLimits(BaseModel):
     max_visited_sources: int = 100
     max_examined_relationships: int = 500
     max_hops: int = 8
+    max_frontier_sources: int = 100
 
 
 class SourceDependenceProjection(BaseModel):
@@ -428,7 +429,10 @@ class SourceDependenceProjection(BaseModel):
     visited_source_ids: list[UUID]
     examined_relationships: list[SourceRelationship]
     frontier_source_ids: list[UUID]
+    frontier_omitted: bool = False
     overflow_reason: Literal["node_limit", "edge_limit", "depth_limit"] | None = None
+    invalid: bool = False
+    invalid_reason: Literal["directed_cycle"] | None = None
     unknown_dependence: bool = True
     note: str = (
         "Declared relationships describe dependence only. Missing or partial graph "
