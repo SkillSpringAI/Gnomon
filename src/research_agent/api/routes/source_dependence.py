@@ -18,6 +18,7 @@ from research_agent.domain.research import (
     SourceRelationshipChange,
     SourceRelationshipCreate,
     SourceRelationshipMutation,
+    SourceRelationshipPage,
     SourceRelationshipReversal,
 )
 from research_agent.persistence.database import get_session
@@ -50,6 +51,19 @@ def create_relationship(
         return SourceDependenceService(session).create(task_id, request)
     except SourceDependenceConflict as exc:
         raise _conflict(exc) from exc
+    except SourceDependenceNotFound as exc:
+        raise HTTPException(status_code=404, detail="Investigation not found") from exc
+
+
+@router.get("/relationships", response_model=SourceRelationshipPage)
+def list_relationships(
+    task_id: UUID,
+    session: Annotated[Session, Depends(get_session)],
+    after: UUID | None = None,
+) -> SourceRelationshipPage:
+    try:
+        items, next_after = SourceDependenceService(session).list_relationships(task_id, after)
+        return SourceRelationshipPage(items=items, next_after=next_after)
     except SourceDependenceNotFound as exc:
         raise HTTPException(status_code=404, detail="Investigation not found") from exc
 

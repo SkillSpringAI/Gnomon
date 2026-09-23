@@ -33,6 +33,11 @@
   </nav>
   <p id="availability" class="muted"></p>
   <p id="message" class="muted" role="status" aria-live="polite"></p>
+  <aside id="pending-command" hidden>
+    <p>The last write has an unconfirmed outcome. Retry the same request before making another change.</p>
+    <button id="retry-command" type="button">Retry unchanged request</button>
+  </aside>
+  <p id="command-storage-error" class="error" hidden>Saved request storage is unavailable or invalid. Changes are paused. Restore this tab's storage before continuing; an earlier request may still need confirmation.</p>
   <fieldset id="collection" disabled>
     <legend id="collection-title">Collect evidence</legend>
     <p>Choose one collection method for the next planned cycle.</p>
@@ -101,19 +106,93 @@
   <ul id="limitations"></ul>
   <h2>Stopping decision</h2>
   <p id="stopping-decision" class="muted"></p>
+  <fieldset id="stopping-editor" disabled>
+    <legend>Record stopping decision</legend>
+    <p id="stopping-readiness" class="muted"></p>
+    <form id="stopping-form">
+      <label for="stopping-reason">Reason</label>
+      <select id="stopping-reason">
+        <option value="evidence_sufficient">Evidence sufficient</option>
+        <option value="resource_limited">Resource limited</option>
+        <option value="evidence_unavailable">Evidence unavailable</option>
+        <option value="operator_stopped">Operator stopped</option>
+      </select>
+      <label for="stopping-rationale">Rationale</label>
+      <textarea id="stopping-rationale" rows="3" maxlength="4000" required></textarea>
+      <label for="stopping-limitations">Operator limitations (one per line)</label>
+      <textarea id="stopping-limitations" rows="3" maxlength="4000"></textarea>
+      <details><summary>Select evidence and planning references</summary>
+        <p>References are IDs from the current report and are validated again by the server.</p>
+        <div id="stopping-sources"></div>
+        <div id="stopping-claims"></div>
+        <label for="stopping-cycle">Cycle for objective references</label>
+        <select id="stopping-cycle"></select>
+        <div id="stopping-objectives"></div>
+        <div id="stopping-reviews"></div>
+      </details>
+      <label for="stopping-runtime">Operator-reported runtime limits (one per line)</label>
+      <p>These notes are not verified runtime records.</p>
+      <textarea id="stopping-runtime" rows="2" maxlength="4000"></textarea>
+      <button id="submit-stopping" type="submit">Record stopping decision</button>
+    </form>
+  </fieldset>
   <h2>Source dependence</h2>
   <p id="source-dependence" class="muted"></p>
+  <details id="dependence-view" hidden>
+    <summary>Bounded dependence graph</summary>
+    <p id="dependence-boundary" class="muted"></p>
+    <ul id="dependence-edges"></ul>
+    <p id="dependence-frontier" class="muted"></p>
+  </details>
+  <fieldset id="dependence-editor" disabled>
+    <legend>Edit declared source dependence</legend>
+    <p>These are operator declarations. Missing relationships do not establish independence.</p>
+    <form id="dependence-form">
+      <label for="dependence-kind">Relationship kind</label>
+      <select id="dependence-kind"><option value="derived_from">Derived source</option><option value="common_origin">Common origin</option></select>
+      <div id="directional-fields">
+        <label for="dependence-derived">Derived source</label><select id="dependence-derived"></select>
+        <label for="dependence-upstream">Upstream source</label><select id="dependence-upstream"></select>
+      </div>
+      <div id="symmetric-fields" hidden>
+        <label for="dependence-source-a">Source A</label><select id="dependence-source-a"></select>
+        <label for="dependence-source-b">Source B</label><select id="dependence-source-b"></select>
+      </div>
+      <label for="dependence-reason">Reason</label>
+      <textarea id="dependence-reason" rows="2" maxlength="255" required></textarea>
+      <button id="create-dependence" type="submit">Declare relationship</button>
+    </form>
+    <div id="dependence-rows"></div>
+    <p>Declarations include retracted relationships. Each page contains at most 100.</p>
+    <button id="relationships-first" type="button">First declarations page</button>
+    <button id="relationships-next" type="button">Next declarations page</button>
+  </fieldset>
   <details><summary>Agent comparisons</summary><pre id="observations"></pre></details>
   <pre id="content" hidden></pre>
   <script>
     const taskId = '__TASK_ID__';
     const byId = id => document.getElementById(id);
     let report = null;
+    let readiness = null;
+    let relationshipPage = { items: [], next_after: null };
+    let relationshipAfter = null;
+    const pendingKey = `gnomon-pending-command:${taskId}`;
+    let pendingCommand = null;
+    let commandStorageAvailable = true;
+    try {
+      pendingCommand = JSON.parse(sessionStorage.getItem(pendingKey) || 'null');
+      if (pendingCommand && (!/^\/(stopping-decision|source-dependence\/relationships(?:\/[0-9a-f-]{36}(?:\/reverse)?)?)$/.test(pendingCommand.path)
+          || !['POST', 'PATCH'].includes(pendingCommand.options?.method)
+          || !JSON.parse(pendingCommand.options.body).operation_id)) throw new Error('Invalid saved request');
+    }
+    catch { commandStorageAvailable = false; }
     let progressByCycle = new Map();
     let busy = false;
     let selectionKey = null;
     let reviewKey = null;
     let recoveryKey = null;
+    let dependenceKey = null;
+    let stoppingReferenceKey = null;
     const activeCycle = () => report?.cycles.find(item => item.status === 'active');
     function renderRecovery() {
       const cycle = activeCycle();
@@ -131,6 +210,168 @@
       && ['completed', 'blocked', 'failed'].includes(latestCycle()?.status);
     const reviewIds = kind => Array.from(byId(`review-${kind}`).querySelectorAll('input:checked'),
       input => input.value);
+    const sourceLabel = id => {
+      const source = report?.sources.find(item => item.id === id);
+      return source ? `${source.title} (${id.slice(0, 8)})` : id;
+    };
+    function sourceOptions(select) {
+      select.replaceChildren();
+      const empty = document.createElement('option'); empty.value = ''; empty.textContent = 'Choose a source';
+      select.append(empty);
+      for (const source of report?.sources || []) {
+        const option = document.createElement('option'); option.value = source.id;
+        option.textContent = sourceLabel(source.id); select.append(option);
+      }
+    }
+    function renderDependenceEditor() {
+      const dependence = report?.source_dependence;
+      const key = JSON.stringify([report?.sources.map(item => item.id), relationshipPage.items]);
+      byId('dependence-editor').hidden = !report?.sources.length;
+      if (dependenceKey === key) return;
+      dependenceKey = key;
+      for (const id of ['dependence-derived', 'dependence-upstream', 'dependence-source-a', 'dependence-source-b'])
+        sourceOptions(byId(id));
+      byId('dependence-reason').value = '';
+      const rows = byId('dependence-rows'); rows.replaceChildren();
+      for (const relationship of relationshipPage.items) {
+        const article = document.createElement('article');
+        article.dataset.relationshipId = relationship.relationship_id;
+        const endpoints = relationship.kind === 'common_origin'
+          ? `${sourceLabel(relationship.source_low_id)} ↔ ${sourceLabel(relationship.source_high_id)}`
+          : relationship.direction === 'low_to_high'
+            ? `${sourceLabel(relationship.source_low_id)} → ${sourceLabel(relationship.source_high_id)}`
+            : `${sourceLabel(relationship.source_high_id)} → ${sourceLabel(relationship.source_low_id)}`;
+        const text = document.createElement('p');
+        text.textContent = `${relationship.kind}: ${endpoints} (${relationship.lifecycle}, revision ${relationship.revision})`;
+        article.append(text);
+        if (relationship.lifecycle === 'active') {
+          const correct = document.createElement('button'); correct.type = 'button'; correct.textContent = 'Correct direction';
+          correct.disabled = relationship.kind === 'common_origin';
+          correct.addEventListener('click', () => correctDependence(relationship)); article.append(correct);
+          const retract = document.createElement('button'); retract.type = 'button'; retract.textContent = 'Retract';
+          retract.addEventListener('click', () => mutateDependence(relationship)); article.append(retract);
+        }
+        const history = document.createElement('button'); history.type = 'button'; history.textContent = 'Show history';
+        history.addEventListener('click', () => showDependenceHistory(article, relationship)); article.append(history);
+        {
+          const reverse = document.createElement('button'); reverse.type = 'button'; reverse.textContent = 'Reverse latest change';
+          reverse.addEventListener('click', () => reverseDependence(relationship)); article.append(reverse);
+        }
+        rows.append(article);
+      }
+    }
+    function renderDependenceFields() {
+      const symmetric = byId('dependence-kind').value === 'common_origin';
+      byId('directional-fields').hidden = symmetric;
+      byId('symmetric-fields').hidden = !symmetric;
+    }
+    async function mutateDependence(relationship) {
+      const reason = window.prompt('Reason for relationship change:', 'Correct the declared relationship.');
+      if (!reason?.trim()) return;
+      await action(async () => {
+        await request(`/source-dependence/relationships/${relationship.relationship_id}`, {
+          method: 'PATCH', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ relationship_id: relationship.relationship_id,
+            expected_revision: relationship.revision, operation: 'RETRACT', lifecycle: 'retracted',
+            reason: reason.trim() }),
+        });
+        return 'Source relationship updated.';
+      }, 'Updating source relationship…');
+    }
+    async function correctDependence(relationship) {
+      const direction = relationship.direction === 'low_to_high' ? 'high_to_low' : 'low_to_high';
+      const derived = direction === 'low_to_high' ? relationship.source_low_id : relationship.source_high_id;
+      const upstream = direction === 'low_to_high' ? relationship.source_high_id : relationship.source_low_id;
+      if (!window.confirm(`Change the declaration so ${sourceLabel(derived)} is derived from ${sourceLabel(upstream)}?`)) return;
+      const reason = window.prompt('Reason for correction:', 'Correct the declared direction.');
+      if (!reason?.trim()) return;
+      await action(async () => {
+        await request(`/source-dependence/relationships/${relationship.relationship_id}`, {
+          method: 'PATCH', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ relationship_id: relationship.relationship_id,
+            expected_revision: relationship.revision, operation: 'SET', direction,
+            lifecycle: 'active', reason: reason.trim() }),
+        });
+        return 'Source relationship corrected.';
+      }, 'Correcting source relationship…');
+    }
+    async function reverseDependence(relationship) {
+      const reason = window.prompt('Reason for reversal:', 'Reverse the latest declaration.');
+      if (!reason?.trim()) return;
+      await action(async () => {
+        await request(`/source-dependence/relationships/${relationship.relationship_id}/reverse`, {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ relationship_id: relationship.relationship_id,
+            change_id: relationship.latest_change_id, expected_revision: relationship.revision,
+            reason: reason.trim() }),
+        });
+        return 'Source relationship reversal recorded.';
+      }, 'Reversing source relationship…');
+    }
+    async function showDependenceHistory(article, relationship) {
+      try {
+        const history = await request(`/source-dependence/relationships/${relationship.relationship_id}/history`);
+        const detail = document.createElement('details'); detail.open = true;
+        const summary = document.createElement('summary'); summary.textContent = 'Relationship history'; detail.append(summary);
+        for (const change of history) {
+          const line = document.createElement('p');
+          line.textContent = `${change.operation}, revision ${change.revision}: ${change.reason}`;
+          detail.append(line);
+        }
+        article.querySelector('details')?.remove();
+        article.append(detail);
+      } catch (error) { message(error.message, true); }
+    }
+    function renderStoppingEditor() {
+      const canSubmit = report && readiness && !pendingCommand && commandStorageAvailable && !readiness.current_decision
+        && ['active', 'paused', 'blocked'].includes(report.task_status);
+      byId('stopping-editor').hidden = !report;
+      if (busy || !canSubmit) byId('stopping-editor').setAttribute('disabled', '');
+      else byId('stopping-editor').removeAttribute('disabled');
+      const items = readiness?.items || [];
+      byId('stopping-readiness').textContent = items.length
+        ? items.map(item => `${item.status}: ${item.detail}`).join(' ')
+        : 'Readiness is unavailable; refresh before submitting.';
+      renderStoppingReferences();
+      byId('submit-stopping').disabled = busy || !canSubmit || !byId('stopping-rationale').value.trim();
+    }
+    function referenceChecks(id, values) {
+      const parent = byId(id); parent.replaceChildren();
+      for (const item of values) {
+        const label = document.createElement('label');
+        const input = document.createElement('input'); input.type = 'checkbox'; input.value = item.value;
+        input.addEventListener('change', renderStoppingEditor);
+        label.append(input, document.createTextNode(` ${item.label}`)); parent.append(label);
+      }
+    }
+    function checkedReferences(id) {
+      return Array.from(byId(id).querySelectorAll('input:checked'), input => input.value);
+    }
+    function renderStoppingReferences() {
+      if (!report) return;
+      const picker = byId('stopping-cycle');
+      const chosen = picker.value;
+      const cyclesKey = JSON.stringify(report.cycles.map(cycle => [cycle.number, cycle.objectives]));
+      if (picker.dataset.cycles !== cyclesKey) {
+        picker.replaceChildren();
+        for (const cycle of report.cycles) {
+          const option = document.createElement('option'); option.value = String(cycle.number);
+          option.textContent = `Cycle ${cycle.number}`; picker.append(option);
+        }
+        picker.value = report.cycles.some(cycle => String(cycle.number) === chosen)
+          ? chosen : String(report.cycles.at(-1)?.number || '');
+        picker.dataset.cycles = cyclesKey;
+      }
+      const latest = report.cycles.find(cycle => String(cycle.number) === picker.value);
+      const reviews = report.cycles.flatMap(cycle => cycle.objective_reviews);
+      const key = JSON.stringify([report.sources, report.claims, latest?.number, latest?.objectives, reviews]);
+      if (stoppingReferenceKey === key) return;
+      stoppingReferenceKey = key;
+      referenceChecks('stopping-sources', report.sources.map(item => ({value: item.id, label: `Source: ${item.title}`})));
+      referenceChecks('stopping-claims', report.claims.map(item => ({value: item.id, label: `Claim: ${item.statement}`})));
+      referenceChecks('stopping-objectives', (latest?.objectives || []).map((item, index) => ({value: String(index), label: `Objective ${index + 1}: ${item}`})));
+      referenceChecks('stopping-reviews', reviews.map(item => ({value: item.id, label: `Review: ${item.objective} — revision ${item.revision}`})));
+    }
     function renderReview() {
       const cycle = latestCycle();
       byId('review-current').textContent = report.unresolved_objectives.length
@@ -209,10 +450,12 @@
     }
     const plannedCycle = () => report?.cycles.find(cycle => cycle.status === 'planned');
     function controls() {
+      renderStoppingEditor();
       const active = report?.task_status === 'active';
       const running = report?.cycles.some(cycle => cycle.status === 'active');
       const planned = plannedCycle();
       byId('refresh').disabled = busy;
+      byId('dependence-editor').disabled = busy || !report?.sources.length;
       byId('recovery-panel').disabled = busy || !activeCycle();
       byId('recover-cycle').disabled = busy || !activeCycle() || !byId('recovery-reason').value.trim();
       byId('review-panel').disabled = busy || !canReview();
@@ -234,6 +477,15 @@
       byId('lifecycle').textContent = report?.task_status === 'paused'
         ? 'Resume investigation' : 'Pause investigation';
       byId('draft').disabled = busy || !report;
+      byId('relationships-first').disabled = busy || !relationshipAfter;
+      byId('relationships-next').disabled = busy || !relationshipPage.next_after;
+      byId('pending-command').hidden = !pendingCommand;
+      byId('command-storage-error').hidden = commandStorageAvailable;
+      byId('retry-command').disabled = busy || !commandStorageAvailable;
+      if (pendingCommand || !commandStorageAvailable) {
+        for (const id of ['dependence-editor', 'stopping-editor', 'collection', 'review-panel', 'recovery-panel', 'plan-cycle', 'lifecycle', 'draft'])
+          byId(id).disabled = true;
+      }
       byId('availability').textContent = !report ? 'Refresh the report to load current state.'
         : busy ? 'An operation is in progress.'
         : report.task_status === 'paused' ? 'Resume the investigation before planning or running a cycle.'
@@ -245,18 +497,46 @@
       byId('message').textContent = text;
       byId('message').className = error ? 'error' : 'muted';
     }
-    async function request(path, options) {
+    function operationId() {
+      const bytes = crypto.getRandomValues(new Uint8Array(16));
+      bytes[6] = (bytes[6] & 15) | 64; bytes[8] = (bytes[8] & 63) | 128;
+      const hex = Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('');
+      return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+    }
+    async function request(path, options, replay = false) {
+      const durableWrite = ['POST', 'PATCH'].includes(options?.method)
+        && (path === '/stopping-decision' || path.startsWith('/source-dependence/relationships'));
+      if (durableWrite && !replay) {
+        if (pendingCommand) throw new Error('Retry the unconfirmed request before making another change.');
+        options = { ...options, body: JSON.stringify({ ...JSON.parse(options.body), operation_id: operationId() }) };
+        const command = { path, options };
+        try { sessionStorage.setItem(pendingKey, JSON.stringify(command)); }
+        catch { commandStorageAvailable = false; throw new Error('Browser storage is unavailable; the write was not sent.'); }
+        pendingCommand = command;
+      }
       const response = await fetch(`/investigations/${taskId}${path}`, options);
+      const clearPending = () => {
+        sessionStorage.removeItem(pendingKey);
+        pendingCommand = null;
+      };
+      if (durableWrite && response.status >= 400 && response.status < 500) clearPending();
       if (response.status === 409) {
         const failure = await response.json();
         if (failure.detail === 'No pending objectives for the current evidence')
           throw new Error('No pending objectives for the current evidence. Decide whether to conclude the investigation or collect new evidence.');
+        if (failure.detail === 'Source relationship reversal window expired')
+          throw new Error('The reversal window has expired. Review the relationship history before making a new correction.');
+        if (typeof failure.detail === 'string' && failure.detail.startsWith('Stopping decision references an unknown'))
+          throw new Error('A selected stopping reference is no longer valid. Review the refreshed references before submitting again.');
       }
       if (!response.ok) throw new Error(response.status === 409
         ? 'The investigation changed. Review the refreshed state before continuing.'
+        : response.status === 403 ? 'This action is not permitted under the current authority. Review the refreshed state.'
         : response.status === 422 ? 'Check the selected objectives, URLs, and permitted research methods.'
         : `Request failed (${response.status}).`);
-      return response.json();
+      const result = await response.json();
+      if (durableWrite) clearPending();
+      return result;
     }
     function paragraph(parent, text) {
       const element = document.createElement('p');
@@ -374,11 +654,12 @@
       byId('limitations').replaceChildren();
       list(byId('limitations'), report.limitations);
       const stopping = report.stopping_decision;
-      byId('stopping-decision').textContent = stopping
+      byId('stopping-decision').textContent = stopping?.decision_id || report.task_status === 'concluded'
         ? `Reason: ${stopping.reason}${stopping.stale ? ' — evidence basis changed; review required' : ''}`
           + (stopping.rationale ? ` Rationale: ${stopping.rationale}` : '')
           + (stopping.limitations.length ? ` Limitations: ${stopping.limitations.join(' ')}` : '')
         : 'No stopping decision is recorded.';
+      renderStoppingEditor();
       const dependence = report.source_dependence;
       byId('source-dependence').textContent = dependence
         ? `${dependence.examined_relationships.length} declared relationship(s) across `
@@ -387,12 +668,43 @@
             ? `Projection truncated (${dependence.overflow_reason}); remaining dependence is unknown.`
             : 'Missing relationships do not establish independent evidence.')
         : 'Source-dependence data is unavailable; independence remains unknown.';
+      renderDependenceView(dependence);
+      renderDependenceEditor();
       byId('observations').textContent = report.agent_comparison
         ? JSON.stringify(report.agent_comparison, null, 2) : 'No agent observations recorded yet.';
+    }
+    function renderDependenceView(dependence) {
+      const view = byId('dependence-view');
+      view.hidden = !dependence;
+      if (!dependence) return;
+      const boundary = (dependence.invalid
+        ? 'Invalid directed graph detected; this projection must not be used as a valid corroboration structure. ' : '')
+        + (dependence.truncated
+          ? `Projection is bounded and truncated (${dependence.overflow_reason}); remaining dependence is unknown. `
+          : dependence.complete ? 'Projection traversal is complete. ' : 'Projection is incomplete; remaining dependence is unknown. ')
+        + 'Missing relationships still do not establish independence.';
+      byId('dependence-boundary').textContent = boundary;
+      const edges = byId('dependence-edges'); edges.replaceChildren();
+      for (const edge of dependence.examined_relationships) {
+        const item = document.createElement('li');
+        const left = sourceLabel(edge.source_low_id); const right = sourceLabel(edge.source_high_id);
+        item.textContent = edge.kind === 'common_origin'
+          ? `${left} ↔ ${right}`
+          : `${edge.direction === 'low_to_high' ? left : right} → ${edge.direction === 'low_to_high' ? right : left}`;
+        edges.append(item);
+      }
+      byId('dependence-frontier').textContent = dependence.frontier_source_ids.length
+        ? `Frontier sources omitted from traversal: ${dependence.frontier_source_ids.map(sourceLabel).join(', ')}${dependence.frontier_omitted ? ' (additional frontier omitted).' : '.'}`
+        : dependence.frontier_omitted ? 'Additional frontier sources were omitted.'
+          : dependence.truncated ? 'No frontier IDs are available; traversal remains incomplete.'
+          : 'No frontier sources were omitted.';
     }
     async function loadReport() {
       try {
         report = await request('/report');
+        readiness = await request('/stopping-decision/readiness');
+        relationshipPage = await request('/source-dependence/relationships'
+          + (relationshipAfter ? `?after=${encodeURIComponent(relationshipAfter)}` : ''));
         const progress = await Promise.all(report.cycles.map(async cycle => {
           const response = await fetch(`/investigations/${taskId}/cycles/${cycle.number}/attempts/latest`);
           if (response.status === 404) return [cycle.number, null];
@@ -403,6 +715,7 @@
         render();
       } catch (error) {
         report = null;
+        readiness = null;
         progressByCycle = new Map();
         byId('status').textContent = 'Investigation status: unavailable';
         throw error;
@@ -427,6 +740,65 @@
     byId('refresh').addEventListener('click', () => action(
       async () => 'Report refreshed.', 'Refreshing…'
     ));
+    byId('retry-command').addEventListener('click', () => action(async () => {
+      if (!pendingCommand) return 'No pending request.';
+      const { path, options } = pendingCommand;
+      await request(path, options, true);
+      return 'Original request confirmed. No duplicate change was created.';
+    }, 'Retrying the unchanged request…'));
+    byId('relationships-first').addEventListener('click', () => {
+      relationshipAfter = null;
+      action(async () => 'First declarations page loaded.', 'Loading declarations…');
+    });
+    byId('relationships-next').addEventListener('click', () => {
+      relationshipAfter = relationshipPage.next_after;
+      action(async () => 'Next declarations page loaded.', 'Loading declarations…');
+    });
+    byId('stopping-cycle').addEventListener('change', renderStoppingEditor);
+    byId('dependence-kind').addEventListener('change', renderDependenceFields);
+    byId('dependence-form').addEventListener('submit', event => {
+      event.preventDefault();
+      if (busy) return;
+      const kind = byId('dependence-kind').value;
+      const fields = kind === 'common_origin'
+        ? { source_a_id: byId('dependence-source-a').value, source_b_id: byId('dependence-source-b').value }
+        : { derived_source_id: byId('dependence-derived').value, upstream_source_id: byId('dependence-upstream').value };
+      if (Object.values(fields).some(value => !value) || !byId('dependence-reason').value.trim()) {
+        message('Choose sources and provide a reason.', true); return;
+      }
+      action(async () => {
+        await request('/source-dependence/relationships', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ ...fields, kind, reason: byId('dependence-reason').value.trim() }),
+        });
+        return 'Source relationship declared.';
+      }, 'Saving source relationship…');
+    });
+    byId('stopping-rationale').addEventListener('input', renderStoppingEditor);
+    byId('stopping-form').addEventListener('submit', event => {
+      event.preventDefault();
+      if (byId('submit-stopping').disabled) return;
+      const limitations = byId('stopping-limitations').value.split('\n').map(item => item.trim()).filter(Boolean);
+      const objectiveIndices = checkedReferences('stopping-objectives').map(Number);
+      const selectedCycle = report.cycles.find(cycle => String(cycle.number) === byId('stopping-cycle').value);
+      action(async () => {
+        await request('/stopping-decision', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            reason: byId('stopping-reason').value,
+            rationale: byId('stopping-rationale').value.trim(),
+            expected_status: readiness.task_status,
+            expected_revision: readiness.task_revision,
+            expected_evidence_fingerprint: readiness.evidence_fingerprint,
+            source_ids: checkedReferences('stopping-sources'), claim_ids: checkedReferences('stopping-claims'),
+            objective_cycle_number: objectiveIndices.length ? selectedCycle?.number : null,
+            objective_indices: objectiveIndices, review_ids: checkedReferences('stopping-reviews'), limitations,
+            runtime_limit_evidence: byId('stopping-runtime').value.split('\n').map(item => item.trim()).filter(Boolean),
+          }),
+        });
+        return 'Stopping decision recorded.';
+      }, 'Recording stopping decision…');
+    });
     byId('run-cycle').addEventListener('click', () => {
       if (byId('run-cycle').disabled) return;
       const number = plannedCycle().number;

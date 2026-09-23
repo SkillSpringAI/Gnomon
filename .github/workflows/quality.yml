@@ -78,4 +78,4 @@ jobs:
       - name: Run browser regression suite
         run: |
           python -m pytest tests/integration/test_workspace_browser.py -ra --junitxml=browser-results.xml
-          python -c "import xml.etree.ElementTree as ET; root=ET.parse('browser-results.xml').getroot(); suites=[root] if root.tag == 'testsuite' else root.findall('testsuite'); attrs={key: sum(int(s.attrib.get(key, '0')) for s in suites) for key in ('tests', 'failures', 'errors', 'skipped')}; assert attrs['tests'] == 5, attrs; assert attrs['failures'] == attrs['errors'] == attrs['skipped'] == 0, attrs"
+          python -c "import xml.etree.ElementTree as ET; root=ET.parse('browser-results.xml').getroot(); suites=[root] if root.tag == 'testsuite' else root.findall('testsuite'); attrs={key: sum(int(s.attrib.get(key, '0')) for s in suites) for key in ('tests', 'failures', 'errors', 'skipped')}; assert attrs['tests'] == 24, attrs; assert attrs['failures'] == attrs['errors'] == attrs['skipped'] == 0, attrs"

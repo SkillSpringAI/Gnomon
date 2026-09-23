@@ -346,6 +346,13 @@ class SourceRelationship(BaseModel):
     updated_at: datetime
 
 
+class SourceRelationshipPage(BaseModel):
+    """Bounded current relationships, including retracted declarations."""
+
+    items: list[SourceRelationship]
+    next_after: UUID | None = None
+
+
 class SourceRelationshipChange(BaseModel):
     """Immutable source-dependence relationship change."""
 

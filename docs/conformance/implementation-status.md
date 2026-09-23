@@ -22,12 +22,14 @@ establish global acyclicity or independence. Review fingerprints preserve broad
 invalidation while unrelated evidence does not reopen complete narrow reviews.
 PostgreSQL tests cover reciprocal writes, both lockdown orders and overflow rollback.
 
-Recorded final implementation-local evidence: 1,620 passed, zero skipped with
-browser enabled; lint, strict mypy (87 source files), conformance traceability,
+Recorded final implementation-local evidence: the browser suite now passes 24
+cases with zero skipped; lint, strict mypy (87 source files), conformance traceability,
 smoke, real HTTP restart and clean-wheel checks passed. All 30 migration resources
 were verified with fresh/populated upgrade, rerun and checksum-drift checks. Hosted
 Quality independently passed the exact SHA above, including the existing five
-browser cases. Those cases do not prove the new Slice 3 interactions.
+browser cases. The current 24-case local suite covers the added Slice 3
+interactions; hosted exact-SHA evidence for this implementation remains pending
+until the current changes are committed and run in hosted CI.
 
 History is appended by supported application operations, not protected against
 privileged database rewriting. The inspected local identity is a superuser/table

@@ -284,7 +284,9 @@ def test_activation_wins_before_lockdown_and_commits_policy_event(monkeypatch):
             ).all()
             state = session.get(SecurityStateRecord, 1)
         assert record is not None and record.status == "enabled"
-        assert [item.reason for item in events] == ["registered", "enabled"]
+        # This query has no ordering contract; assert both committed events,
+        # including multiplicity, without relying on PostgreSQL row order.
+        assert sorted(item.reason for item in events) == ["enabled", "registered"]
         assert state is not None and state.state == "lockdown"
     finally:
         cleanup_source(source.id)

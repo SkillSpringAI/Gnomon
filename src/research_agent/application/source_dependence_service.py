@@ -248,6 +248,23 @@ class SourceDependenceService:
             self.session.rollback()
             raise
 
+    def list_relationships(
+        self, task_id: UUID, after: UUID | None = None
+    ) -> tuple[list[SourceRelationship], UUID | None]:
+        """Page current declarations without excluding retracted history heads."""
+        self._lock_task_for_read(task_id)
+        require_capability(self.session, SecurityCapability.READ_AUDIT)
+        query = select(SourceRelationshipRecord).where(SourceRelationshipRecord.task_id == task_id)
+        if after is not None:
+            query = query.where(SourceRelationshipRecord.relationship_id > after)
+        rows = self.session.scalars(
+            query.order_by(SourceRelationshipRecord.relationship_id).limit(101)
+        ).all()
+        return (
+            [self._state_from_record(row) for row in rows[:100]],
+            rows[99].relationship_id if len(rows) > 100 else None,
+        )
+
     def get(self, task_id: UUID, relationship_id: UUID) -> SourceRelationship:
         require_capability(self.session, SecurityCapability.READ_AUDIT)
         record = self.session.scalar(
