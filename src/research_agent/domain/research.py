@@ -588,6 +588,7 @@ class StoppingDecisionCreate(BaseModel):
     expected_evidence_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
     source_ids: list[UUID] = Field(default_factory=list, max_length=100)
     claim_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    objective_cycle_number: int | None = Field(default=None, ge=1, strict=True)
     objective_indices: list[int] = Field(default_factory=list, max_length=50)
     review_ids: list[UUID] = Field(default_factory=list, max_length=100)
     limitations: list[str] = Field(default_factory=list, max_length=20)
@@ -608,6 +609,7 @@ class StoppingDecision(BaseModel):
     rationale: str
     source_ids: list[UUID]
     claim_ids: list[UUID]
+    objective_cycle_number: int | None = Field(default=None, ge=1, strict=True)
     objective_indices: list[int]
     review_ids: list[UUID]
     limitations: list[str]
@@ -644,8 +646,11 @@ class StoppingReadinessItem(BaseModel):
         "unresolved_objectives",
         "missing_assessment",
         "mixed_assessment",
+        "unresolved_assessment",
         "contradictory_claims",
+        "stale_reviews",
         "dependence_unknown",
+        "no_evidence",
         "active_attempt",
     ]
     status: Literal["satisfied", "attention", "unknown"]

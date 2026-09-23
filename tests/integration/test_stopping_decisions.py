@@ -13,6 +13,7 @@ from sqlalchemy import delete, select
 from research_agent.api.app import create_app
 from research_agent.application import stopping_decision_service
 from research_agent.application.security_capability import SecurityCapabilityDenied
+from research_agent.application.snapshot_service import SnapshotService
 from research_agent.persistence.database import SessionFactory, engine
 from research_agent.persistence.models import (
     ResearchCycleAttemptRecord,
@@ -184,6 +185,36 @@ def test_active_cycle_attempt_blocks_conclusion() -> None:
             _cleanup(task_id)
 
 
+def test_evidence_fingerprint_is_canonical_across_evidence_order() -> None:
+    with TestClient(create_app()) as client:
+        task_id, _ = _new_task(client)
+        try:
+            for title in ("First evidence", "Second evidence"):
+                response = client.post(
+                    f"/investigations/{task_id}/sources",
+                    json={
+                        "source_type": "document",
+                        "title": title,
+                        "content": f"Observed {title.lower()}.",
+                    },
+                )
+                assert response.status_code == 201, response.text
+            with SessionFactory() as session:
+                snapshot = SnapshotService(session).get(task_id)
+                reordered = snapshot.model_copy(
+                    update={
+                        "sources": list(reversed(snapshot.sources)),
+                        "claims": list(reversed(snapshot.claims)),
+                    }
+                )
+                service = stopping_decision_service.StoppingDecisionService
+                original = service._readiness_from_snapshot(snapshot, task_revision=1)
+                canonical = service._readiness_from_snapshot(reordered, task_revision=1)
+            assert canonical.evidence_fingerprint == original.evidence_fingerprint
+        finally:
+            _cleanup(task_id)
+
+
 def test_concurrent_decisions_allow_one_winner() -> None:
     with TestClient(create_app()) as setup_client:
         task_id, readiness = _new_task(setup_client)
@@ -233,6 +264,11 @@ def test_audit_failure_rolls_back_decision_and_lifecycle(monkeypatch: pytest.Mon
                 assert session.scalar(
                     select(ResearchEventRecord).where(ResearchEventRecord.task_id == task_id)
                 ) is not None
+            monkeypatch.undo()
+            retry = client.post(
+                f"/investigations/{task_id}/stopping-decision", json=_request(readiness)
+            )
+            assert retry.status_code == 201, retry.text
         finally:
             _cleanup(task_id)
 

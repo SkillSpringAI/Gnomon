@@ -3,13 +3,14 @@
 import json
 from dataclasses import dataclass
 from hashlib import sha256
-from typing import Literal, cast
+from typing import Any, Literal, cast
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from research_agent.application.audit_service import AuditService
+from research_agent.application.cycle_planner import review_is_current, reviewed_complete
 from research_agent.application.security_capability import (
     SecurityCapability,
     require_capability,
@@ -19,6 +20,9 @@ from research_agent.application.snapshot_service import SnapshotService
 from research_agent.domain.events import EventPayload, EventType
 from research_agent.domain.research import (
     ClaimStatus,
+    CycleStatus,
+    HypothesisAssessmentStatus,
+    ResearchCycle,
     StoppingDecision,
     StoppingDecisionChange,
     StoppingDecisionCreate,
@@ -61,13 +65,13 @@ class StoppingDecisionService:
     def __init__(self, session: Session, actor: StoppingDecisionActor | None = None) -> None:
         self.session = session
         self.actor = actor or StoppingDecisionActor()
+        if self.actor.actor_type != "local_operator" or not self.actor.actor_id.strip():
+            raise ValueError("Invalid trusted stopping-decision actor context")
 
     def decide(self, task_id: UUID, request: StoppingDecisionCreate) -> StoppingDecision:
         try:
             task_record = self._lock_task(task_id)
-            authority = require_locked_capability(
-                self.session, SecurityCapability.MEMORY_MUTATION
-            )
+            authority = require_locked_capability(self.session, SecurityCapability.MEMORY_MUTATION)
             existing_change = self.session.scalar(
                 select(StoppingDecisionChangeRecord).where(
                     StoppingDecisionChangeRecord.operation_id == request.operation_id
@@ -87,19 +91,25 @@ class StoppingDecisionService:
                 TaskStatus.BLOCKED.value,
             }:
                 raise StoppingDecisionConflict("Only an unfinished investigation can be concluded")
-            active_attempt = self.session.scalar(
-                select(ResearchCycleAttemptRecord.id).where(
-                    ResearchCycleAttemptRecord.task_id == task_id,
-                    ResearchCycleAttemptRecord.status == "RUNNING",
+            active_attempt = (
+                self.session.scalar(
+                    select(ResearchCycleAttemptRecord.id).where(
+                        ResearchCycleAttemptRecord.task_id == task_id,
+                        ResearchCycleAttemptRecord.status == "RUNNING",
+                    )
                 )
-            ) is not None
+                is not None
+            )
             if active_attempt:
                 raise StoppingDecisionConflict("An active cycle attempt must be resolved first")
-            if self.session.scalar(
-                select(StoppingDecisionRecord.decision_id).where(
-                    StoppingDecisionRecord.task_id == task_id
+            if (
+                self.session.scalar(
+                    select(StoppingDecisionRecord.decision_id).where(
+                        StoppingDecisionRecord.task_id == task_id
+                    )
                 )
-            ) is not None:
+                is not None
+            ):
                 raise StoppingDecisionConflict("A stopping decision already exists")
             snapshot = SnapshotService(self.session).get(task_id)
             readiness = self._readiness_from_snapshot(
@@ -108,9 +118,20 @@ class StoppingDecisionService:
             if request.expected_evidence_fingerprint != readiness.evidence_fingerprint:
                 raise StoppingDecisionConflict("Evidence changed; refresh the stopping review")
             self._validate_references(request, snapshot)
-            limitations = list(dict.fromkeys(request.limitations + [
+            # The input's 20-entry cap applies to operator caveats only. Keep every
+            # derived warning first, then all distinct caller caveats: at most
+            # 20 + len(readiness.items) + one optional runtime warning, without truncation.
+            # Accepted historical decisions are never re-merged on replay/read.
+            derived_limitations = [
                 item.detail for item in readiness.items if item.status != "satisfied"
-            ]))[:20]
+            ]
+            if request.reason is StoppingDecisionReason.RESOURCE_LIMITED:
+                derived_limitations.append(
+                    "Runtime limits are operator-reported and are not system-verified."
+                    if request.runtime_limit_evidence
+                    else "Resource limitation was reported without runtime evidence."
+                )
+            limitations = list(dict.fromkeys(derived_limitations + request.limitations))
             decision_id = uuid4()
             now = utc_now()
             decision = StoppingDecision(
@@ -122,6 +143,7 @@ class StoppingDecisionService:
                 rationale=request.rationale,
                 source_ids=list(dict.fromkeys(request.source_ids)),
                 claim_ids=list(dict.fromkeys(request.claim_ids)),
+                objective_cycle_number=self._objective_cycle_number(request, snapshot),
                 objective_indices=list(dict.fromkeys(request.objective_indices)),
                 review_ids=list(dict.fromkeys(request.review_ids)),
                 limitations=limitations,
@@ -143,6 +165,7 @@ class StoppingDecisionService:
                     previous_revision=0,
                     revision=1,
                     resulting_state=decision.model_dump(mode="json"),
+                    command_request=self._canonical_request(request),
                     actor_type=self.actor.actor_type,
                     actor_id=self.actor.actor_id,
                     created_at=decision.created_at,
@@ -200,12 +223,15 @@ class StoppingDecisionService:
         if task_record is None:
             raise StoppingDecisionNotFound("Investigation was not found")
         snapshot = SnapshotService(self.session).get(task_id)
-        active_attempt = self.session.scalar(
-            select(ResearchCycleAttemptRecord.id).where(
-                ResearchCycleAttemptRecord.task_id == task_id,
-                ResearchCycleAttemptRecord.status == "RUNNING",
+        active_attempt = (
+            self.session.scalar(
+                select(ResearchCycleAttemptRecord.id).where(
+                    ResearchCycleAttemptRecord.task_id == task_id,
+                    ResearchCycleAttemptRecord.status == "RUNNING",
+                )
             )
-        ) is not None
+            is not None
+        )
         result = self._readiness_from_snapshot(
             snapshot, task_record.revision, active_attempt=active_attempt
         )
@@ -241,18 +267,52 @@ class StoppingDecisionService:
             raise StoppingDecisionConflict("Stopping decision references an unknown source")
         if not set(request.claim_ids).issubset(claim_ids):
             raise StoppingDecisionConflict("Stopping decision references an unknown claim")
-        if request.objective_indices and any(
-            index >= len(snapshot.task.cycles[-1].objectives) or index < 0
-            for index in request.objective_indices
-        ):
-            raise StoppingDecisionConflict("Stopping decision references an unknown objective")
+        if request.objective_indices:
+            cycle = StoppingDecisionService._objective_cycle(request, snapshot)
+            if cycle is None:
+                if not snapshot.task.cycles:
+                    raise StoppingDecisionConflict("Objective references require an existing cycle")
+                raise StoppingDecisionConflict("Stopping decision references an unknown cycle")
+            if any(
+                index >= len(cycle.objectives) or index < 0 for index in request.objective_indices
+            ):
+                raise StoppingDecisionConflict("Stopping decision references an unknown objective")
+        elif request.objective_cycle_number is not None:
+            raise StoppingDecisionConflict("Objective cycle identity requires objective references")
         review_ids = {
-            review.id
-            for cycle in snapshot.task.cycles
-            for review in cycle.objective_reviews
+            review.id for cycle in snapshot.task.cycles for review in cycle.objective_reviews
         }
         if not set(request.review_ids).issubset(review_ids):
             raise StoppingDecisionConflict("Stopping decision references an unknown review")
+
+    @staticmethod
+    def _objective_cycle(
+        request: StoppingDecisionCreate, snapshot: InvestigationSnapshot
+    ) -> ResearchCycle | None:
+        if not snapshot.task.cycles:
+            return None
+        if request.objective_cycle_number is None:
+            # Compatibility rule for pre-032 clients: objective indices without an
+            # explicit cycle refer to the latest cycle and are stored resolved.
+            return snapshot.task.cycles[-1]
+        return next(
+            (
+                cycle
+                for cycle in snapshot.task.cycles
+                if cycle.number == request.objective_cycle_number
+            ),
+            None,
+        )
+
+    @staticmethod
+    def _objective_cycle_number(
+        request: StoppingDecisionCreate, snapshot: InvestigationSnapshot
+    ) -> int | None:
+        if not request.objective_indices:
+            return None
+        cycle = StoppingDecisionService._objective_cycle(request, snapshot)
+        assert cycle is not None
+        return cycle.number
 
     @staticmethod
     def _readiness_from_snapshot(
@@ -261,19 +321,64 @@ class StoppingDecisionService:
         *,
         active_attempt: bool = False,
     ) -> StoppingReadiness:
-        latest_cycle = snapshot.task.cycles[-1] if snapshot.task.cycles else None
-        unresolved = latest_cycle.unresolved_objectives if latest_cycle else []
-        missing = [row.hypothesis.label for row in snapshot.hypotheses if row.assessment is None]
-        mixed = [
+        outstanding: set[str] = set()
+        for cycle in snapshot.task.cycles:
+            outstanding.update(item.strip() for item in cycle.unresolved_objectives)
+            # Planned/running work is outstanding too; an empty outcome list is
+            # not proof of completion. Completed cycles retain review candidates
+            # so stale or unresolved effective reviews can reopen their objectives.
+            if cycle.status != CycleStatus.COMPLETED:
+                outstanding.update(item.strip() for item in cycle.objectives)
+            else:
+                outstanding.update(review.objective.strip() for review in cycle.objective_reviews)
+        unresolved = sorted(
+            objective
+            for objective in outstanding
+            if objective and not reviewed_complete(objective, snapshot)
+        )
+        missing = sorted(
+            row.hypothesis.label for row in snapshot.hypotheses if row.assessment is None
+        )
+        mixed = sorted(
             row.hypothesis.label
             for row in snapshot.hypotheses
             if row.assessment is not None and row.assessment.status.value == "mixed"
-        ]
-        contradictory = [
-            claim.id
-            for claim in snapshot.claims
-            if claim.status in {ClaimStatus.CONTESTED, ClaimStatus.CONTRADICTED}
-        ]
+        )
+        unresolved_assessments = sorted(
+            row.hypothesis.label
+            for row in snapshot.hypotheses
+            if row.assessment is not None
+            and row.assessment.status is HypothesisAssessmentStatus.UNRESOLVED
+        )
+        contradictory = sorted(
+            (
+                claim.id
+                for claim in snapshot.claims
+                if claim.status in {ClaimStatus.CONTESTED, ClaimStatus.CONTRADICTED}
+                or any(link.support_type.value == "contradicting" for link in claim.source_links)
+            ),
+            key=str,
+        )
+        stale_reviews = sorted(
+            (
+                review.id
+                for cycle in snapshot.task.cycles
+                for review in {
+                    item.objective_index: item for item in cycle.objective_reviews
+                }.values()
+                if not review_is_current(review, snapshot)
+            ),
+            key=str,
+        )
+        no_evidence = not snapshot.sources and not snapshot.claims
+        incomplete_dependence = bool(
+            snapshot.source_dependence
+            and (
+                snapshot.source_dependence.truncated
+                or snapshot.source_dependence.invalid
+                or not snapshot.source_dependence.complete
+            )
+        )
         items = [
             StoppingReadinessItem(
                 code="unresolved_objectives",
@@ -303,6 +408,15 @@ class StoppingDecisionService:
                 ),
             ),
             StoppingReadinessItem(
+                code="unresolved_assessment",
+                status="attention" if unresolved_assessments else "satisfied",
+                detail=(
+                    f"Unresolved assessments: {', '.join(unresolved_assessments)}."
+                    if unresolved_assessments
+                    else "No unresolved hypothesis assessments are recorded."
+                ),
+            ),
+            StoppingReadinessItem(
                 code="contradictory_claims",
                 status="attention" if contradictory else "satisfied",
                 detail=(
@@ -313,17 +427,35 @@ class StoppingDecisionService:
                 claim_ids=contradictory,
             ),
             StoppingReadinessItem(
-                code="dependence_unknown",
-                status=(
-                    "unknown"
-                    if snapshot.source_dependence and snapshot.sources
-                    else "satisfied"
+                code="stale_reviews",
+                status="attention" if stale_reviews else "satisfied",
+                detail=(
+                    f"{len(stale_reviews)} objective review(s) are stale against current evidence."
+                    if stale_reviews
+                    else "All recorded objective reviews match current evidence."
                 ),
-                detail="Source independence is not established by absent or partial relationships.",
+            ),
+            StoppingReadinessItem(
+                code="dependence_unknown",
+                status="unknown" if snapshot.sources else "satisfied",
+                detail=(
+                    "Source dependence is incomplete or invalid; independence is unknown."
+                    if incomplete_dependence
+                    else "Source independence is not established by absent relationships."
+                ),
                 source_ids=(
                     snapshot.source_dependence.visited_source_ids
                     if snapshot.source_dependence
                     else []
+                ),
+            ),
+            StoppingReadinessItem(
+                code="no_evidence",
+                status="attention" if no_evidence else "satisfied",
+                detail=(
+                    "No source evidence or structured claims are recorded."
+                    if no_evidence
+                    else "Source evidence or structured claims are recorded."
                 ),
             ),
             StoppingReadinessItem(
@@ -336,11 +468,17 @@ class StoppingDecisionService:
             "task": snapshot.task.model_dump(
                 mode="json", exclude={"status", "updated_at", "revision"}
             ),
-            "hypotheses": [item.model_dump(mode="json") for item in snapshot.hypotheses],
-            "claims": [item.model_dump(mode="json") for item in snapshot.claims],
+            "hypotheses": [
+                item.model_dump(mode="json")
+                for item in sorted(snapshot.hypotheses, key=lambda item: str(item.hypothesis.id))
+            ],
+            "claims": [
+                item.model_dump(mode="json")
+                for item in sorted(snapshot.claims, key=lambda item: str(item.id))
+            ],
             "sources": [
                 {"id": str(item.id), "observed_at": item.observed_at.isoformat()}
-                for item in snapshot.sources
+                for item in sorted(snapshot.sources, key=lambda item: str(item.id))
             ],
             "dependence": snapshot.source_dependence.model_dump(mode="json")
             if snapshot.source_dependence
@@ -348,7 +486,12 @@ class StoppingDecisionService:
             "readiness": [item.model_dump(mode="json") for item in items],
         }
         fingerprint = sha256(
-            json.dumps(fingerprint_payload, sort_keys=True).encode("utf-8")
+            json.dumps(
+                fingerprint_payload,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+            ).encode("utf-8")
         ).hexdigest()
         return StoppingReadiness(
             task_id=snapshot.task.id,
@@ -370,6 +513,7 @@ class StoppingDecisionService:
             rationale=decision.rationale,
             source_ids=data["source_ids"],
             claim_ids=data["claim_ids"],
+            objective_cycle_number=data.get("objective_cycle_number"),
             objective_indices=data["objective_indices"],
             review_ids=data["review_ids"],
             limitations=data["limitations"],
@@ -391,6 +535,7 @@ class StoppingDecisionService:
             rationale=record.rationale,
             source_ids=[UUID(item) for item in record.source_ids],
             claim_ids=[UUID(item) for item in record.claim_ids],
+            objective_cycle_number=record.objective_cycle_number,
             objective_indices=record.objective_indices,
             review_ids=[UUID(item) for item in record.review_ids],
             limitations=record.limitations,
@@ -416,27 +561,35 @@ class StoppingDecisionService:
             created_at=record.created_at,
         )
 
+    @staticmethod
+    def _canonical_request(request: StoppingDecisionCreate) -> dict[str, Any]:
+        # Version 1 uses model-normalized scalar fields and ordered, deduplicated
+        # lists. Preserve order intentionally; future normalization changes need
+        # an explicit command-version compatibility policy.
+        payload = request.model_dump(mode="json", exclude={"operation_id"})
+        for field in (
+            "source_ids",
+            "claim_ids",
+            "objective_indices",
+            "review_ids",
+            "limitations",
+            "runtime_limit_evidence",
+        ):
+            payload[field] = list(dict.fromkeys(payload[field]))
+        return {"version": 1, "operation": "CONCLUDE", "request": payload}
+
     def _retry_or_conflict(
         self,
         change: StoppingDecisionChangeRecord,
         task_id: UUID,
         request: StoppingDecisionCreate,
     ) -> StoppingDecision:
-        state = change.resulting_state
-        expected = {
-            "reason": request.reason.value,
-            "rationale": request.rationale,
-            "source_ids": [str(item) for item in dict.fromkeys(request.source_ids)],
-            "claim_ids": [str(item) for item in dict.fromkeys(request.claim_ids)],
-            "objective_indices": list(dict.fromkeys(request.objective_indices)),
-            "review_ids": [str(item) for item in dict.fromkeys(request.review_ids)],
-            "limitations": list(dict.fromkeys(request.limitations)),
-            "runtime_limit_evidence": list(dict.fromkeys(request.runtime_limit_evidence)),
-            "evidence_fingerprint": request.expected_evidence_fingerprint,
-        }
         if (
             change.task_id != task_id
-            or any(state.get(key) != value for key, value in expected.items())
+            or change.actor_type != self.actor.actor_type
+            or change.actor_id != self.actor.actor_id
+            or change.command_request is None
+            or change.command_request != self._canonical_request(request)
         ):
             raise StoppingDecisionConflict("Operation identity was reused with different content")
-        return StoppingDecision.model_validate(state)
+        return StoppingDecision.model_validate(change.resulting_state)
