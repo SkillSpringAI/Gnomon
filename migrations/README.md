@@ -109,3 +109,20 @@ history remains readable but exact command replay is refused rather than inferre
 New commands retain their accepted identity and historical result. Apply migrations
 before serving the new code. The 4fa785b closure verifies all 30 packaged resources,
 including a populated pre-030 fixture, rerun and checksum-drift checks.
+
+
+## Stopping-decision compatibility (031/032)
+
+Migration 031 adds nullable canonical command metadata to stopping history;
+032 adds nullable objective cycle identity to the current projection. Existing
+rows and historical JSON are preserved. Legacy decisions remain readable with
+unknown cycle identity; original commands and cycle identities are never invented.
+Legacy or early development receipts missing the finalized command fields cannot
+be retried and return a conflict without rewriting history.
+
+The released version-1 command contains all normalized StoppingDecisionCreate
+fields except operation_id, including objective_cycle_number (null when omitted).
+Lists preserve order and deduplicate entries. Future shape changes require an
+explicit version/compatibility policy. Omitted cycle identity binds objective
+indices to the latest cycle at acceptance and stores the resolved number; new
+clients should supply it explicitly. Apply migrations before serving the new code.

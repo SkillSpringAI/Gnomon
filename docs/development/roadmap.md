@@ -50,9 +50,9 @@ semantics remain separate.
 
 Source-dependence contract/traversal Slice 1 is closed at `4fa785b`; hosted
 [Quality run 35676307231](https://github.com/SkillSpringAI/Gnomon/actions/runs/35676307231)
-passed that exact implementation SHA. Next close stopping retry/readiness and
-limitation correctness (Slice 2), then complete relationship editing and stopping
-submission in the workspace with new browser tests (Slice 3).
+passed that exact implementation SHA. Stopping correctness (Slice 2) is closed
+at `995f9cc9d0683cdbf331ec4f3708492d7b4231a4`, verified by [Quality run 35806845915](https://github.com/SkillSpringAI/Gnomon/actions/runs/35806845915). Next complete relationship editing and
+stopping submission in the workspace with new browser tests (Slice 3).
 
 Deferred work has explicit return triggers:
 
@@ -67,6 +67,13 @@ Deferred work has explicit return triggers:
 - Dense adjacency profiling: before high-volume use; retain fail-closed limits.
 - Automatic budget/deadline stopping: bounded long-running execution, backed by
   durable measured runtime evidence. Current operator claims stay attributed.
+
+Additional stopping limitations return at defined stages: legacy cycle identities
+require trusted reconstruction; structured runtime references require measured
+runtime/accounting work; connection-loss and ambiguous-commit injection belong to
+transaction-resilience work. Audit staging rollback does not prove ambiguous
+commit recovery. Duplicate objective text retains the existing planner
+latest-reviewed-occurrence semantics; identity redesign is separate planner work.
 
 The intermittent source-registry audit ordering assertion remains a verification
 risk to characterize if it recurs or before relying on deterministic event order.

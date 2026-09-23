@@ -2,8 +2,8 @@
 
 ## Implementation status updated on 2026-09-23
 
-Latest implementation baseline: `4fa785b98dfaf33b372284cc4b271aa753ab386e` (`4fa785b`).
-Hosted [Quality run 35676307231](https://github.com/SkillSpringAI/Gnomon/actions/runs/35676307231) tested this exact SHA;
+Latest implementation baseline: `995f9cc9d0683cdbf331ec4f3708492d7b4231a4` (`995f9cc`).
+Hosted [Quality run 35806845915](https://github.com/SkillSpringAI/Gnomon/actions/runs/35806845915) tested this exact SHA;
 `checks`, `minimal-install`, and `browser` all passed. This evidence covers the
 implementation commit, not the subsequent documentation-only closure commit.
 
