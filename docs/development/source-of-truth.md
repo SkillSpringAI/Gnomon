@@ -1,8 +1,10 @@
 # Gnomon Current Source of Truth
 
-**Last hosted-green implementation and planning baseline:** `ef11f70a53d44bdfa41ad1a4d14d5d523fd27623` (`ef11f70`, uncertain retry and fixture correction). Hosted [Quality run 35937991144](https://github.com/SkillSpringAI/Gnomon/actions/runs/35937991144) tested this exact SHA; `checks`, `minimal-install`, and `browser` all passed.
+**Last hosted-green implementation baseline:** `ef11f70a53d44bdfa41ad1a4d14d5d523fd27623` (`ef11f70`, uncertain retry and fixture correction). Hosted [Quality run 35937991144](https://github.com/SkillSpringAI/Gnomon/actions/runs/35937991144) tested this exact SHA; `checks`, `minimal-install`, and `browser` all passed.
+**Current planning baseline:** `82bab04b6f2972a80c675d0f6b05ddf26ab46897` (`82bab04`, M1.1 RecoveryContext). This exact SHA has local focused verification but no hosted Quality claim yet.
 **Previous failure:** Quality run `35818573020` for `11c46ae` failed listing-fixture setup. The corrective commit closes that failure and preserves unconfirmed requests after denied replay.
-**Current slice:** Milestone 0 baseline restoration is complete. Local full regression passed 1,677 tests and hosted browser passed 28. M1.1 has begun with a local [RecoveryContext contract](recovery-context.md) and negative tests. Recovery execution remains implemented only for restrictive entry; no context persistence or restoration consumer exists yet.
+**Current slice:** Milestone 0 baseline restoration is complete. M1.1 has a committed local [RecoveryContext contract and diagnostic persistence boundary](recovery-context.md), including migration 033, trusted local capture, atomic audit and read validation. M1.2/M1.3 now add local [authorization domain contracts and trusted issuance persistence](authorization.md) for operator grants and epoch-bound execution authorizations, including migration 034, exact replay validation and closeout hardening. M1.4 adds local [read-only recovery reconciliation](recovery-reconciliation.md) over supported evidence and operation streams. M1.5 adds local [protected restoration](recovery-restoration.md), including preflight and audited RECOVERY_REQUIRED fence clearing. M1.6 passes 1-2 add local [authority epoch replacement](authority-epoch-replacement.md) after restoration plus a current execution authorization boundary for protected effects.
+**M1.6 review register:** Known authorization gaps to review before M1.6 exit are tracked in [M1 authorization gap register](m1-authorization-pre-m1.6-gap-register.md).
 **Purpose:** Concise current implementation truth, open release gaps, and immediate work.
 **Status:** Current authority for repository state; completed history belongs in [development history](development-history.md), and future work belongs in the [roadmap](roadmap.md).
 
@@ -30,14 +32,24 @@ Current supported behavior includes:
 - Versioned canonical security state persistence, controlled transitions, and centralized capability policy.
 - Point-of-effect enforcement for `READ_AUDIT` on audit/history reads, source retrieval in the cycle runner, and provider dispatch after reservation. Admission alone does not authorize a later effect.
 - Authority Epoch persistence and epoch-bound new transition audit records, with fail-closed lineage loading and no runtime epoch creation.
+- Post-restoration authority epoch replacement can rotate the singleton epoch,
+  bump security-state version, append audit and make old execution authorizations
+  fail current-use validation against the new epoch. Exact replay remains
+  historical through issuance APIs; `require_current_execution` rejects stale,
+  expired, wrong-context or wrong-capability execution authorizations before
+  protected effects.
 - Explicit transition actor/reason authorization and REDUCE/PRESERVE/BROADEN classification of current capability sets. See [authority foundations](authority-foundations.md) for the matrix and limits.
 - Direction-aware `AUTHORITY_ADMINISTRATION`: containment cannot broaden, recovery
   is not a superuser capability, and recovery purpose cannot replace authorization
   for the actual authority-bearing effect.
+- Local `OperatorAuthorization` and `ExecutionAuthorization` records are immutable,
+  epoch-bound evidence with trusted issuance, audit coupling and exact replay
+  checks. They are not consumed for restoration yet and do not replace
+  point-of-effect capability checks.
 - Startup distinguishes pristine fresh bootstrap, authority-preserving continuation,
   and recovery bootstrap. Recovery entry becomes effectively RECOVERY_REQUIRED before
-  requests, keeps restored active-looking records inert, and exposes no reconciliation
-  or restoration-completion path.
+  requests, keeps restored active-looking records inert, and exposes read-only
+  reconciliation plus protected restoration completion.
 - Recognized PostgreSQL integrity failures are translated at reviewed write boundaries
   using structured constraint diagnostics; unknown failures remain unexpected, and
   public authority-invariant responses are generic and redacted.
@@ -72,7 +84,7 @@ No current document should claim full autonomous operation, complete security co
 | P1/P2 | Historical journal compatibility | Hosted-verified for migration-007 claims/assessments | Populated pre-007 claim/assessment data remains readable through current HEAD without mutation; malformed, missing, and unsupported chains fail closed. Broader memory categories remain deferred. |
 | P1/P2 | Workflow atomicity observability | Implementing baseline hosted-verified | Latest-attempt read projection and workspace rendering expose retained progress without observation-side mutation; hosted run `35548463523` passed for exact SHA `41579173fd19e8316d020d4f9c59c624b684fdac`. |
 | P1/P2 | Lowest-layer invariant enforcement | Closed locally for reviewed scope | Migration 025 constraints and bounded translation cover reviewed authority/duplicate paths; broader lifecycle and memory vocabulary constraints remain deferred. |
-| P1/P2 | Security authority foundations | Partial | Epoch persistence, transition policy, direction-aware administration and restrictive recovery-bootstrap entry are implemented. M1.1 adds a local RecoveryContext domain contract and negative tests; trusted collection/persistence, reconciliation, protected restoration and backup reconstruction remain open. |
+| P1/P2 | Security authority foundations | Partial | Epoch persistence, transition policy, direction-aware administration and restrictive recovery-bootstrap entry are implemented. M1.1 adds a local RecoveryContext domain contract, trusted diagnostic collection/persistence, atomic audit and negative tests. M1.2/M1.3 add local OperatorAuthorization and ExecutionAuthorization domain contracts plus trusted issuance/persistence, atomic audit and replay validation. M1.4 adds read-only recovery reconciliation over supported evidence and operation streams. M1.5 adds protected restoration preflight and audited fence clearing. M1.6 passes 1-2 add post-restoration epoch replacement and current execution authorization validation. Exit-gate evidence and backup reconstruction remain open. |
 | P1/P2 | Hosted CI evidence | Milestone 0 closed | Quality run `35937991144` verifies `ef11f70` across all required jobs. The prior failed run remains recorded in the baseline restoration history. |
 | P1/P2 | Source-dependence contract | Implementing baseline hosted-verified | Migrations 028/030 provide canonical command replay, history-chain/head validation, bounded lock-stable traversal, invalid examined-graph detection, scoped review invalidation and concurrency coverage. Hosted run 35676307231 verifies 4fa785b. Legacy replay without command metadata, graph repair, database-role separation and privileged tamper resistance remain outside the guarantee. |
 | P1/P2 | Trusted-source/provider-session policy audit | Hosted-verified for the reviewed registry and provider-session boundaries | Configuration-scoped events preserve authority epoch/version, require READ_AUDIT to read, and provider-session failure/race/upgrade evidence now covers the reviewed scope; authenticated identity, memory-backend durability, distributed crash atomicity, and unrelated writer audit remain open. |
@@ -111,8 +123,8 @@ Implementation evidence and documentation-only follow-up evidence must remain di
 
 ## Immediate next work
 
-1. Continue M1.1 from the tested domain contract into trusted collection and persistence design, including context identity, bounded inventory and transaction freshness.
-2. Preserve interruption/ordering and direction-aware policy guarantees. OperatorAuthorization, reconciliation, protected restoration and epoch replacement remain later Milestone 1 slices; cloning and backup reconstruction remain later roadmap work.
+1. Continue M1.6 pass 3 by refreshing exit-gate evidence and checking remaining stale-epoch consumers.
+2. Keep cloning and backup reconstruction outside M1.6 until authority lineage semantics are fully exit-gated.
 
 ### Known implementation question
 

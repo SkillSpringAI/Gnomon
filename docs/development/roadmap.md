@@ -103,10 +103,10 @@ path back out.
 
 ### 1.1 Canonical RecoveryContext
 
-In progress: the [RecoveryContext implementation](recovery-context.md) defines
+Implemented locally: the [RecoveryContext implementation](recovery-context.md) defines
 immutable bounded evidence, trusted local snapshot collection, atomic diagnostic
-persistence, and historical/current read checks. It is locally implemented and awaits
-review, commit and hosted verification. Restoration consumers remain later milestone
+persistence, and historical/current read checks. Commit `82bab04` records the local
+implementation and awaits hosted verification. Restoration consumers remain later milestone
 work; this is not recovery authority completion.
 
 Define an immutable/bounded recovery context containing at minimum:
@@ -128,6 +128,13 @@ itself.
 
 ### 1.2 OperatorAuthorization
 
+Passes 1-2: [OperatorAuthorization and ExecutionAuthorization](authorization.md)
+define frozen domain artifacts, stale-epoch validation helpers, trusted local
+issuance, append-only persistence, audit coupling and exact replay behavior.
+Restoration consumption remains later M1 work.
+Pre-M1.6 gaps are tracked in the
+[M1 authorization gap register](m1-authorization-pre-m1.6-gap-register.md).
+
 Separate operator identity from operator authority.
 
 Define a structured authorization artifact containing:
@@ -145,12 +152,21 @@ Do not allow possession of a RecoveryContext to imply permission.
 
 ### 1.3 ExecutionAuthorization Epoch Binding
 
+Passes 1-2 share the same authorization contract and issuance boundary: execution
+authorization must narrow an operator grant, persist under the current authority
+epoch and fail closed against a superseded authority epoch.
+
 Any authority-bearing execution authorization must be bound to the authority epoch
 under which it was issued.
 
 An authorization from a superseded epoch must fail closed.
 
 ### 1.4 Recovery Reconciliation
+
+Implemented locally: [Recovery Reconciliation](recovery-reconciliation.md) adds a
+read-only deterministic verdict over the current RecoveryContext, supported
+evidence inventory and supported provider/cycle operation outcomes. It does not
+restore authority, clear RECOVERY_REQUIRED or replace the authority epoch.
 
 Implement deterministic reconciliation of recovery-bootstrap state.
 
@@ -169,6 +185,11 @@ Reads must not silently repair state.
 
 ### 1.5 Protected Authority Restoration
 
+Implemented locally: [Protected Recovery Restoration](recovery-restoration.md)
+adds one-transaction restoration preflight and completion that consume current
+RecoveryContext, M1.4 reconciliation, OperatorAuthorization and
+ExecutionAuthorization before clearing RECOVERY_REQUIRED with audit.
+
 Implement explicit recovery transitions rather than treating recovery as
 administrative superuser mode.
 
@@ -186,6 +207,16 @@ Restoration must require:
 Direct `LOCKDOWN -> NORMAL` remains prohibited.
 
 ### 1.6 Authority Epoch Replacement
+
+M1.5 deliberately does not replace the authority epoch. M1.6 owns the new lineage
+decision and invalidation semantics for old execution authorizations.
+
+Passes 1-2 implemented locally: [Authority Epoch Replacement](authority-epoch-replacement.md)
+adds post-restoration epoch replacement, version bump, audit and proof that old
+execution authorization remains historical replay only. Current protected effects
+must use `AuthorizationService.require_current_execution`, which rejects old-epoch,
+expired, wrong-context or wrong-capability execution authorization records and
+accepts freshly issued authorization in the replacement epoch.
 
 Define the conditions under which a new authority epoch is created.
 

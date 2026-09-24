@@ -1,9 +1,9 @@
 # RecoveryContext — M1.1
 
 Date: 24 September 2026.
-Status: domain contract, trusted local snapshot collection and diagnostic persistence
-implemented locally. HTTP exposure, recovery reconciliation and restoration remain
-unimplemented. The first contract pass below is followed by the persistence boundary.
+Status: domain contract, trusted local snapshot collection, diagnostic persistence
+and read-only reconciliation verdict implemented locally. HTTP exposure and
+restoration remain unimplemented.
 
 ## Scope
 
@@ -85,10 +85,10 @@ expiry boundaries and copied-model revalidation. An unchanged runtime capability
 guard still denies mutation and provider dispatch after a context passes validation,
 even when its inventory is complete.
 
-Local evidence for this pass: 35 focused RecoveryContext cases passed; the combined
-contract, security-state, capability and PostgreSQL bootstrap selection passed 308
-tests. Ruff, strict mypy (88 source files), conformance traceability and whitespace
-checks passed. This pass is uncommitted and has no hosted verification claim.
+Local evidence for the first contract pass: 35 focused RecoveryContext cases passed;
+the combined contract, security-state, capability and PostgreSQL bootstrap selection
+passed 308 tests. Ruff, strict mypy (88 source files), conformance traceability and
+whitespace checks passed.
 
 ## Trusted collection and persistence pass
 
@@ -122,10 +122,11 @@ returned rows, not a guarantee of bounded physical database scanning.
 
 Complete means enumeration of these supported streams at the transaction snapshot.
 It does not cover every possible incident artifact, prove reference integrity or
-resolve outcomes. Later reconciliation must enumerate original records independently;
-this pass provides no continuation cursor for omitted references. All omitted source
-rows remain durable and unchanged. An authority-fresh context is still a historical
-inventory: evidence and attempt outcomes can change without changing authority version.
+resolve outcomes. M1.4 reconciliation enumerates supported records again instead
+of trusting the captured snapshot; this pass provides no continuation cursor for
+omitted references. All omitted source rows remain durable and unchanged. An
+authority-fresh context is still a historical inventory: evidence and attempt
+outcomes can change without changing authority version.
 
 Migration 033 adds `recovery_contexts` and `recovery_context_audit`. Context, canonical
 command and one redacted audit record commit together. Audit failure rolls back the
@@ -140,10 +141,19 @@ Historical reads and exact authorized retries can return stale or expired record
 authority-basis/time consistency inside its transaction and grants no downstream
 permission after the transaction ends.
 
+## Read-only reconciliation pass
+
+M1.4 is documented separately in [Recovery Reconciliation](recovery-reconciliation.md).
+It adds a deterministic read-only verdict over the current RecoveryContext,
+supported evidence inventory and supported provider/cycle operation outcomes. It
+does not repair state, mutate attempts, clear the bootstrap fence or authorize
+restoration.
+
 ## Remaining milestone work
 
-Review and commit the M1.1 implementation, then verify that exact SHA in hosted CI
-before treating it as the canonical baseline. OperatorAuthorization (M1.2), epoch-bound
-execution authorization (M1.3), reconciliation (M1.4), restoration (M1.5) and epoch
-replacement (M1.6) remain open. This service neither clears the bootstrap fence nor
-provides a path back to NORMAL. Milestone 1 remains open.
+M1.1 is committed locally at `82bab04` and still needs hosted verification before
+being treated as a hosted-green canonical baseline. OperatorAuthorization (M1.2),
+epoch-bound execution authorization (M1.3) and read-only reconciliation (M1.4) now
+have local implementations. Restoration (M1.5) and epoch replacement (M1.6) remain
+open. These services neither clear the bootstrap fence nor provide a path back to
+NORMAL. Milestone 1 remains open.

@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import AfterValidator, AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
-from research_agent.domain.security import SecurityActor, SecurityState
+from research_agent.domain.security import SecurityActor, SecurityReasonCode, SecurityState
 
 
 def _non_nil(value: UUID) -> UUID:
@@ -72,6 +72,12 @@ class ReconciliationCheck(StrEnum):
     CONFIGURATION_INTEGRITY = "configuration_integrity"
 
 
+class ReconciliationOutcome(StrEnum):
+    PASSED = "passed"
+    FAILED = "failed"
+    UNKNOWN = "unknown"
+
+
 class RecoveryInventoryStatus(StrEnum):
     NOT_COLLECTED = "not_collected"
     PARTIAL = "partial"
@@ -102,6 +108,25 @@ class UnresolvedRecoveryOperation(RecoveryValue):
     kind: RecoveryOperationKind
     operation_id: RecoveryId
     outcome: Literal["unknown", "unresolved"]
+
+
+class RecoveryOperationDisposition(StrEnum):
+    COMMITTED = "committed"
+    DID_NOT_COMMIT = "did_not_commit"
+    UNKNOWN = "unknown"
+
+
+class ReconciledRecoveryOperation(RecoveryValue):
+    kind: RecoveryOperationKind
+    operation_id: RecoveryId
+    status: Annotated[str, Field(strict=True, min_length=1, max_length=64)]
+    disposition: RecoveryOperationDisposition
+
+
+class RecoveryReconciliationCheckResult(RecoveryValue):
+    check: ReconciliationCheck
+    outcome: ReconciliationOutcome
+    detail: Annotated[str, Field(strict=True, min_length=1, max_length=300)]
 
 
 class RecoveryContext(RecoveryValue):
@@ -153,6 +178,115 @@ class CaptureRecoveryContext(RecoveryValue):
     context_id: RecoveryId
     expected_basis: RecoveryAuthorityBasis
     expires_at: AwareDatetime
+
+
+class RecoveryReconciliation(RecoveryValue):
+    """Read-only M1.4 verdict; this does not clear fences or restore authority."""
+
+    schema_version: Literal[1] = 1
+    context_id: RecoveryId
+    incident_id: RecoveryId
+    authority_basis: RecoveryAuthorityBasis
+    checked_at: AwareDatetime
+    inventory_status: RecoveryInventoryStatus
+    checks: tuple[RecoveryReconciliationCheckResult, ...] = Field(min_length=5, max_length=5)
+    operations: tuple[ReconciledRecoveryOperation, ...] = Field(max_length=100)
+    restoration_allowed: Annotated[bool, Field(strict=True)]
+
+    @model_validator(mode="after")
+    def consistent_reconciliation(self) -> Self:
+        if {item.check for item in self.checks} != set(ReconciliationCheck):
+            raise ValueError("All reconciliation checks must be represented exactly once")
+        if self.restoration_allowed and any(
+            item.outcome is not ReconciliationOutcome.PASSED for item in self.checks
+        ):
+            raise ValueError("Restoration can be allowed only when every check passes")
+        return self
+
+
+class PrepareProtectedRestoration(RecoveryValue):
+    """M1.5 pass-1 command; validation only, no authority transition."""
+
+    restoration_id: RecoveryId
+    context_id: RecoveryId
+    operator_authorization_id: RecoveryId
+    execution_authorization_id: RecoveryId
+    expected_authority_epoch_id: RecoveryId
+    expected_security_state_version: StateVersion
+    requested_state: SecurityState
+    reason_code: SecurityReasonCode
+
+    @model_validator(mode="after")
+    def bounded_restoration_request(self) -> Self:
+        if self.requested_state is not SecurityState.NORMAL:
+            raise ValueError("First-pass protected restoration only prepares NORMAL restoration")
+        if self.reason_code is not SecurityReasonCode.RECOVERY_VERIFIED:
+            raise ValueError("NORMAL restoration preparation requires RECOVERY_VERIFIED")
+        return self
+
+
+class PreparedProtectedRestoration(RecoveryValue):
+    """Read-only evidence that pass-1 restoration preconditions held in one transaction."""
+
+    schema_version: Literal[1] = 1
+    restoration_id: RecoveryId
+    context_id: RecoveryId
+    incident_id: RecoveryId
+    operator_authorization_id: RecoveryId
+    execution_authorization_id: RecoveryId
+    authority_epoch_id: RecoveryId
+    security_state_version: StateVersion
+    requested_state: SecurityState
+    reason_code: SecurityReasonCode
+    checked_at: AwareDatetime
+    restoration_allowed: Literal[True]
+
+
+class ProtectedRestorationResult(RecoveryValue):
+    """Actual protected restoration transition result."""
+
+    schema_version: Literal[1] = 1
+    restoration_id: RecoveryId
+    context_id: RecoveryId
+    incident_id: RecoveryId
+    transition_id: RecoveryId
+    state: SecurityState
+    version: StateVersion
+    authority_epoch_id: RecoveryId
+    completed_at: AwareDatetime
+
+
+class ReplaceAuthorityEpoch(RecoveryValue):
+    """M1.6 command for creating a new post-restoration authority lineage."""
+
+    replacement_id: RecoveryId
+    restoration_id: RecoveryId
+    restoration_transition_id: RecoveryId
+    expected_current_epoch_id: RecoveryId
+    expected_security_state_version: StateVersion
+    new_authority_epoch_id: RecoveryId
+    reason_code: SecurityReasonCode
+
+    @model_validator(mode="after")
+    def bounded_replacement_request(self) -> Self:
+        if self.new_authority_epoch_id == self.expected_current_epoch_id:
+            raise ValueError("Replacement authority epoch must be new")
+        if self.reason_code is not SecurityReasonCode.RECOVERY_VERIFIED:
+            raise ValueError("Authority epoch replacement requires RECOVERY_VERIFIED")
+        return self
+
+
+class AuthorityEpochReplacementResult(RecoveryValue):
+    """Evidence of a completed authority epoch replacement."""
+
+    schema_version: Literal[1] = 1
+    replacement_id: RecoveryId
+    restoration_id: RecoveryId
+    transition_id: RecoveryId
+    previous_authority_epoch_id: RecoveryId
+    authority_epoch_id: RecoveryId
+    version: StateVersion
+    replaced_at: AwareDatetime
 
 
 def validate_recovery_context_basis(
