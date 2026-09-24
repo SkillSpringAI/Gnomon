@@ -103,6 +103,12 @@ path back out.
 
 ### 1.1 Canonical RecoveryContext
 
+In progress: the [RecoveryContext implementation](recovery-context.md) defines
+immutable bounded evidence, trusted local snapshot collection, atomic diagnostic
+persistence, and historical/current read checks. It is locally implemented and awaits
+review, commit and hosted verification. Restoration consumers remain later milestone
+work; this is not recovery authority completion.
+
 Define an immutable/bounded recovery context containing at minimum:
 
 - current authority epoch;
