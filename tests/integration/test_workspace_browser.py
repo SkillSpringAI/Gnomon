@@ -519,7 +519,10 @@ def test_invalid_graph_view_preserves_warning_language(workspace_browser, monkey
 
 @pytest.mark.parametrize("kind", ["stopping", "relationship"])
 @pytest.mark.parametrize("committed", [False, True])
-def test_uncertain_write_retries_exact_command_after_reload(workspace_browser, kind, committed):
+@pytest.mark.parametrize("denied_retry", [False, True])
+def test_uncertain_write_retries_exact_command_after_reload(
+    workspace_browser, monkeypatch, kind, committed, denied_retry
+):
     page, expect, (client, task_id, _, _, _) = workspace_browser
     base = f"/investigations/{task_id}"
     if kind == "relationship":
@@ -570,11 +573,30 @@ def test_uncertain_write_retries_exact_command_after_reload(workspace_browser, k
     page.reload()
     expect(page.locator("#message")).to_have_text("Report loaded.")
     expect(page.locator("#pending-command")).to_be_visible()
+    if denied_retry:
+        from research_agent.application import source_dependence_service, stopping_decision_service
+        from research_agent.application.security_capability import SecurityCapabilityDenied
+
+        service = source_dependence_service if kind == "relationship" else stopping_decision_service
+        original = service.require_locked_capability
+
+        def deny(*args, **kwargs):
+            raise SecurityCapabilityDenied("Retry authority denied")
+
+        monkeypatch.setattr(service, "require_locked_capability", deny)
+        page.locator("#retry-command").click()
+        expect(page.locator("#message")).to_contain_text("original request is retained")
+        expect(page.locator("#pending-command")).to_be_visible()
+        expect(page.locator(button)).to_be_disabled()
+        page.reload()
+        expect(page.locator("#message")).to_have_text("Report loaded.")
+        expect(page.locator("#pending-command")).to_be_visible()
+        monkeypatch.setattr(service, "require_locked_capability", original)
     page.locator("#retry-command").click()
     expect(page.locator("#message")).to_contain_text("Original request confirmed")
     expect(page.locator("#pending-command")).to_be_hidden()
-    assert len(requests) == 2
-    assert requests[0] == requests[1]
+    assert len(requests) == (3 if denied_retry else 2)
+    assert all(payload == requests[0] for payload in requests)
     assert requests[0]["operation_id"]
     if kind == "relationship":
         items = client.get(base + path).json()["items"]

@@ -519,7 +519,11 @@
         sessionStorage.removeItem(pendingKey);
         pendingCommand = null;
       };
-      if (durableWrite && response.status >= 400 && response.status < 500) clearPending();
+      // A rejected retry cannot establish whether the original attempt committed.
+      if (durableWrite && response.status >= 400 && response.status < 500) {
+        if (replay) throw new Error(`Retry was not confirmed (${response.status}). The original request is retained; restore access or resolve the server error, then retry unchanged.`);
+        clearPending();
+      }
       if (response.status === 409) {
         const failure = await response.json();
         if (failure.detail === 'No pending objectives for the current evidence')

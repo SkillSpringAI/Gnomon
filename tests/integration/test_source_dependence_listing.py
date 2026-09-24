@@ -4,16 +4,15 @@ from itertools import combinations
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
+from test_source_dependence_contract import dependence_context  # noqa: F401
 
-pytest_plugins = ["test_source_dependence_contract"]
-
-from research_agent.api.app import create_app  # noqa: E402
-from research_agent.application import source_dependence_service  # noqa: E402
-from research_agent.application.security_capability import SecurityCapabilityDenied  # noqa: E402
+from research_agent.api.app import create_app
+from research_agent.application import source_dependence_service
+from research_agent.application.security_capability import SecurityCapabilityDenied
 
 
-def test_relationship_pages_are_bounded_task_scoped_and_include_retractions(dependence_context):
-    task_id, sources = dependence_context
+def test_relationship_pages_are_bounded_task_scoped_and_include_retractions(request):
+    task_id, sources = request.getfixturevalue("dependence_context")
     base = f"/investigations/{task_id}"
     with TestClient(create_app()) as client:
         for index in range(11):
@@ -77,8 +76,8 @@ def test_relationship_pages_are_bounded_task_scoped_and_include_retractions(depe
         )
 
 
-def test_relationship_listing_requires_read_authority(dependence_context, monkeypatch):
-    task_id, _ = dependence_context
+def test_relationship_listing_requires_read_authority(request, monkeypatch):
+    task_id, _ = request.getfixturevalue("dependence_context")
 
     def deny(*args, **kwargs):
         raise SecurityCapabilityDenied("Read authority denied")
