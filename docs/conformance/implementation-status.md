@@ -383,6 +383,16 @@ coverage. No live Bedrock or Moltbook call, deployment penetration test, or reco
 drill was performed. Existing tests use isolated database records and controlled
 provider/network substitutes where applicable.
 
+## Current M1 recovery authority status (24 September 2026)
+
+M1.1 through M1.6 are implemented and locally verified for the bounded recovery
+authority scope. The M1.6 pass-3 consumer audit found restoration and epoch
+replacement enforcing locked current authority, with current protected effects
+using `require_current_execution`. The exit-gate evidence map is recorded in
+`docs/development/authority-epoch-replacement.md` and the remaining limitation is
+hosted Quality evidence for the final closeout commit. M2 backup/reconstruction
+and cryptographic tamper resistance remain outside the M1 claim.
+
 The matrix classifies entire source sections, including subordinate requirements;
 it does not claim a separate behavioral test for every normative sentence. Mixed
 sections remain partial or conflicting, with implementation evidence and limitations.

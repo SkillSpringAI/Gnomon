@@ -1,7 +1,7 @@
 # Authority Epoch Replacement — M1.6
 
 Date: 24 September 2026.
-Status: passes 1-2 implemented locally. M1 exit-gate evidence remains open.
+Status: passes 1-3 implemented locally. Hosted Quality evidence remains open.
 
 ## Scope
 
@@ -48,9 +48,32 @@ authorization records fail before the effect.
 ## Limits
 
 This pass does not add a dedicated epoch-replacement table, does not cryptographically
-link old and new epochs, does not perform backup reconstruction and does not inspect
-every downstream consumer beyond the trusted authorization-service boundary. Those
-are reserved for the remaining M1.6 pass and the exit gate.
+link old and new epochs and does not perform backup reconstruction. Those are
+reserved for M2. Pass 3 audited the local M1 recovery/authorization consumers:
+restoration revalidates authorization evidence under the locked current authority
+epoch before clearing the fence, epoch replacement requires restored audit evidence,
+and new protected effects should use `require_current_execution` rather than
+historical issuance replay.
+
+## Exit-Gate Evidence Map
+
+The M1.6 exit gate requires restrictive recovery entry, deterministic
+reconciliation, separately authorized restoration, correct authority epoch
+replacement and audit preservation without making recovery a superuser mode. Local
+coverage is:
+
+| Exit-gate/adversarial item | Evidence |
+| --- | --- |
+| Restrictive recovery bootstrap entry | `tests/integration/test_authority_bootstrap.py::test_recovery_bootstrap_fences_restored_authority_before_reconciliation` |
+| Stale RecoveryContext and stale authority basis | `tests/unit/test_recovery_context.py::test_stale_context_rejected_against_independent_current_basis`; `tests/integration/test_recovery_context_service.py::test_no_capture_outside_bootstrap_and_epoch_change_rejects_old_basis` |
+| Unknown provider/cycle outcome blocks restoration | `tests/integration/test_recovery_reconciliation_service.py::test_reconciliation_blocks_while_operations_remain_unknown`; `tests/integration/test_recovery_restoration_service.py::test_prepare_rejects_until_reconciliation_passes` |
+| Missing/new evidence fails read-only reconciliation | `tests/integration/test_recovery_reconciliation_service.py::test_reconciliation_detects_evidence_added_after_context_capture`; `test_reconciliation_detects_missing_captured_history_without_repair` |
+| Protected restoration consumes current context, reconciliation and authorization | `tests/integration/test_recovery_restoration_service.py::test_complete_protected_restoration_clears_fence_and_writes_audit` |
+| Stale version, repeated command and audit failure do not clear the fence | `test_prepare_rejects_stale_expected_version`; `test_complete_protected_restoration_rejects_repeated_command_after_success`; `test_complete_protected_restoration_rolls_back_when_audit_fails` |
+| Stale operator/execution artifacts and old-epoch replay cannot authorize current effects | `tests/unit/test_authorization_contract.py::test_operator_authorization_rejects_stale_epoch_time_and_context`; `test_execution_authorization_rejects_stale_or_escalating_artifacts`; `tests/integration/test_authorization_service.py::test_old_epoch_operator_cannot_issue_new_execution_authorization`; `tests/integration/test_authority_epoch_replacement_service.py::test_epoch_replacement_splits_historical_replay_from_current_execution` |
+| Epoch replacement requires restored audit evidence and preserves rollback on audit failure | `tests/integration/test_authority_epoch_replacement_service.py::test_replace_authority_epoch_requires_restoration_audit`; `test_replace_authority_epoch_rolls_back_when_audit_fails` |
+| Restrictive transition races and point-of-effect authority checks fail closed | `tests/integration/test_security_state_transitions.py::test_concurrent_transitions_cannot_consume_one_version_twice`; `test_restrictive_transition_blocks_in_flight_result_persistence` |
+| Model/external-agent attempts cannot manufacture recovery authority | `tests/unit/test_recovery_context.py::test_invalid_or_authority_bearing_context_is_rejected`; `tests/unit/test_authorization_contract.py::test_invalid_operator_authorization_is_rejected` |
 
 ## Verification
 
@@ -69,6 +92,7 @@ Focused PostgreSQL tests in
 - repeated stale replacement denial;
 - audit failure rollback preserving old epoch/version.
 
-Local evidence for pass 2: authorization contract/service and epoch replacement
-focused tests passed 39 tests. Broader M1 stack, lint, type and migration evidence
-remain to be refreshed for the exit-gate pass.
+Pass-3 local verification completed with 122 focused M1 authority tests passing,
+conformance checks passing, Ruff passing, mypy passing for 96 source files,
+zero pending migrations, and a clean `git diff --check`. Hosted Quality evidence
+remains pending until the closeout commit is pushed and the workflow passes.
