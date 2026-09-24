@@ -1,7 +1,8 @@
 # Gnomon Current Source of Truth
 
-**Committed implementation baseline:** `995f9cc9d0683cdbf331ec4f3708492d7b4231a4` (`995f9cc`, stopping replay and readiness closure). Hosted [Quality run 35806845915](https://github.com/SkillSpringAI/Gnomon/actions/runs/35806845915) tested this exact SHA; `checks`, `minimal-install`, and `browser` all passed.
-**Current slice:** Slices 1 and 2 of the 22 September sequence are closed for their supported application scope. New workspace interactions (Slice 3) remain open. Recovery remains implemented only for restrictive entry.
+**Last hosted-green implementation and planning baseline:** `ef11f70a53d44bdfa41ad1a4d14d5d523fd27623` (`ef11f70`, uncertain retry and fixture correction). Hosted [Quality run 35937991144](https://github.com/SkillSpringAI/Gnomon/actions/runs/35937991144) tested this exact SHA; `checks`, `minimal-install`, and `browser` all passed.
+**Previous failure:** Quality run `35818573020` for `11c46ae` failed listing-fixture setup. The corrective commit closes that failure and preserves unconfirmed requests after denied replay.
+**Current slice:** Milestone 0 baseline restoration is complete. Local full regression passed 1,677 tests and hosted browser passed 28. Recovery remains implemented only for restrictive entry; the next bounded design slice belongs to Milestone 1.
 **Purpose:** Concise current implementation truth, open release gaps, and immediate work.
 **Status:** Current authority for repository state; completed history belongs in [development history](development-history.md), and future work belongs in the [roadmap](roadmap.md).
 
@@ -72,7 +73,7 @@ No current document should claim full autonomous operation, complete security co
 | P1/P2 | Workflow atomicity observability | Implementing baseline hosted-verified | Latest-attempt read projection and workspace rendering expose retained progress without observation-side mutation; hosted run `35548463523` passed for exact SHA `41579173fd19e8316d020d4f9c59c624b684fdac`. |
 | P1/P2 | Lowest-layer invariant enforcement | Closed locally for reviewed scope | Migration 025 constraints and bounded translation cover reviewed authority/duplicate paths; broader lifecycle and memory vocabulary constraints remain deferred. |
 | P1/P2 | Security authority foundations | Partial | Epoch persistence, transition policy, direction-aware administration and the restrictive recovery-bootstrap entry boundary are implemented. RecoveryContext, reconciliation, protected restoration and backup reconstruction remain unimplemented. |
-| P1/P2 | Hosted CI evidence | Closed for stopping Slice 2 | Quality run [35806845915](https://github.com/SkillSpringAI/Gnomon/actions/runs/35806845915) tested exact SHA `995f9cc9d0683cdbf331ec4f3708492d7b4231a4`; checks, minimal-install, and browser passed. |
+| P1/P2 | Hosted CI evidence | Milestone 0 closed | Quality run `35937991144` verifies `ef11f70` across all required jobs. The prior failed run remains recorded in the baseline restoration history. |
 | P1/P2 | Source-dependence contract | Implementing baseline hosted-verified | Migrations 028/030 provide canonical command replay, history-chain/head validation, bounded lock-stable traversal, invalid examined-graph detection, scoped review invalidation and concurrency coverage. Hosted run 35676307231 verifies 4fa785b. Legacy replay without command metadata, graph repair, database-role separation and privileged tamper resistance remain outside the guarantee. |
 | P1/P2 | Trusted-source/provider-session policy audit | Hosted-verified for the reviewed registry and provider-session boundaries | Configuration-scoped events preserve authority epoch/version, require READ_AUDIT to read, and provider-session failure/race/upgrade evidence now covers the reviewed scope; authenticated identity, memory-backend durability, distributed crash atomicity, and unrelated writer audit remain open. |
 | P1/P2 | Evidence-bound stopping decisions | Correctness closure hosted-verified | Migrations 029/031/032 persist accepted command identity and cycle-qualified objective references. Authorized exact retries return historical results; derived limitations survive caller caps, history and reports. Readiness retains unfinished objectives, unresolved assessments, current-review uncertainty, contradiction links and incomplete dependence. Runtime limits remain operator-reported. Legacy and pre-final development commands without complete metadata are readable but not replayable. Semantic automatic stopping, authenticated multi-operator identity, and automatic reopening remain deferred. |
@@ -110,8 +111,8 @@ Implementation evidence and documentation-only follow-up evidence must remain di
 
 ## Immediate next work
 
-1. Add relationship editing and evidence-bound stopping submission to the workspace with new browser acceptance coverage (Slice 3).
-2. Preserve interruption/ordering and direction-aware policy guarantees. Keep RecoveryContext, reconciliation, OperatorAuthorization, protected restoration, cloning, backup reconstruction and epoch replacement outside this sequence.
+1. Select the first bounded RecoveryContext design slice from roadmap Milestone 1; Milestone 0's green baseline is established at `ef11f70`.
+2. Preserve interruption/ordering and direction-aware policy guarantees. Keep RecoveryContext, reconciliation, OperatorAuthorization, protected restoration, cloning, backup reconstruction and epoch replacement outside this baseline-restoration slice.
 
 ### Known implementation question
 

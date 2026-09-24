@@ -1338,3 +1338,11 @@ Local verification: the browser suite collected and passed 24 cases with zero
 failures, errors, or skips. The workflow assertion was raised from 14 to 24.
 The implementation and documentation changes remain uncommitted pending review,
 hosted exact-SHA verification, and the separate maintained-documentation commit.
+
+## Subsequent closure — 24 September 2026
+
+The checkpoint above was committed as `11c46ae`. Its hosted run failed listing
+fixture setup despite passing browser tests. Corrective implementation `ef11f70`
+then passed all required hosted jobs. The [baseline restoration record](2026-09-24-baseline-restoration.md)
+contains the exact SHA, hosted URL, local results and retained limitations. Earlier
+statements in this directive describe their historical checkpoints, not current status.

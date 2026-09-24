@@ -38,7 +38,7 @@ The operations area contains local development, provider configuration, migratio
 The development area separates current implementation truth, future work, conformance evidence, and completed history.
 
 - [Source of truth](development/source-of-truth.md) — concise current-state reference.
-- [Roadmap](development/roadmap.md) — future-work reference.
+- [Roadmap](development/roadmap.md) — dependency-ordered future-work reference.
 - [Conformance](development/conformance.md) — maintained implementation, evidence, testing, and release-gate rules.
 - [Development history](development/development-history.md) — completed slices and meaningful exit-gate evidence.
 

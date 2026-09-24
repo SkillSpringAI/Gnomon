@@ -1,11 +1,20 @@
 # Gnomon implementation status
 
-## Implementation status updated on 2026-09-23
+## Implementation status updated on 2026-09-24
 
-Latest implementation baseline: `995f9cc9d0683cdbf331ec4f3708492d7b4231a4` (`995f9cc`).
-Hosted [Quality run 35806845915](https://github.com/SkillSpringAI/Gnomon/actions/runs/35806845915) tested this exact SHA;
+Last hosted-green implementation baseline: `ef11f70a53d44bdfa41ad1a4d14d5d523fd27623` (`ef11f70`).
+Hosted [Quality run 35937991144](https://github.com/SkillSpringAI/Gnomon/actions/runs/35937991144) tested this exact SHA;
 `checks`, `minimal-install`, and `browser` all passed. This evidence covers the
 implementation commit, not the subsequent documentation-only closure commit.
+
+Previous planning baseline: `11c46aedc3010874493fa74537b3a2ed8c64869c` (`11c46ae`).
+Hosted Quality run `35818573020` failed in the ordinary pytest job because
+`test_source_dependence_listing.py` could not find the intended
+`dependence_context` fixture. The corrective commit repairs that boundary and
+preserves uncertain browser commands through rejected retries. Local full regression
+passed 1,677 tests with zero skips; hosted ordinary pytest passed 1,649 with 28
+expected browser skips, and the separate browser job passed all 28. Milestone 0
+is closed; see the [verification record](../archive/completed-slices/2026-09-24-baseline-restoration.md).
 
 ## Source-dependence contract closure (23 September 2026)
 
@@ -22,14 +31,20 @@ establish global acyclicity or independence. Review fingerprints preserve broad
 invalidation while unrelated evidence does not reopen complete narrow reviews.
 PostgreSQL tests cover reciprocal writes, both lockdown orders and overflow rollback.
 
-Recorded final implementation-local evidence: the browser suite now passes 24
-cases with zero skipped; lint, strict mypy (87 source files), conformance traceability,
-smoke, real HTTP restart and clean-wheel checks passed. All 30 migration resources
-were verified with fresh/populated upgrade, rerun and checksum-drift checks. Hosted
-Quality independently passed the exact SHA above, including the existing five
-browser cases. The current 24-case local suite covers the added Slice 3
-interactions; hosted exact-SHA evidence for this implementation remains pending
-until the current changes are committed and run in hosted CI.
+Verification evidence is scoped to its checkpoint:
+
+- Slice 1 (`4fa785b`): the archived closure records 1,620 local tests with browser
+  enabled and 30 migration resources, plus lint, type, conformance, smoke, restart,
+  and wheel checks. This is historical evidence, not verification of later edits.
+- Slice 2 (`995f9cc`): hosted Quality run `35806845915` passed all required jobs,
+  including five browser cases. This is the previous stopping-correctness baseline.
+- Slice 3 (`11c46ae`): 24 local browser cases passed. Hosted run `35818573020`
+  passed browser and minimal-install jobs but failed ordinary pytest fixture setup.
+  Smoke, prototype, conformance and database-wheel steps in that failed job were
+  skipped; earlier local runs do not establish final-checkout verification.
+- The 24 September corrective pass (`ef11f70`) passed hosted Quality `35937991144`
+  and local full regression. Its 32-migration restart and clean-wheel evidence is
+  recorded separately in the baseline restoration record above.
 
 History is appended by supported application operations, not protected against
 privileged database rewriting. The inspected local identity is a superuser/table
@@ -44,7 +59,9 @@ lock-protocol guarantee.
 A source-registry audit ordering assertion failed once during an earlier local
 full run and passed standalone and on the full rerun. Retain this flake as a known
 verification risk, not as proof of a source-dependence defect or a reason to erase
-the failed result. Stopping correctness and workspace interactions remain open.
+the failed result. The unordered assertion was corrected in `11c46ae` to compare
+the exact event multiset. Stopping correctness was hosted-verified at `995f9cc`;
+workspace interactions and the listing-fixture repair are hosted-verified at `ef11f70`.
 
 Point-of-effect enforcement is implemented for READ_AUDIT on audit and security
 transition history, source retrieval, and provider dispatch. Canonical runtime

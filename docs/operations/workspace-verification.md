@@ -33,6 +33,14 @@ The browser suite covers exact objective/URL payloads, successful and partial co
 
 ## Hosted browser boundary
 
-The required `browser` job in `.github/workflows/quality.yml` runs against the PostgreSQL service, installs the browser extra and Chromium with its Linux dependencies, sets `RUN_BROWSER_TESTS=1` and `PLAYWRIGHT_CHANNEL=chromium`, applies migrations, and executes the browser suite. It also checks the JUnit result so all 24 current browser cases execute with zero skips, failures, or errors. A missing Python dependency, browser binary, or system prerequisite fails that job. The default Quality job and the minimal-install job remain separate: the former preserves the broad non-browser regression and the latter verifies the package without optional browser dependencies.
+The required `browser` job in `.github/workflows/quality.yml` runs against the PostgreSQL service, installs the browser extra and Chromium with its Linux dependencies, sets `RUN_BROWSER_TESTS=1` and `PLAYWRIGHT_CHANNEL=chromium`, applies migrations, and executes the browser suite. It also checks the JUnit result so all 28 current browser cases execute with zero skips, failures, or errors. A missing Python dependency, browser binary, or system prerequisite fails that job. The default Quality job and the minimal-install job remain separate: the former preserves the broad non-browser regression and the latter verifies the package without optional browser dependencies.
+
+Unconfirmed relationship and stopping writes retain their exact request in this
+tab's session storage across reload. A rejected retry preserves that request and
+keeps further writes paused until access is restored and the original request can
+be confirmed. The browser tests cover authority denial both before and after the
+original write committed, followed by authorized retry without duplicate history.
+Session storage does not provide recovery after the tab is closed or storage is
+cleared; resolving such outcomes requires inspecting server history.
 
 These tests bridge browser requests to the in-process test application through the fixture transport. They establish workspace request/rendering behavior and browser prerequisites in CI; they are not proof of live external services, a deployed browser-to-server stack, production networking, or hosted database operations beyond the test fixture.

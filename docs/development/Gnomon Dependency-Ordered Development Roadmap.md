@@ -1,67 +1,60 @@
 # Gnomon Dependency-Ordered Development Roadmap
 
-## Roadmap Status
+> Reconciled note: this planning text has been incorporated into the maintained
+> roadmap at [roadmap.md](roadmap.md). Keep repository links pointed at
+> `docs/development/roadmap.md` so there is one active roadmap path. This file is
+> retained as the original dependency-ordered planning snapshot.
 
-This document is the maintained future-work roadmap for Gnomon. It is not current
-implementation truth. For what exists now, read [Current Source of Truth](source-of-truth.md).
-For completed work, read [Development History](development-history.md).
+**Baseline:** `main` at `11c46aedc3010874493fa74537b3a2ed8c64869c`  
+**Roadmap date:** 23 September 2026  
+**Purpose:** Provide a stable implementation sequence that can be followed without daily repository-wide reprioritization.
 
-**Planning and hosted-green implementation baseline:** `ef11f70a53d44bdfa41ad1a4d14d5d523fd27623`
-(`ef11f70`, Quality run `35937991144`).
-**Roadmap date:** 24 September 2026.
+## 1. Roadmap Rule
 
-The earlier file `Gnomon Dependency-Ordered Development Roadmap.md` was reconciled
-into this stable linked path so repository navigation has one active roadmap.
+Gnomon development follows dependency order rather than opportunistic feature selection.
 
-## Roadmap Rule
-
-Gnomon development follows dependency order rather than opportunistic feature
-selection. Work moves to the next milestone only when the current milestone's
-exit gate is satisfied.
+Work moves to the next milestone only when the current milestone's exit gate is satisfied.
 
 Do not perform a new repository-wide priority review after every completed slice.
 
 Re-open roadmap ordering only when one of these occurs:
 
-1. A security or authority invariant is shown to be unsound.
-2. A milestone dependency proves incorrect.
-3. Hosted CI exposes a previously unknown systemic failure.
-4. Implementation evidence contradicts canonical documentation.
-5. A requirement changes the intended v0.1 boundary.
-6. A discovered defect makes later roadmap work unsafe.
+1. a security or authority invariant is shown to be unsound;
+2. a milestone dependency proves incorrect;
+3. hosted CI exposes a previously unknown systemic failure;
+4. implementation evidence contradicts canonical documentation;
+5. a requirement changes the intended v0.1 boundary;
+6. a discovered defect makes later roadmap work unsafe.
 
 Ordinary implementation friction does not trigger roadmap redesign.
 
-## Milestone 0: Restore A Green Canonical Baseline
+---
 
-### Objective
+# Milestone 0: Restore a Green Canonical Baseline
 
-Establish one exact commit that is locally and hosted verified before further
-architectural work.
+## Objective
 
-### Resolved Blocker
+Establish one exact commit that is locally and hosted verified before further architectural work.
+
+## Current blocker
 
 Quality run `35818573020` for `11c46ae` failed during the ordinary pytest job.
 
 Observed result:
 
-- Ruff: passed.
-- Strict mypy: passed.
-- Migrations: passed.
-- Browser job: passed.
-- Minimal wheel install: passed.
-- Pytest: 1,647 passed, 24 skipped, 2 setup errors.
-- Failures originate from missing `dependence_context` fixture in
-  `test_source_dependence_listing.py`.
+- Ruff: passed
+- strict mypy: passed
+- migrations: passed
+- browser job: passed
+- minimal wheel install: passed
+- pytest: 1,647 passed, 24 skipped, 2 setup errors
+- failures originate from missing `dependence_context` fixture in `test_source_dependence_listing.py`
 
-Resolved by `ef11f70`: explicit fixture discovery passes standalone and full-suite
-collection, and uncertain browser retries retain their original command through
-authority denial. Hosted Quality `35937991144` passed every required job for that
-exact SHA. Local full regression passed 1,677 tests, zero skipped. Milestone 0 is
-complete; the [closure record](../archive/completed-slices/2026-09-24-baseline-restoration.md)
-retains the evidence and limitations. Milestone 1 is next; it has not begun.
+This appears to be test-suite/fixture integration rather than evidence that the source-dependence runtime itself failed, but the canonical HEAD is not green until corrected and rerun.
 
-### M0.1 Test Fixture Closure
+## Work
+
+### M0.1 Test fixture closure
 
 Repair the source-dependence listing test fixture boundary.
 
@@ -72,36 +65,40 @@ Verify that the tests:
 - run as part of the full test suite;
 - do not depend accidentally on import or collection order.
 
-### M0.2 Full Verification
+### M0.2 Full verification
 
-The local preflight and hosted Quality workflow must cover the same evidence
-families. The hosted gate is the `.github/workflows/quality.yml` workflow:
+Run:
 
-- `checks`: install `.[dev,aws]`, run Ruff, strict mypy, migrations, pytest,
-  smoke verification, prototype verification, conformance check, and database
-  wheel verification.
-- `minimal-install`: run minimal wheel verification.
-- `browser`: run the PostgreSQL-backed 28-case workspace browser suite with
-  zero failures, errors, or skips.
+- Ruff
+- strict mypy
+- normal pytest
+- PostgreSQL integration
+- migrations
+- smoke verification
+- prototype verification
+- conformance check
+- wheel verification
+- hosted browser suite
 
-### Exit Gate
+### Exit gate
 
-Milestone 0 closes only when one implementation SHA has a successful hosted
-Quality run across all required jobs.
+Milestone 0 closes only when one implementation SHA has a successful hosted Quality run across all required jobs.
 
 Do not begin architectural expansion from a known-red HEAD.
 
-## Milestone 1: Recovery Authority Completion
+---
 
-### Objective
+# Milestone 1: Recovery Authority Completion
+
+## Objective
 
 Finish the authority model required to recover Gnomon itself safely.
 
-This is the highest-priority architectural milestone. Gnomon already knows how
-to enter restrictive recovery bootstrap. It does not yet have a complete governed
-path back out.
+This is the highest-priority architectural milestone.
 
-### 1.1 Canonical RecoveryContext
+Gnomon already knows how to enter restrictive recovery bootstrap. It does not yet have a complete governed path back out.
+
+## 1.1 Canonical RecoveryContext
 
 Define an immutable/bounded recovery context containing at minimum:
 
@@ -117,10 +114,11 @@ Define an immutable/bounded recovery context containing at minimum:
 - creation time;
 - validity/expiry rules where applicable.
 
-RecoveryContext is evidence about a recovery operation. It is not authority by
-itself.
+RecoveryContext is evidence about a recovery operation.
 
-### 1.2 OperatorAuthorization
+It is not authority by itself.
+
+## 1.2 OperatorAuthorization
 
 Separate operator identity from operator authority.
 
@@ -137,14 +135,13 @@ Define a structured authorization artifact containing:
 
 Do not allow possession of a RecoveryContext to imply permission.
 
-### 1.3 ExecutionAuthorization Epoch Binding
+## 1.3 ExecutionAuthorization epoch binding
 
-Any authority-bearing execution authorization must be bound to the authority epoch
-under which it was issued.
+Any authority-bearing execution authorization must be bound to the authority epoch under which it was issued.
 
 An authorization from a superseded epoch must fail closed.
 
-### 1.4 Recovery Reconciliation
+## 1.4 Recovery reconciliation
 
 Implement deterministic reconciliation of recovery-bootstrap state.
 
@@ -161,10 +158,9 @@ The service should determine, without model discretion:
 
 Reads must not silently repair state.
 
-### 1.5 Protected Authority Restoration
+## 1.5 Protected authority restoration
 
-Implement explicit recovery transitions rather than treating recovery as
-administrative superuser mode.
+Implement explicit recovery transitions rather than treating recovery as administrative superuser mode.
 
 Restoration must require:
 
@@ -179,12 +175,13 @@ Restoration must require:
 
 Direct `LOCKDOWN -> NORMAL` remains prohibited.
 
-### 1.6 Authority Epoch Replacement
+## 1.6 Authority epoch replacement
 
 Define the conditions under which a new authority epoch is created.
 
-The old epoch remains historical evidence. New authority must not rewrite previous
-attribution.
+The old epoch remains historical evidence.
+
+New authority must not rewrite previous attribution.
 
 Explicitly specify behavior for:
 
@@ -195,7 +192,7 @@ Explicitly specify behavior for:
 - audit projections;
 - restored database state.
 
-### Required Adversarial Tests
+## Required adversarial tests
 
 Include at minimum:
 
@@ -212,22 +209,21 @@ Include at minimum:
 - replay of authorization from old epoch;
 - model/external-agent attempt to manufacture recovery authority.
 
-### Exit Gate
+## Exit gate
 
-Milestone 1 closes when Gnomon can enter restrictive recovery, reconcile its
-authoritative state, perform a separately authorized restoration, establish the
-correct authority epoch, and preserve an auditable history without granting
-recovery implicit superuser semantics.
+Milestone 1 closes when Gnomon can enter restrictive recovery, reconcile its authoritative state, perform a separately authorized restoration, establish the correct authority epoch and preserve an auditable history without granting recovery implicit superuser semantics.
 
-## Milestone 2: Backup, Restore, And Reconstruction Conformance
+---
 
-### Objective
+# Milestone 2: Backup, Restore and Reconstruction Conformance
+
+## Objective
 
 Prove that authoritative Gnomon state survives infrastructure loss.
 
 Backup/restore follows recovery authority rather than preceding it.
 
-### 2.1 Supported Backup Procedure
+## 2.1 Supported backup procedure
 
 Define one canonical PostgreSQL backup procedure.
 
@@ -240,7 +236,7 @@ Specify:
 - operator requirements;
 - consistency expectations.
 
-### 2.2 Restore Fixture
+## 2.2 Restore fixture
 
 Create a populated fixture containing:
 
@@ -258,7 +254,7 @@ Create a populated fixture containing:
 - restrictive security state;
 - authority epoch data.
 
-### 2.3 Restoration Verification
+## 2.3 Restoration verification
 
 After restore, compare:
 
@@ -272,10 +268,9 @@ After restore, compare:
 - command identities;
 - deterministic snapshots/reports.
 
-### 2.4 Restore Into Recovery, Not Blind Continuation
+## 2.4 Restore into recovery, not blind continuation
 
-A reconstructed deployment must not simply assume that restored authority is safe
-to resume.
+A reconstructed deployment must not simply assume that restored authority is safe to resume.
 
 Bind restoration to the Milestone 1 recovery model.
 
@@ -286,7 +281,7 @@ Determine whether:
 - outstanding external operations remain unknown;
 - old execution authorization must be invalidated.
 
-### 2.5 Credential Non-Persistence Verification
+## 2.5 Credential non-persistence verification
 
 Prove that database backup does not inadvertently become a credential archive.
 
@@ -299,32 +294,29 @@ Provider/API credentials must not appear in:
 - command journals;
 - backup fixtures.
 
-### Exit Gate
+## Exit gate
 
-A destroyed test deployment can be rebuilt from the supported backup and
-deterministically reach a valid governed state through the recovery path.
+A destroyed test deployment can be rebuilt from the supported backup and deterministically reach a valid governed state through the recovery path.
 
-Only after this milestone should the project claim meaningful backup/restore
-readiness.
+Only after this milestone should the project claim meaningful backup/restore readiness.
 
-## Milestone 3: Runtime And Persistence Hardening
+---
 
-### Objective
+# Milestone 3: Runtime and Persistence Hardening
 
-Reduce remaining infrastructure ambiguity before introducing live autonomous
-networks.
+## Objective
 
-### 3.1 Runtime/Database Role Separation
+Reduce remaining infrastructure ambiguity before introducing live autonomous networks.
+
+## 3.1 Runtime/database role separation
 
 Separate migration authority from normal runtime database authority.
 
-The normal application role should not possess schema-management privileges merely
-because migrations require them.
+The normal application role should not possess schema-management privileges merely because migrations require them.
 
-### 3.2 Constraint Coverage Review
+## 3.2 Constraint coverage review
 
-Review remaining authoritative vocabularies and state machines for database-level
-enforcement where appropriate.
+Review remaining authoritative vocabularies and state machines for database-level enforcement where appropriate.
 
 Candidates include:
 
@@ -333,13 +325,13 @@ Candidates include:
 - remaining memory-history categories;
 - authority-bearing command fields.
 
-Do not mirror every application validation blindly in SQL. Add database constraints
-where corruption below the application layer would violate an important invariant.
+Do not mirror every application validation blindly in SQL.
 
-### 3.3 Persistence Failure Taxonomy
+Add database constraints where corruption below the application layer would violate an important invariant.
 
-Extend structured persistence diagnostics beyond the currently reviewed constraint
-paths.
+## 3.3 Persistence failure taxonomy
+
+Extend structured persistence diagnostics beyond the currently reviewed constraint paths.
 
 Maintain the distinction between:
 
@@ -350,38 +342,39 @@ Maintain the distinction between:
 - ambiguous commit;
 - unexpected persistence defect.
 
-### 3.4 Ambiguous Commit Testing
+## 3.4 Ambiguous commit testing
 
 Introduce explicit connection-loss/ambiguous-commit tests.
 
 Do not treat transaction rollback tests as proof of ambiguous commit recovery.
-Verify idempotency/reconciliation around operations where the caller may not know
-whether PostgreSQL committed.
 
-### 3.5 Audit Durability Boundary
+Verify idempotency/reconciliation around operations where the caller may not know whether PostgreSQL committed.
+
+## 3.5 Audit durability boundary
 
 Decide and document the durability promise Gnomon actually makes.
 
-If privileged-operator tamper evidence is required for the target release, design
-cryptographic history protection here.
+If privileged-operator tamper evidence is required for the target release, design cryptographic history protection here.
 
-If it is not required, retain append-only application semantics without overstating
-tamper resistance.
+If it is not required, retain append-only application semantics without overstating tamper resistance.
 
-### Exit Gate
+## Exit gate
 
-Database privileges, failure semantics, and authoritative invariants support the
-recovery guarantees established in Milestones 1-2.
+Database privileges, failure semantics and authoritative invariants support the recovery guarantees established in Milestones 1–2.
 
-## Milestone 4: Architectural Consolidation
+---
 
-### Objective
+# Milestone 4: Architectural Consolidation
+
+## Objective
 
 Prevent the hardened prototype from becoming increasingly expensive to change.
 
-This milestone is not a rewrite. Refactor only around proven responsibilities.
+This milestone is not a rewrite.
 
-### Current Concentration Points
+Refactor only around proven responsibilities.
+
+## Current concentration points
 
 Review especially:
 
@@ -394,10 +387,9 @@ Review especially:
 
 File size alone is not a defect.
 
-Refactoring is warranted where multiple independent authority responsibilities,
-transaction boundaries, or policy decisions are becoming inseparable.
+Refactoring is warranted where multiple independent authority responsibilities, transaction boundaries or policy decisions are becoming inseparable.
 
-### 4.1 Source Dependence Boundaries
+## 4.1 Source dependence seams
 
 Potential separation:
 
@@ -409,7 +401,7 @@ Potential separation:
 
 Preserve one authoritative transaction owner for writes.
 
-### 4.2 Stopping Decision Boundaries
+## 4.2 Stopping decision seams
 
 Separate where useful:
 
@@ -421,7 +413,7 @@ Separate where useful:
 
 The deterministic stopping verdict remains application authority.
 
-### 4.3 Memory Governance Boundaries
+## 4.3 Memory governance seams
 
 Separate:
 
@@ -433,40 +425,39 @@ Separate:
 
 Do not weaken the existing atomic mutation/audit guarantees during extraction.
 
-### 4.4 Persistence Model Organization
+## 4.4 Persistence model organization
 
-Consider splitting model declarations by bounded domain while retaining one
-metadata/migration authority.
+Consider splitting model declarations by bounded domain while retaining one metadata/migration authority.
 
 Avoid creating repository abstractions solely for aesthetic symmetry.
 
-### 4.5 Workspace Boundary
+## 4.5 Workspace boundary
 
-The current workspace may remain a single deployable operator surface, but separate
-presentation assets/components enough that new controls do not continually expand
-one monolithic HTML file.
+The current workspace may remain a single deployable operator surface, but separate presentation assets/components enough that new controls do not continually expand one monolithic HTML file.
 
-The workspace remains a client of application/API authority. It must never become
-the place where security or research policy is decided.
+The workspace remains a client of application/API authority.
 
-### Exit Gate
+It must never become the place where security or research policy is decided.
 
-Critical services expose clear internal responsibilities and future work can be
-added without modifying unrelated authority paths.
+## Exit gate
+
+Critical services expose clear internal responsibilities and future work can be added without modifying unrelated authority paths.
 
 All behavior remains equivalent under the existing conformance suite.
 
-## Milestone 5: Unified Bounded Execution Envelope
+---
 
-### Objective
+# Milestone 5: Unified Bounded Execution Envelope
 
-Generalize the successful source/agent/provider attempt patterns before connecting
-live external agents.
+## Objective
 
-Do not create a general autonomous agent framework yet. First define a common
-bounded execution contract.
+Generalize the successful source/agent/provider attempt patterns before connecting live external agents.
 
-### Required Concepts
+Do not create a general autonomous agent framework yet.
+
+First define a common bounded execution contract.
+
+## Required concepts
 
 A bounded execution should possess:
 
@@ -484,7 +475,7 @@ A bounded execution should possess:
 - unknown-outcome semantics;
 - reconciliation requirements.
 
-### Budget Hierarchy
+## Budget hierarchy
 
 Support explicit parent/child bounds for:
 
@@ -499,26 +490,23 @@ Support explicit parent/child bounds for:
 
 A child execution cannot silently exceed its parent authority or budget.
 
-### Exit Gate
+## Exit gate
 
-Source retrieval, provider execution, and fake-agent execution can all be explained
-through one bounded runtime contract without erasing their domain-specific
-semantics.
+Source retrieval, provider execution and fake-agent execution can all be explained through one bounded runtime contract without erasing their domain-specific semantics.
 
-## Milestone 6: Fresh-Agent Handoff Architecture
+---
 
-### Objective
+# Milestone 6: Fresh-Agent Handoff Architecture
 
-Introduce secure chain-of-agent semantics before introducing arbitrary live agent
-continuity.
+## Objective
 
-Each agent execution should begin from a freshly constructed context rather than
-inheriting another agent's raw working context.
+Introduce secure chain-of-agent semantics before introducing arbitrary live agent continuity.
 
-### 6.1 Structured Handoff Artifact
+Each agent execution should begin from a freshly constructed context rather than inheriting another agent's raw working context.
 
-Define a bounded handoff object containing only information intentionally
-transmitted to the next agent.
+## 6.1 Structured handoff artifact
+
+Define a bounded handoff object containing only information intentionally transmitted to the next agent.
 
 Potential fields:
 
@@ -538,7 +526,7 @@ Potential fields:
 - provenance;
 - integrity metadata.
 
-### 6.2 Fresh Execution Context
+## 6.2 Fresh execution context
 
 The receiving agent starts from:
 
@@ -556,7 +544,7 @@ It does not inherit:
 - previous agent authority merely because it appeared in the handoff;
 - tool outputs as executable instructions.
 
-### 6.3 Handoff Validation
+## 6.3 Handoff validation
 
 Treat handoffs as proposals/data until application validation succeeds.
 
@@ -573,7 +561,7 @@ Validate:
 
 No agent may grant the next agent more authority than it possessed.
 
-### 6.4 Prompt-Injection Containment Tests
+## 6.4 Prompt-injection containment tests
 
 Test handoffs containing:
 
@@ -586,23 +574,23 @@ Test handoffs containing:
 - stale authority-epoch references;
 - malicious previous-agent summaries.
 
-### Exit Gate
+## Exit gate
 
-Multi-agent chaining can occur without requiring agents to trust raw inherited
-context.
+Multi-agent chaining can occur without requiring agents to trust raw inherited context.
 
-Agent continuity exists at the level of governed state and explicit handoff
-artifacts, not uncontrolled conversational continuity.
+Agent continuity exists at the level of governed state and explicit handoff artifacts, not uncontrolled conversational continuity.
 
-## Milestone 7: First Real External-Agent Adapter
+---
 
-### Objective
+# Milestone 7: First Real External-Agent Adapter
+
+## Objective
 
 Connect exactly one real external-agent platform through the established boundary.
 
 Do not begin with a generalized multi-platform plugin framework.
 
-### Work
+## Work
 
 Implement one adapter supporting:
 
@@ -630,23 +618,23 @@ It cannot:
 - register trusted sources;
 - restore security state.
 
-### Exit Gate
+## Exit gate
 
-One live adapter passes the same bounded execution, prompt-injection, recovery,
-provenance, and interruption invariants already established locally.
+One live adapter passes the same bounded execution, prompt-injection, recovery, provenance and interruption invariants already established locally.
 
 Only then consider a second agent platform.
 
-## Milestone 8: Long-Running Worker Orchestration
+---
 
-### Objective
+# Milestone 8: Long-Running Worker Orchestration
+
+## Objective
 
 Move from request-bound execution to durable asynchronous research execution.
 
-Introduce only after attempts, recovery, authority, and external boundaries are
-mature.
+Introduce only after attempts, recovery, authority and external boundaries are mature.
 
-### Work
+## Work
 
 Design:
 
@@ -662,21 +650,23 @@ Design:
 - security-state propagation;
 - bounded concurrency.
 
-A worker crash must not manufacture a success or silently retry an unknown external
-side effect.
+A worker crash must not manufacture a success or silently retry an unknown external side effect.
 
-### Exit Gate
+## Exit gate
 
-A research cycle can survive process termination and continue or require explicit
-reconciliation from persisted authoritative execution state.
+A research cycle can survive process termination and continue or require explicit reconciliation from persisted authoritative execution state.
 
-## Milestone 9: Epistemic Expansion
+---
 
-### Objective
+# Milestone 9: Epistemic Expansion
+
+## Objective
 
 Improve research intelligence only after runtime authority is dependable.
 
-### 9.1 Dependency-Aware Reassessment
+Candidate work:
+
+### 9.1 Dependency-aware reassessment
 
 When an accepted claim changes or is reversed:
 
@@ -685,7 +675,7 @@ When an accepted claim changes or is reversed:
 - preserve previous history;
 - require deterministic or governed reassessment.
 
-### 9.2 Richer Source Dependence
+### 9.2 Richer source dependence
 
 Potential later capabilities:
 
@@ -696,7 +686,7 @@ Potential later capabilities:
 
 Automatic inference remains a proposal until accepted under application policy.
 
-### 9.3 Semantic Retrieval
+### 9.3 Semantic retrieval
 
 Add semantic/vector retrieval only as an index over canonical structured state.
 
@@ -708,14 +698,15 @@ Vector similarity must never become the source of record for:
 - mutation history;
 - accepted claims.
 
-### 9.4 Additional Source Formats
+### 9.4 Additional source formats
 
-Add PDF, structured documents, or other extractors where there is a concrete
-research need and bounded parsing model.
+Add PDF, structured documents or other extractors where there is a concrete research need and bounded parsing model.
 
-## Milestone 10: v0.1 Release Candidate
+---
 
-### Required Claims
+# Milestone 10: v0.1 Release Candidate
+
+## Required claims
 
 A v0.1 candidate should be able to demonstrate:
 
@@ -733,26 +724,28 @@ A v0.1 candidate should be able to demonstrate:
 - replaceable provider/network adapters;
 - hosted reproducible verification.
 
-### Release Gate
+## Release gate
 
 Before tagging v0.1:
 
-1. Canonical HEAD is green.
-2. All database migrations succeed from a fresh database.
-3. Supported populated upgrade paths succeed.
-4. Backup/restore drill succeeds.
-5. Recovery drill succeeds.
-6. Stale authority and stale epoch tests pass.
-7. Restrictive security-state tests pass.
-8. Browser/operator workflow passes.
-9. Package/wheel verification passes.
-10. Canonical documentation agrees with runtime behavior.
-11. No P0 issue remains open.
-12. Remaining P1/P2 limitations are explicitly documented.
-13. External credentials are absent from persistent research/audit state.
-14. An adversarial security/conformance pass is recorded.
+1. canonical HEAD is green;
+2. all database migrations succeed from a fresh database;
+3. supported populated upgrade paths succeed;
+4. backup/restore drill succeeds;
+5. recovery drill succeeds;
+6. stale authority and stale epoch tests pass;
+7. restrictive security-state tests pass;
+8. browser/operator workflow passes;
+9. package/wheel verification passes;
+10. canonical documentation agrees with runtime behavior;
+11. no P0 issue remains open;
+12. remaining P1/P2 limitations are explicitly documented;
+13. external credentials are absent from persistent research/audit state;
+14. an adversarial security/conformance pass is recorded.
 
-## Deferred Beyond v0.1 Unless Pulled Forward By Evidence
+---
+
+# Deferred Beyond v0.1 Unless Pulled Forward by Evidence
 
 Do not let these interrupt the critical path without a concrete requirement:
 
@@ -770,18 +763,19 @@ Do not let these interrupt the critical path without a concrete requirement:
 - cryptographic audit anchoring unless required by the release threat model;
 - mobile/tablet clients.
 
-## Working Cadence
+---
+
+# Working Cadence
 
 Use this roadmap at three levels.
 
-### Milestone
+## Milestone
 
 A milestone represents a dependency boundary and should remain stable.
 
-### Slice
+## Slice
 
-Each implementation session selects one bounded slice from the current milestone
-only.
+Each implementation session selects one bounded slice from the current milestone only.
 
 A good slice should normally:
 
@@ -790,19 +784,20 @@ A good slice should normally:
 - include its tests;
 - avoid pre-implementing later milestones.
 
-### Closure
+## Closure
 
 A slice closes only when:
 
-1. Implementation is committed.
-2. Focused tests pass.
-3. Required full-suite verification passes.
-4. Hosted CI passes where required.
-5. Canonical docs are updated.
-6. Remaining limitations are recorded without immediately turning all of them into
-   new work.
+1. implementation is committed;
+2. focused tests pass;
+3. required full-suite verification passes;
+4. hosted CI passes where required;
+5. canonical docs are updated;
+6. remaining limitations are recorded without immediately turning all of them into new work.
 
-## Roadmap Review Cadence
+---
+
+# Roadmap Review Cadence
 
 Do not conduct a fresh deep priority review every day.
 
