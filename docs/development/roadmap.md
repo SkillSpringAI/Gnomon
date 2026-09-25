@@ -6,8 +6,8 @@ This document is the maintained future-work roadmap for Gnomon. It is not curren
 implementation truth. For what exists now, read [Current Source of Truth](source-of-truth.md).
 For completed work, read [Development History](development-history.md).
 
-**Planning and hosted-green implementation baseline:** `ef11f70a53d44bdfa41ad1a4d14d5d523fd27623`
-(`ef11f70`, Quality run `35937991144`).
+**Planning and hosted-green implementation baseline:** `316c90bf1816743ce73571e907b5c24e4da6cdec`
+(`316c90b`, Quality run `35981852013`).
 **Roadmap date:** 24 September 2026.
 
 The earlier file `Gnomon Dependency-Ordered Development Roadmap.md` was reconciled
@@ -59,7 +59,8 @@ collection, and uncertain browser retries retain their original command through
 authority denial. Hosted Quality `35937991144` passed every required job for that
 exact SHA. Local full regression passed 1,677 tests, zero skipped. Milestone 0 is
 complete; the [closure record](../archive/completed-slices/2026-09-24-baseline-restoration.md)
-retains the evidence and limitations. Milestone 1 is next; it has not begun.
+retains the evidence and limitations. Milestone 1 subsequently closed for the
+bounded local recovery-authority scope at `316c90b`.
 
 ### M0.1 Test Fixture Closure
 
@@ -106,8 +107,8 @@ path back out.
 Implemented locally: the [RecoveryContext implementation](recovery-context.md) defines
 immutable bounded evidence, trusted local snapshot collection, atomic diagnostic
 persistence, and historical/current read checks. Commit `82bab04` records the local
-implementation and awaits hosted verification. Restoration consumers remain later milestone
-work; this is not recovery authority completion.
+implementation. Restoration consumers are now covered by M1.5/M1.6; this evidence
+is included in the hosted M1 closeout baseline.
 
 Define an immutable/bounded recovery context containing at minimum:
 
@@ -255,6 +256,10 @@ Milestone 1 closes when Gnomon can enter restrictive recovery, reconcile its
 authoritative state, perform a separately authorized restoration, establish the
 correct authority epoch, and preserve an auditable history without granting
 recovery implicit superuser semantics.
+
+Milestone 1 is hosted-verified for the bounded local scope by Quality run
+`35981852013` at `316c90bf1816743ce73571e907b5c24e4da6cdec`. M2 backup and
+reconstruction remain outside that claim.
 
 ## Milestone 2: Backup, Restore, And Reconstruction Conformance
 

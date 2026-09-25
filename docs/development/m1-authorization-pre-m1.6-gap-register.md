@@ -1,8 +1,8 @@
 # M1 Authorization Gap Register
 
 Date: 24 September 2026.
-Status: M1.6 pass-3 closeout checkpoint. This file records the remaining
-limitations and evidence required around the M1.6 exit gate. It does not
+Status: M1.6 hosted closeout checkpoint. This file records the remaining
+limitations after the M1.6 exit gate. It does not
 authorize restoration beyond the tested local scope.
 
 ## Purpose
@@ -26,10 +26,10 @@ because stale or incomplete authorization semantics must not leak into restorati
 | AUTH-G07 | Expired historical replay | Narrowed limitation | Exact replay can return historical authorization records even after expiry or epoch replacement. Current protected effects now have `require_current_execution`, which fails stale, expired, wrong-context and wrong-capability records before use. |
 | AUTH-G08 | Recovery fence clearing | Addressed for M1.5 | Protected restoration is the legal RECOVERY_REQUIRED clearing transition and appends security-transition audit. M1.6 pass 1 then rotates authority lineage after audited restoration. |
 | AUTH-G09 | Cross-artifact reconciliation | Addressed for M1.5, extended in M1.6 pass 2 | M1.5 proves RecoveryContext, operator grant, execution authorization, security-state version and restoration command align for protected restoration. Pass 2 extends current execution validation across epoch replacement. |
-| AUTH-G10 | Hosted evidence | Pending hosted closeout | Local M1.1-M1.6 verification and the pass-3 evidence map are recorded. A hosted Quality run for the final closeout commit remains required before promoting the baseline. |
+| AUTH-G10 | Hosted evidence | Addressed for local M1 scope | Local M1.1-M1.6 verification and the pass-3 evidence map are recorded. Hosted Quality run `35981852013` passed for closeout SHA `316c90bf1816743ce73571e907b5c24e4da6cdec`. |
 
 ## Closeout Rule
 
-Before M1.6 exits, each open item above must be either implemented with tests and
-linked evidence, or explicitly reclassified as deferred with a narrow scope limit
-in source-of-truth, roadmap and conformance records.
+M1.6 is closed for the bounded local recovery-authority scope. Deferred items above
+remain narrow scope limits for later milestones, especially M2 backup/reconstruction,
+multi-user authentication and cryptographic tamper resistance.

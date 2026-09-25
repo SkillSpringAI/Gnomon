@@ -28,6 +28,10 @@ Canonical source-of-truth, roadmap, M1.6 document and gap register agree.
 
 # M2.1 — Backup Manifest Domain Contract
 
+Implemented locally: [Backup Manifest](backup-manifest.md) defines frozen v1
+manifest metadata and negative contract coverage. No backup execution occurs in
+this slice.
+
 Implement domain-only structures first.
 
 Add bounded models for:
@@ -76,6 +80,10 @@ Manifest serialization/deserialization is deterministic and fully bounded.
 
 # M2.2 — Backup State Inspection
 
+Implemented locally: [Backup State Inspection](backup-state-inspection.md)
+describes PostgreSQL, migration, application and authority metadata in a
+repeatable-read read-only transaction. No backup execution occurs in this slice.
+
 Create a read-only service that gathers the metadata required to build a manifest.
 
 Read:
@@ -104,6 +112,11 @@ Gnomon can deterministically describe the state that would be backed up.
 ---
 
 # M2.3 — Backup Creation Boundary
+
+Implemented locally: [Backup Creation Boundary](backup-creation.md) creates a
+complete `database.dump` plus `manifest.json` set through a trusted service and
+operator script. Publication is atomic at the backup-directory level; failed
+stages remove temporary output.
 
 Implement one trusted operator backup command/script.
 
@@ -155,6 +168,12 @@ A populated test database can produce a valid dump + manifest pair.
 ---
 
 # M2.4 — Restore Preflight
+
+Implemented locally: [Restore Preflight](restore-preflight.md) validates
+`manifest.json`, `database.dump`, target PostgreSQL/schema compatibility,
+migration checksum compatibility and pristine target state before any
+`pg_restore` execution. A freshly migrated target may retain only canonical
+migration metadata and the singleton security-state row.
 
 Implement validation before `pg_restore`.
 

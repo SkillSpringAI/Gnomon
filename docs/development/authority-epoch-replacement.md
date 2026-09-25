@@ -1,7 +1,7 @@
 # Authority Epoch Replacement — M1.6
 
 Date: 24 September 2026.
-Status: passes 1-3 implemented locally. Hosted Quality evidence remains open.
+Status: passes 1-3 implemented and hosted-verified for the bounded local M1 scope.
 
 ## Scope
 
@@ -94,5 +94,6 @@ Focused PostgreSQL tests in
 
 Pass-3 local verification completed with 122 focused M1 authority tests passing,
 conformance checks passing, Ruff passing, mypy passing for 96 source files,
-zero pending migrations, and a clean `git diff --check`. Hosted Quality evidence
-remains pending until the closeout commit is pushed and the workflow passes.
+zero pending migrations, and a clean `git diff --check`. Hosted Quality run
+`35981852013` verified closeout SHA `316c90bf1816743ce73571e907b5c24e4da6cdec`
+with `checks`, `minimal-install`, and `browser` all passing.

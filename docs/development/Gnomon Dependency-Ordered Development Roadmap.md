@@ -5,8 +5,8 @@
 > `docs/development/roadmap.md` so there is one active roadmap path. This file is
 > retained as the original dependency-ordered planning snapshot.
 
-**Baseline:** `main` at `11c46aedc3010874493fa74537b3a2ed8c64869c`  
-**Roadmap date:** 23 September 2026  
+**Baseline:** `main` at `11c46aedc3010874493fa74537b3a2ed8c64869c`
+**Roadmap date:** 23 September 2026
 **Purpose:** Provide a stable implementation sequence that can be followed without daily repository-wide reprioritization.
 
 ## 1. Roadmap Rule

@@ -2,10 +2,11 @@
 
 ## Implementation status updated on 2026-09-24
 
-Last hosted-green implementation baseline: `ef11f70a53d44bdfa41ad1a4d14d5d523fd27623` (`ef11f70`).
-Hosted [Quality run 35937991144](https://github.com/SkillSpringAI/Gnomon/actions/runs/35937991144) tested this exact SHA;
+Last hosted-green implementation baseline: `316c90bf1816743ce73571e907b5c24e4da6cdec` (`316c90b`).
+Hosted [Quality run 35981852013](https://github.com/SkillSpringAI/Gnomon/actions/runs/35981852013) tested this exact SHA;
 `checks`, `minimal-install`, and `browser` all passed. This evidence covers the
-implementation commit, not the subsequent documentation-only closure commit.
+bounded local M1 recovery-authority closeout, not the subsequent documentation-only
+M2 sequence commit.
 
 Previous planning baseline: `11c46aedc3010874493fa74537b3a2ed8c64869c` (`11c46ae`).
 Hosted Quality run `35818573020` failed in the ordinary pytest job because
@@ -389,9 +390,10 @@ M1.1 through M1.6 are implemented and locally verified for the bounded recovery
 authority scope. The M1.6 pass-3 consumer audit found restoration and epoch
 replacement enforcing locked current authority, with current protected effects
 using `require_current_execution`. The exit-gate evidence map is recorded in
-`docs/development/authority-epoch-replacement.md` and the remaining limitation is
-hosted Quality evidence for the final closeout commit. M2 backup/reconstruction
-and cryptographic tamper resistance remain outside the M1 claim.
+`docs/development/authority-epoch-replacement.md`. Hosted Quality run
+`35981852013` passed for closeout SHA `316c90bf1816743ce73571e907b5c24e4da6cdec`.
+M2 backup/reconstruction and cryptographic tamper resistance remain outside the M1
+claim.
 
 The matrix classifies entire source sections, including subordinate requirements;
 it does not claim a separate behavioral test for every normative sentence. Mixed

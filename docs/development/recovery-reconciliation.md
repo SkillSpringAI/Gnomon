@@ -81,4 +81,3 @@ cover:
 Local evidence for this pass: the recovery reconciliation, recovery context and
 RecoveryContext unit suites passed 51 focused tests. Ruff passed for the touched
 recovery files. Strict mypy passed across 94 source files.
-
