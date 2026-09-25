@@ -255,6 +255,11 @@ Restored database is structurally valid but still not authorized for ordinary ex
 
 # M2.6 — Canonical Reconstruction Fixture
 
+Implemented locally: [Canonical Reconstruction Fixture](canonical-reconstruction-fixture.md)
+seeds a compact source database with every M2 authority/history family needed
+for later reconstruction comparison, plus a restrictive/unresolved variant for
+LOCKDOWN and unknown operation coverage.
+
 Build one intentionally rich source database fixture.
 
 Populate:
