@@ -173,6 +173,9 @@ def _fixture_ids(variant: FixtureVariant) -> dict[str, UUID]:
             "operator_replay",
             "execution_replay",
             "research_event",
+            "hypothesis",
+            "review_1",
+            "review_2",
         )
     }
     if ids["source_low"] > ids["source_high"]:
@@ -306,8 +309,30 @@ def _seed_research_graph(
         ),
         {
             "id": ids["task"],
-            "brief": _json({"hypotheses": ["Fixture data survives reconstruction"]}),
-            "plan": _json({"cycles": 2, "scope": "m2.6"}),
+            "brief": _json(
+                {
+                    "hypotheses": [
+                        {
+                            "id": str(ids["hypothesis"]),
+                            "label": "H1",
+                            "statement": "Fixture data survives reconstruction.",
+                        }
+                    ],
+                    "questions": [],
+                    "case_studies": [],
+                    "methods": ["web_research", "source_analysis"],
+                    "evidence_requirements": ["At least two fixture sources."],
+                    "stopping_criteria": ["Review restored state equivalence."],
+                }
+            ),
+            "plan": _json(
+                {
+                    "summary": "Seed canonical M2 reconstruction data.",
+                    "first_cycle_objectives": ["objective-1"],
+                    "proposed_methods": ["web_research", "source_analysis"],
+                    "open_questions": ["Which restored records differ?"],
+                }
+            ),
             "created_at": _BASE_TIME,
             "updated_at": _BASE_TIME + timedelta(minutes=20),
         },
@@ -343,9 +368,17 @@ def _seed_research_graph(
                 "id": cycle_id,
                 "task_id": ids["task"],
                 "cycle_number": number,
-                "planning_basis": _json([{"kind": "fixture", "cycle": number}]),
+                "planning_basis": _json(
+                    [
+                        {
+                            "reason": "open_question",
+                            "source_ids": [str(ids["source_low"])],
+                            "evidence_fingerprint": "d" * 64,
+                        }
+                    ]
+                ),
                 "objectives": _json([f"objective-{number}"]),
-                "methods": _json(["source_review", "claim_extraction"]),
+                "methods": _json(["web_research", "source_analysis"]),
                 "status": status,
                 "created_at": _BASE_TIME + timedelta(minutes=number),
                 "started_at": _BASE_TIME + timedelta(minutes=number + 1),
@@ -358,10 +391,37 @@ def _seed_research_graph(
                 "unresolved_objectives": _json([] if number == 1 else ["objective-2"]),
                 "attempted_objectives": _json([f"objective-{number}"]),
                 "objective_results": _json(
-                    [{"objective": f"objective-{number}", "status": status}]
+                    [
+                        {
+                            "objective_index": 0,
+                            "source_ids": [str(ids["source_low"])],
+                            "claim_ids": [str(ids["claim_1"])],
+                        }
+                    ]
                 ),
                 "objective_reviews": _json(
-                    [{"objective_index": 0, "review_id": f"review-{number}"}]
+                    [
+                        {
+                            "id": str(ids[f"review_{number}"]),
+                            "objective_index": 0,
+                            "objective": f"objective-{number}",
+                            "revision": 1,
+                            "decision": "completed" if number == 1 else "unresolved",
+                            "rationale": f"Fixture review {number}.",
+                            "source_ids": [str(ids["source_low"])],
+                            "claim_ids": [str(ids["claim_1"])],
+                            "basis": {
+                                "reason": "open_question",
+                                "source_ids": [str(ids["source_low"])],
+                                "evidence_fingerprint": "d" * 64,
+                            },
+                            "reference_fingerprint": "e" * 64,
+                            "actor": "local_operator",
+                            "created_at": (
+                                _BASE_TIME + timedelta(minutes=number + 6)
+                            ).isoformat(),
+                        }
+                    ]
                 ),
                 "recovery_reason": None if number == 1 else "fixture active cycle",
             },
@@ -375,13 +435,13 @@ def _seed_research_graph(
             )
             VALUES
                 (
-                    :source_low, :task_id, 'web', 'Fixture primary source',
+                    :source_low, :task_id, 'web_page', 'Fixture primary source',
                     'https://example.test/primary', 'Example Test',
                     'Primary fixture content.', :hash_a, 0.9, :observed_at,
                     CAST(:metadata_a AS jsonb)
                 ),
                 (
-                    :source_high, :task_id, 'agent', 'Fixture agent observation',
+                    :source_high, :task_id, 'agent_message', 'Fixture agent observation',
                     NULL, 'local-agent', 'Agent fixture content.',
                     :hash_b, 0.7, :observed_at, CAST(:metadata_b AS jsonb)
                 )
@@ -429,8 +489,8 @@ def _seed_research_graph(
             """
             INSERT INTO claim_sources (claim_id, source_id, support_type, strength)
             VALUES
-                (:claim_1, :source_low, 'supports', 0.8),
-                (:claim_2, :source_high, 'mentions', 0.5)
+                (:claim_1, :source_low, 'supporting', 0.8),
+                (:claim_2, :source_high, 'context', 0.5)
             """
         ),
         {
@@ -448,7 +508,7 @@ def _seed_research_graph(
                 updated_at, version, lifecycle
             )
             VALUES (
-                :assessment, :task_id, :hypothesis_id, 'partially_supported',
+                :assessment, :task_id, :hypothesis_id, 'mixed',
                 'Fixture assessment with mixed evidence.', 0.61, :updated_at, 2, 'active'
             )
             """
@@ -456,7 +516,7 @@ def _seed_research_graph(
         {
             "assessment": ids["assessment"],
             "task_id": ids["task"],
-            "hypothesis_id": uuid5(_NAMESPACE, "m2.6:hypothesis"),
+            "hypothesis_id": ids["hypothesis"],
             "updated_at": _BASE_TIME + timedelta(minutes=10),
         },
     )
@@ -465,8 +525,8 @@ def _seed_research_graph(
             """
             INSERT INTO assessment_evidence (assessment_id, claim_id, relation, strength)
             VALUES
-                (:assessment, :claim_1, 'supports', 0.8),
-                (:assessment, :claim_2, 'limits', 0.3)
+                (:assessment, :claim_1, 'supporting', 0.8),
+                (:assessment, :claim_2, 'context', 0.3)
             """
         ),
         {
