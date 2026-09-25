@@ -210,6 +210,13 @@ Invalid reconstruction input is rejected before import.
 
 # M2.5 — Database Reconstruction
 
+Implemented locally: [Database Reconstruction](database-reconstruction.md)
+restores backup data into a preflighted pristine target through `pg_restore`
+with data-only, single-transaction, owner/privilege-disabled execution. It keeps
+the target migration ledger, applies manifest authority metadata only after a
+successful restore and verifies critical table accessibility. Recovery startup,
+equivalence and epoch rotation remain later slices.
+
 Implement restore into a clean target.
 
 Use `pg_restore` with:
