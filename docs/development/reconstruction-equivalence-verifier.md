@@ -1,7 +1,7 @@
 # Reconstruction Equivalence Verifier — M2.7
 
 Date: 25 September 2026.
-Status: deterministic reconstruction equivalence helpers implemented locally.
+Status: canonical backup/restore equivalence hosted-verified at `a75e47a`.
 
 ## Scope
 
@@ -50,4 +50,8 @@ Local M2.7 verification:
 - `scripts/check_conformance.py` — passed traceability checks.
 - `git diff --check` — passed.
 
-Closeout boundary: this is local implementation evidence for deterministic projections and the canonical fixture. Hosted CI verification, a full `pg_dump`/`pg_restore` round trip, credential sentinel exclusion, recovery bootstrap, and fresh authority epoch rotation remain open in later M2 slices.
+Hosted Quality at `a75e47a` passed 1,809 tests with 28 skips. Both canonical
+fixture variants completed a real `pg_dump`/`pg_restore` round trip and passed
+all deterministic projection, snapshot and report comparisons. Credential
+sentinel exclusion, recovery bootstrap and fresh authority epoch rotation remain
+open in later M2 slices.

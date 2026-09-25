@@ -33,9 +33,10 @@ The 25 September hosted quality failure exposed an unsupported
 `--exclude-table-data` flag on `pg_restore` 16. That flag belongs to `pg_dump`.
 The restore now filters the archive's table of contents before import and keeps
 the pristine-target preflight; it does not clear target tables. Hosted
-Quality confirmed this correction at `ced74f7`. The expanded M2.7 fixture then
-exposed foreign-key ordering across table-data entries. The dependency ordering
-change is awaiting hosted confirmation.
+Quality confirmed the archive filtering correction at `ced74f7`. The expanded
+M2.7 fixture then exposed foreign-key ordering across table-data entries. The
+dependency ordering change and both canonical restore variants passed hosted
+Quality at `a75e47a`.
 
 ## Authority Boundary
 

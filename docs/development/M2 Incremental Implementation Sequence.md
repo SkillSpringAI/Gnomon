@@ -297,8 +297,9 @@ Fixture exercises every authority/history family required by M2.
 
 Implemented locally: [Reconstruction Equivalence Verifier](reconstruction-equivalence-verifier.md)
 adds deterministic projection helpers for every M2 comparison group plus
-snapshot/report projections for the canonical fixture task. Full backup ->
-restore equivalence drills remain later work.
+snapshot/report projections for the canonical fixture task. The baseline and
+restrictive/unresolved backup -> restore equivalence drills passed hosted
+Quality at `a75e47a`.
 
 Create deterministic comparison helpers.
 
