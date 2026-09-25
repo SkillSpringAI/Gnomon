@@ -369,7 +369,7 @@ Every reconstructed deployment enters governed recovery before normal authority.
 
 Implemented locally: [Reconstruction Reconciliation and Restoration](reconstruction-reconciliation-restoration.md)
 extends the canonical restore drill through the existing M1 authority services.
-Hosted verification remains pending.
+Hosted Quality passed at `15e19d2`.
 
 Use existing M1 services without bypasses.
 
