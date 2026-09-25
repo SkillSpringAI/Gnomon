@@ -336,7 +336,7 @@ Pre-recovery reconstructed state is demonstrably equivalent to source state with
 
 Implemented locally: [Restore-to-Recovery Integration](restore-to-recovery.md)
 uses the M1 startup bootstrap and captures a new RecoveryContext after verified
-reconstruction. Hosted confirmation remains pending.
+reconstruction. Hosted Quality passed at `7ba585a`.
 
 Connect reconstruction to M1.
 

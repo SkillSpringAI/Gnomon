@@ -1,7 +1,7 @@
 # Restore-to-Recovery Integration — M2.8
 
 Date: 25 September 2026.
-Status: implemented locally; hosted verification pending.
+Status: hosted-verified at `7ba585a`.
 
 The operator reconstruction path now restores and verifies data, invokes the
 existing M1 recovery bootstrap, and captures a new RecoveryContext with a
@@ -24,3 +24,6 @@ states, a backup with a pending bootstrap flag, historical context separation,
 protected-effect denial, and capture failure. The real PostgreSQL drill compares
 the canonical fixture before bootstrap and then enters recovery. M2.9 will
 exercise reconciliation and protected restoration; M2.10 will rotate the epoch.
+
+Hosted [Quality run 36103438929](https://github.com/SkillSpringAI/Gnomon/actions/runs/36103438929)
+passed all three jobs with 1,815 tests passed and 28 skipped.
