@@ -1,7 +1,7 @@
 # Credential Sentinel Verification — M2.11
 
 Date: 25 September 2026.
-Status: local command test passed; real PostgreSQL drill awaiting hosted Quality.
+Status: hosted-verified at `93e383e`.
 
 The real PostgreSQL drill populates the canonical reconstruction fixture, then
 sets fake AWS access-key, secret-key, session-token and Bedrock bearer sentinels.
@@ -24,3 +24,7 @@ A separate command-construction test places a fake password in an engine URL
 without connecting. It confirms that `pg_dump` and `pg_restore` receive it
 only through `PGPASSWORD`, never command arguments, while `DATABASE_URL` is
 removed. The drill does not change or expose the PostgreSQL server password.
+
+Hosted [Quality run 36108631071](https://github.com/SkillSpringAI/Gnomon/actions/runs/36108631071)
+passed `checks`, `minimal-install`, and `browser`. The main suite reported
+1,819 passed and 28 skipped, including the real PostgreSQL sentinel drill.
