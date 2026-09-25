@@ -1,7 +1,7 @@
 """M2.5 database reconstruction service behavior before recovery startup."""
 
 import shutil
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from subprocess import CalledProcessError, CompletedProcess
 from uuid import uuid4
@@ -18,6 +18,7 @@ from research_agent.application.authority_bootstrap import (
     AuthorityBootstrapService,
     AuthorityStartupMode,
 )
+from research_agent.application.authorization_service import AuthorizationService
 from research_agent.application.backup_creation_service import (
     DUMP_FILENAME,
     MANIFEST_FILENAME,
@@ -35,6 +36,11 @@ from research_agent.application.recovery_context_service import (
     RecoveryContextConflict,
     RecoveryContextService,
 )
+from research_agent.application.recovery_reconciliation_service import RecoveryReconciliationService
+from research_agent.application.recovery_restoration_service import (
+    ProtectedRestorationDenied,
+    RecoveryRestorationService,
+)
 from research_agent.application.security_capability import (
     SecurityCapability,
     SecurityCapabilityDenied,
@@ -42,8 +48,19 @@ from research_agent.application.security_capability import (
 )
 from research_agent.application.security_state_store import SecurityStateStore
 from research_agent.config.settings import get_settings
+from research_agent.domain.authorization import (
+    AuthorizationBasisReference,
+    AuthorizationScopeItem,
+    IssueExecutionAuthorization,
+    IssueOperatorAuthorization,
+    OperatorPrincipal,
+)
 from research_agent.domain.backup import BackupIntegrityMetadata, BackupManifest
-from research_agent.domain.security import SecurityState
+from research_agent.domain.recovery import (
+    PrepareProtectedRestoration,
+    RecoveryOperationDisposition,
+)
+from research_agent.domain.security import SecurityReasonCode, SecurityState
 from research_agent.persistence.database import engine
 
 SOURCE_REVISION = "316c90bf1816743ce73571e907b5c24e4da6cdec"
@@ -366,6 +383,70 @@ def test_real_pg_restore_reconstructs_task_data(tmp_path, variant):
         assert basis.bootstrap_origin is not None
         assert basis.bootstrap_origin.state.value == fixture.security_state
         assert basis.bootstrap_origin.version == fixture.security_state_version
+        context_id = recovered.recovery_context_id
+        reconciliation = RecoveryReconciliationService(target).reconcile(context_id)
+        authorizations = AuthorizationService(target)
+        operator = authorizations.issue_operator(
+            IssueOperatorAuthorization(
+                authorization_id=uuid4(),
+                expected_authority_epoch_id=basis.authority_epoch_id,
+                principal=OperatorPrincipal(kind="local_operator", principal_id="local-admin"),
+                granted_capability="recovery_action",
+                scope=(AuthorizationScopeItem(kind="recovery_context", target_id=context_id),),
+                issuance_basis=(
+                    AuthorizationBasisReference(kind="recovery_context", record_id=context_id),
+                ),
+                expires_at=datetime.now(UTC) + timedelta(hours=1),
+                replay_id=uuid4(),
+                recovery_context_id=context_id,
+            )
+        )
+        execution = authorizations.issue_execution(
+            IssueExecutionAuthorization(
+                execution_authorization_id=uuid4(),
+                expected_authority_epoch_id=basis.authority_epoch_id,
+                execution_id=uuid4(),
+                operator_authorization_id=operator.authorization_id,
+                scope=operator.scope,
+                expires_at=datetime.now(UTC) + timedelta(minutes=30),
+                replay_id=uuid4(),
+                recovery_context_id=context_id,
+            )
+        )
+        command = PrepareProtectedRestoration(
+            restoration_id=uuid4(),
+            context_id=context_id,
+            operator_authorization_id=operator.authorization_id,
+            execution_authorization_id=execution.execution_authorization_id,
+            expected_authority_epoch_id=basis.authority_epoch_id,
+            expected_security_state_version=basis.version,
+            requested_state=SecurityState.NORMAL,
+            reason_code=SecurityReasonCode.RECOVERY_VERIFIED,
+        )
+        restoration = RecoveryRestorationService(target)
+        if variant == "restrictive_unresolved":
+            assert not reconciliation.restoration_allowed
+            assert any(
+                operation.disposition is RecoveryOperationDisposition.UNKNOWN
+                for operation in reconciliation.operations
+            )
+            with pytest.raises(ProtectedRestorationDenied, match="reconciliation"):
+                restoration.complete(command)
+            assert RecoveryContextService(target).current_basis().recovery_bootstrap_pending
+        else:
+            assert reconciliation.restoration_allowed
+            stale = command.model_copy(
+                update={
+                    "operator_authorization_id": fixture.operator_authorization_id,
+                    "execution_authorization_id": fixture.execution_authorization_id,
+                }
+            )
+            with pytest.raises(ProtectedRestorationDenied):
+                restoration.complete(stale)
+            completed = restoration.complete(command)
+            assert completed.state is SecurityState.NORMAL
+            assert completed.authority_epoch_id == basis.authority_epoch_id
+            assert not RecoveryContextService(target).current_basis().recovery_bootstrap_pending
     finally:
         source.dispose()
         target.dispose()

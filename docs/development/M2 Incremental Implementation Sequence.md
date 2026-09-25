@@ -367,6 +367,10 @@ Every reconstructed deployment enters governed recovery before normal authority.
 
 # M2.9 — Reconstruction Reconciliation and Restoration
 
+Implemented locally: [Reconstruction Reconciliation and Restoration](reconstruction-reconciliation-restoration.md)
+extends the canonical restore drill through the existing M1 authority services.
+Hosted verification remains pending.
+
 Use existing M1 services without bypasses.
 
 Test:
