@@ -50,7 +50,7 @@ def test_pg_restore_command_requires_postgresql():
         service._pg_restore_command(Path("database.dump"), Path("restore.list"))
 
 
-def test_restore_list_excludes_only_protected_table_data(tmp_path):
+def test_restore_list_excludes_protected_data_and_orders_foreign_keys(tmp_path, monkeypatch):
     dump = tmp_path / "database.dump"
     listing = (
         "; archive header\n"
@@ -59,6 +59,8 @@ def test_restore_list_excludes_only_protected_table_data(tmp_path):
         "3; 0 103 TABLE DATA public research_tasks owner\n"
         "4; 0 104 TABLE DATA public trusted_sources owner\n"
         "5; 0 105 TABLE public security_state owner\n"
+        "6; 0 106 TABLE DATA public assessment_evidence owner\n"
+        "7; 0 107 TABLE DATA public hypothesis_assessments owner\n"
     )
 
     def runner(args, *, env, cwd=None):
@@ -69,6 +71,11 @@ def test_restore_list_excludes_only_protected_table_data(tmp_path):
     service = DatabaseReconstructionService(
         engine(), runner=runner, environment={"DATABASE_URL": "secret"}
     )
+    monkeypatch.setattr(
+        service,
+        "_table_dependencies",
+        lambda: [("assessment_evidence", "hypothesis_assessments")],
+    )
     restore_list = tmp_path / "restore.list"
     service._write_restore_list(dump, restore_list)
     selected = restore_list.read_text(encoding="utf-8")
@@ -77,3 +84,4 @@ def test_restore_list_excludes_only_protected_table_data(tmp_path):
     assert "3; 0 103 TABLE DATA public research_tasks" in selected
     assert "4; 0 104 TABLE DATA public trusted_sources" in selected
     assert "5; 0 105 TABLE public security_state" in selected
+    assert selected.index("7; 0 107 TABLE DATA") < selected.index("6; 0 106 TABLE DATA")

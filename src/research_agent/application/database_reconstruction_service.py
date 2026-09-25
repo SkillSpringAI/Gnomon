@@ -112,19 +112,65 @@ class DatabaseReconstructionService:
         if not listing:
             raise DatabaseReconstructionError("Backup archive has no restore listing")
         selected: list[str] = []
+        table_positions: list[int] = []
+        table_lines: dict[str, str] = {}
         for line in listing.splitlines(keepends=True):
             # pg_restore -L accepts its own -l output with entries commented out.
             fields = line.split(";", 1)
             if len(fields) == 2 and fields[0].strip().isdigit():
                 parts = fields[1].split()
-                if (
-                    len(parts) >= 6
-                    and parts[2:5] == ["TABLE", "DATA", "public"]
-                    and parts[5] in _RESTORE_EXCLUDED_TABLE_DATA
-                ):
-                    line = ";" + line
+                if len(parts) >= 6 and parts[2:5] == ["TABLE", "DATA", "public"]:
+                    table_name = parts[5]
+                    if table_name in _RESTORE_EXCLUDED_TABLE_DATA:
+                        line = ";" + line
+                    else:
+                        if table_name in table_lines:
+                            raise DatabaseReconstructionError(
+                                f"Duplicate table data in backup archive: {table_name}"
+                            )
+                        table_positions.append(len(selected))
+                        table_lines[table_name] = line
             selected.append(line)
+        remaining = dict(table_lines)
+        parents: dict[str, set[str]] = {name: set() for name in remaining}
+        for child, parent in self._table_dependencies():
+            if child in parents and parent in parents and child != parent:
+                parents[child].add(parent)
+        ordered: list[str] = []
+        while remaining:
+            ready = next(
+                (name for name in remaining if not parents[name].intersection(remaining)),
+                None,
+            )
+            if ready is None:
+                raise DatabaseReconstructionError(
+                    "Backup tables have circular foreign-key dependencies"
+                )
+            ordered.append(remaining.pop(ready))
+        for position, line in zip(table_positions, ordered, strict=True):
+            selected[position] = line
         list_path.write_text("".join(selected), encoding="utf-8")
+
+    def _table_dependencies(self) -> list[tuple[str, str]]:
+        with self.target_engine.connect() as conn:
+            return [
+                (str(child), str(parent))
+                for child, parent in conn.execute(
+                    text(
+                        """
+                        SELECT child.relname, parent.relname
+                        FROM pg_constraint AS fk
+                        JOIN pg_class AS child ON child.oid = fk.conrelid
+                        JOIN pg_namespace AS child_ns ON child_ns.oid = child.relnamespace
+                        JOIN pg_class AS parent ON parent.oid = fk.confrelid
+                        JOIN pg_namespace AS parent_ns ON parent_ns.oid = parent.relnamespace
+                        WHERE fk.contype = 'f'
+                          AND child_ns.nspname = current_schema()
+                          AND parent_ns.nspname = current_schema()
+                        """
+                    )
+                ).all()
+            ]
 
     def _restore_environment(self) -> dict[str, str]:
         env = dict(self.environment)

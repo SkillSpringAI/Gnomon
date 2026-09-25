@@ -16,6 +16,8 @@ The service:
 - runs the restore in one `pg_restore` transaction with exit-on-error enabled;
 - filters the archive table of contents with `pg_restore --list`/`--use-list`
   to exclude migration-table and `security_state` data;
+- orders table-data entries by the migrated target's foreign-key dependencies
+  so parent rows exist before dependent rows are copied;
 - writes the manifest authority metadata into the canonical `security_state`
   row only after `pg_restore` succeeds;
 - reruns local migrations after import;
@@ -31,7 +33,9 @@ The 25 September hosted quality failure exposed an unsupported
 `--exclude-table-data` flag on `pg_restore` 16. That flag belongs to `pg_dump`.
 The restore now filters the archive's table of contents before import and keeps
 the pristine-target preflight; it does not clear target tables. Hosted
-confirmation of this correction is pending.
+Quality confirmed this correction at `ced74f7`. The expanded M2.7 fixture then
+exposed foreign-key ordering across table-data entries. The dependency ordering
+change is awaiting hosted confirmation.
 
 ## Authority Boundary
 
