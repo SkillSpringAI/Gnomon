@@ -9,6 +9,9 @@ from sqlalchemy import Engine, select
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 
+from research_agent.application.authority_epoch_replacement_service import (
+    AuthorityEpochReplacementService,
+)
 from research_agent.application.authorization_service import (
     AuthorizationService,
     AuthorizationUnavailable,
@@ -28,6 +31,7 @@ from research_agent.domain.authorization import (
     validate_execution_authorization,
 )
 from research_agent.domain.recovery import (
+    AuthorityEpochReplacementResult,
     PreparedProtectedRestoration,
     PrepareProtectedRestoration,
     ProtectedRestorationResult,
@@ -36,9 +40,10 @@ from research_agent.domain.recovery import (
     RecoveryBootstrapOrigin,
     RecoveryInventoryStatus,
     RecoveryReconciliation,
+    ReplaceAuthorityEpoch,
 )
 from research_agent.domain.research import utc_now
-from research_agent.domain.security import SecurityActor, SecurityState
+from research_agent.domain.security import SecurityActor, SecurityReasonCode, SecurityState
 from research_agent.persistence.authorization import (
     ExecutionAuthorizationRecord,
     OperatorAuthorizationRecord,
@@ -80,48 +85,81 @@ class RecoveryRestorationService:
         request = PrepareProtectedRestoration.model_validate(request)
         try:
             with self._transaction() as session:
-                prepared, basis, record, checked_at = self._prepare_locked(session, request)
-                transition_id = uuid4()
-                new_version = basis.version + 1
-                record.state = SecurityState.NORMAL.value
-                record.version = new_version
-                record.updated_at = utc_now()
-                record.recovery_bootstrap_pending = False
-                record.recovery_bootstrap_started_at = None
-                record.recovery_bootstrap_from_state = None
-                record.recovery_bootstrap_from_version = None
-                session.add(
-                    SecurityTransitionRecord(
-                        transition_id=transition_id,
-                        previous_state=SecurityState.RECOVERY_REQUIRED.value,
-                        new_state=SecurityState.NORMAL.value,
-                        reason_code=request.reason_code.value,
-                        actor_type=SecurityActor.SECURITY_RECOVERY_SERVICE.value,
-                        actor_id="local-recovery-restoration",
-                        created_at=checked_at,
-                        security_state_version=new_version,
-                        authority_epoch_id=basis.authority_epoch_id,
-                        related_event_ids=[
-                            str(request.restoration_id),
-                            str(request.context_id),
-                            str(request.operator_authorization_id),
-                            str(request.execution_authorization_id),
-                        ],
-                    )
-                )
-                session.flush()
-                return ProtectedRestorationResult(
-                    restoration_id=request.restoration_id,
-                    context_id=prepared.context_id,
-                    incident_id=prepared.incident_id,
-                    transition_id=transition_id,
-                    state=SecurityState.NORMAL,
-                    version=new_version,
-                    authority_epoch_id=basis.authority_epoch_id,
-                    completed_at=checked_at,
-                )
+                return self._complete_locked(session, request)
         except IntegrityError as exc:
             raise ProtectedRestorationDenied("Restoration audit failed") from exc
+
+    def complete_reconstruction(
+        self,
+        request: PrepareProtectedRestoration,
+        *,
+        replacement_id: UUID,
+        new_authority_epoch_id: UUID,
+    ) -> tuple[ProtectedRestorationResult, AuthorityEpochReplacementResult]:
+        """Restore and rotate authority together, committing neither on failure."""
+        request = PrepareProtectedRestoration.model_validate(request)
+        try:
+            with self._transaction() as session:
+                restoration = self._complete_locked(session, request)
+                replacement = AuthorityEpochReplacementService._replace_locked(
+                    session,
+                    ReplaceAuthorityEpoch(
+                        replacement_id=replacement_id,
+                        restoration_id=restoration.restoration_id,
+                        restoration_transition_id=restoration.transition_id,
+                        expected_current_epoch_id=restoration.authority_epoch_id,
+                        expected_security_state_version=restoration.version,
+                        new_authority_epoch_id=new_authority_epoch_id,
+                        reason_code=SecurityReasonCode.RECOVERY_VERIFIED,
+                    ),
+                )
+                return restoration, replacement
+        except IntegrityError as exc:
+            raise ProtectedRestorationDenied("Restoration or epoch audit failed") from exc
+
+    def _complete_locked(
+        self, session: Session, request: PrepareProtectedRestoration
+    ) -> ProtectedRestorationResult:
+        prepared, basis, record, checked_at = self._prepare_locked(session, request)
+        transition_id = uuid4()
+        new_version = basis.version + 1
+        record.state = SecurityState.NORMAL.value
+        record.version = new_version
+        record.updated_at = utc_now()
+        record.recovery_bootstrap_pending = False
+        record.recovery_bootstrap_started_at = None
+        record.recovery_bootstrap_from_state = None
+        record.recovery_bootstrap_from_version = None
+        session.add(
+            SecurityTransitionRecord(
+                transition_id=transition_id,
+                previous_state=SecurityState.RECOVERY_REQUIRED.value,
+                new_state=SecurityState.NORMAL.value,
+                reason_code=request.reason_code.value,
+                actor_type=SecurityActor.SECURITY_RECOVERY_SERVICE.value,
+                actor_id="local-recovery-restoration",
+                created_at=checked_at,
+                security_state_version=new_version,
+                authority_epoch_id=basis.authority_epoch_id,
+                related_event_ids=[
+                    str(request.restoration_id),
+                    str(request.context_id),
+                    str(request.operator_authorization_id),
+                    str(request.execution_authorization_id),
+                ],
+            )
+        )
+        session.flush()
+        return ProtectedRestorationResult(
+            restoration_id=request.restoration_id,
+            context_id=prepared.context_id,
+            incident_id=prepared.incident_id,
+            transition_id=transition_id,
+            state=SecurityState.NORMAL,
+            version=new_version,
+            authority_epoch_id=basis.authority_epoch_id,
+            completed_at=checked_at,
+        )
 
     def _prepare_locked(
         self,

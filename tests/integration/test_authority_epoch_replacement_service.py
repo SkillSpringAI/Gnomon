@@ -187,7 +187,7 @@ def issue_authorizations(db, context_id):
     return operator, execution
 
 
-def restored(db):
+def restoration_command(db):
     provider_id, attempt_id = seed_unresolved(db)
     context_service = RecoveryContextService(db)
     context = context_service.capture(recovery_command(context_service))
@@ -203,8 +203,63 @@ def restored(db):
         requested_state=SecurityState.NORMAL,
         reason_code=SecurityReasonCode.RECOVERY_VERIFIED,
     )
+    return command, operator, execution
+
+
+def restored(db):
+    command, operator, execution = restoration_command(db)
     result = RecoveryRestorationService(db).complete(command)
     return command, result, operator, execution
+
+
+def test_reconstruction_completion_rotates_epoch_atomically(recovery_db):
+    command, _, execution = restoration_command(recovery_db)
+    restoration, replacement = RecoveryRestorationService(recovery_db).complete_reconstruction(
+        command,
+        replacement_id=uuid4(),
+        new_authority_epoch_id=uuid4(),
+    )
+    with Session(recovery_db) as session:
+        state = SecurityStateStore(session).load()
+        audits = session.scalars(select(SecurityTransitionRecord)).all()
+    assert restoration.authority_epoch_id == command.expected_authority_epoch_id
+    assert replacement.previous_authority_epoch_id == restoration.authority_epoch_id
+    assert state.authority_epoch_id.value == replacement.authority_epoch_id
+    assert state.version == replacement.version
+    assert len(audits) == 2
+    with pytest.raises(AuthorizationConflict, match="not current"):
+        AuthorizationService(recovery_db).require_current_execution(
+            execution.execution_authorization_id,
+            recovery_context_id=command.context_id,
+            required_capability=AuthorizationCapability.RECOVERY_ACTION,
+        )
+
+
+def test_reconstruction_completion_rolls_back_when_epoch_audit_fails(recovery_db):
+    command, _, _ = restoration_command(recovery_db)
+
+    def reject_epoch_audit(_, __, target):
+        if target.previous_state == SecurityState.NORMAL.value:
+            raise RuntimeError("epoch audit unavailable")
+
+    event.listen(SecurityTransitionRecord, "before_insert", reject_epoch_audit)
+    try:
+        with pytest.raises(RuntimeError, match="epoch audit unavailable"):
+            RecoveryRestorationService(recovery_db).complete_reconstruction(
+                command,
+                replacement_id=uuid4(),
+                new_authority_epoch_id=uuid4(),
+            )
+    finally:
+        event.remove(SecurityTransitionRecord, "before_insert", reject_epoch_audit)
+    with Session(recovery_db) as session:
+        state = SecurityStateStore(session).load()
+        audits = session.scalars(select(SecurityTransitionRecord)).all()
+    assert state.state is SecurityState.RECOVERY_REQUIRED
+    assert state.recovery_bootstrap_pending
+    assert state.authority_epoch_id.value == command.expected_authority_epoch_id
+    assert state.version == command.expected_security_state_version
+    assert audits == []
 
 
 def replacement_command(result, *, new_epoch=None):

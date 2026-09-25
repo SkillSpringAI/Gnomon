@@ -18,7 +18,10 @@ from research_agent.application.authority_bootstrap import (
     AuthorityBootstrapService,
     AuthorityStartupMode,
 )
-from research_agent.application.authorization_service import AuthorizationService
+from research_agent.application.authorization_service import (
+    AuthorizationConflict,
+    AuthorizationService,
+)
 from research_agent.application.backup_creation_service import (
     DUMP_FILENAME,
     MANIFEST_FILENAME,
@@ -50,6 +53,7 @@ from research_agent.application.security_state_store import SecurityStateStore
 from research_agent.config.settings import get_settings
 from research_agent.domain.authorization import (
     AuthorizationBasisReference,
+    AuthorizationCapability,
     AuthorizationScopeItem,
     IssueExecutionAuthorization,
     IssueOperatorAuthorization,
@@ -61,6 +65,7 @@ from research_agent.domain.recovery import (
     RecoveryOperationDisposition,
 )
 from research_agent.domain.security import SecurityReasonCode, SecurityState
+from research_agent.persistence.authorization import ExecutionAuthorizationRecord
 from research_agent.persistence.database import engine
 
 SOURCE_REVISION = "316c90bf1816743ce73571e907b5c24e4da6cdec"
@@ -443,10 +448,86 @@ def test_real_pg_restore_reconstructs_task_data(tmp_path, variant):
             )
             with pytest.raises(ProtectedRestorationDenied):
                 restoration.complete(stale)
-            completed = restoration.complete(command)
+            completed, replacement = restoration.complete_reconstruction(
+                command,
+                replacement_id=uuid4(),
+                new_authority_epoch_id=uuid4(),
+            )
             assert completed.state is SecurityState.NORMAL
             assert completed.authority_epoch_id == basis.authority_epoch_id
+            assert replacement.previous_authority_epoch_id == basis.authority_epoch_id
+            assert replacement.authority_epoch_id != basis.authority_epoch_id
+            assert replacement.version == completed.version + 1
             assert not RecoveryContextService(target).current_basis().recovery_bootstrap_pending
+            assert (
+                RecoveryContextService(target).current_basis().authority_epoch_id
+                == replacement.authority_epoch_id
+            )
+            with Session(target) as session:
+                historical = session.get(
+                    ExecutionAuthorizationRecord,
+                    fixture.execution_authorization_id,
+                )
+                assert historical is not None
+                assert historical.authority_epoch_id == basis.authority_epoch_id
+            historical_replay = authorizations.issue_execution(
+                IssueExecutionAuthorization(
+                    execution_authorization_id=execution.execution_authorization_id,
+                    expected_authority_epoch_id=execution.authority_epoch_id,
+                    execution_id=execution.execution_id,
+                    operator_authorization_id=execution.operator_authorization_id,
+                    scope=execution.scope,
+                    expires_at=execution.expires_at,
+                    replay_id=execution.replay_id,
+                    recovery_context_id=execution.recovery_context_id,
+                )
+            )
+            assert historical_replay == execution
+            with pytest.raises(AuthorizationConflict, match="not current"):
+                authorizations.require_current_execution(
+                    execution.execution_authorization_id,
+                    recovery_context_id=context_id,
+                    required_capability=AuthorizationCapability.RECOVERY_ACTION,
+                )
+            fresh_operator = authorizations.issue_operator(
+                IssueOperatorAuthorization(
+                    authorization_id=uuid4(),
+                    expected_authority_epoch_id=replacement.authority_epoch_id,
+                    principal=OperatorPrincipal(
+                        kind="local_operator", principal_id="local-admin"
+                    ),
+                    granted_capability=AuthorizationCapability.RECOVERY_ACTION,
+                    scope=operator.scope,
+                    issuance_basis=(
+                        AuthorizationBasisReference(
+                            kind="recovery_context", record_id=context_id
+                        ),
+                    ),
+                    expires_at=datetime.now(UTC) + timedelta(hours=1),
+                    replay_id=uuid4(),
+                    recovery_context_id=context_id,
+                )
+            )
+            fresh_execution = authorizations.issue_execution(
+                IssueExecutionAuthorization(
+                    execution_authorization_id=uuid4(),
+                    expected_authority_epoch_id=replacement.authority_epoch_id,
+                    execution_id=uuid4(),
+                    operator_authorization_id=fresh_operator.authorization_id,
+                    scope=fresh_operator.scope,
+                    expires_at=datetime.now(UTC) + timedelta(minutes=30),
+                    replay_id=uuid4(),
+                    recovery_context_id=context_id,
+                )
+            )
+            assert (
+                authorizations.require_current_execution(
+                    fresh_execution.execution_authorization_id,
+                    recovery_context_id=context_id,
+                    required_capability=AuthorizationCapability.RECOVERY_ACTION,
+                )
+                == fresh_execution
+            )
     finally:
         source.dispose()
         target.dispose()
