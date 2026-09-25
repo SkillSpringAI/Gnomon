@@ -14,7 +14,8 @@ The service:
 - restores data only into a pristine, already migrated PostgreSQL target;
 - disables owner and privilege restoration;
 - runs the restore in one `pg_restore` transaction with exit-on-error enabled;
-- excludes migration-table and `security_state` table data from `pg_restore`;
+- filters the archive table of contents with `pg_restore --list`/`--use-list`
+  to exclude migration-table and `security_state` data;
 - writes the manifest authority metadata into the canonical `security_state`
   row only after `pg_restore` succeeds;
 - reruns local migrations after import;
@@ -25,6 +26,12 @@ The migration ledger is retained from the preflighted target. This keeps the
 target schema under the locally reviewed migration set and avoids importing old
 or duplicate migration rows. Newer empty schema objects remain a compatibility
 policy detail for later equivalence work.
+
+The 25 September hosted quality failure exposed an unsupported
+`--exclude-table-data` flag on `pg_restore` 16. That flag belongs to `pg_dump`.
+The restore now filters the archive's table of contents before import and keeps
+the pristine-target preflight; it does not clear target tables. Hosted
+confirmation of this correction is pending.
 
 ## Authority Boundary
 

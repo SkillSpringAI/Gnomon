@@ -5,6 +5,7 @@ import subprocess
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Protocol
 
 from sqlalchemy import Engine, text
@@ -67,8 +68,11 @@ class DatabaseReconstructionService:
             preflight = (self.preflight or RestorePreflightService(self.target_engine)).validate(
                 Path(backup_directory)
             )
-            args, env = self._pg_restore_command(preflight.dump_path)
-            self.runner(args, env=env, cwd=preflight.backup_directory)
+            with TemporaryDirectory(prefix="gnomon-restore-") as directory:
+                list_path = Path(directory) / "restore.list"
+                self._write_restore_list(preflight.dump_path, list_path)
+                args, env = self._pg_restore_command(preflight.dump_path, list_path)
+                self.runner(args, env=env, cwd=preflight.backup_directory)
             self._apply_restored_authority(preflight)
             applied = tuple(run_migrations(self.target_engine))
             inspection = BackupStateInspectionService(self.target_engine).inspect(
@@ -86,16 +90,53 @@ class DatabaseReconstructionService:
             )
         except DatabaseReconstructionError:
             raise
+        except subprocess.CalledProcessError as exc:
+            detail = (exc.stderr or "").strip()
+            raise DatabaseReconstructionError(
+                f"Database reconstruction failed: {detail or exc}"
+            ) from exc
         except (
             BackupStateInspectionUnavailable,
             RestorePreflightDenied,
             OSError,
             SQLAlchemyError,
-            subprocess.CalledProcessError,
         ) as exc:
             raise DatabaseReconstructionError("Database reconstruction failed") from exc
 
-    def _pg_restore_command(self, dump_path: Path) -> tuple[list[str], dict[str, str]]:
+    def _write_restore_list(self, dump_path: Path, list_path: Path) -> None:
+        listing = self.runner(
+            [self.pg_restore_path, "--list", str(dump_path)],
+            env=self._restore_environment(),
+            cwd=dump_path.parent,
+        ).stdout
+        if not listing:
+            raise DatabaseReconstructionError("Backup archive has no restore listing")
+        selected: list[str] = []
+        for line in listing.splitlines(keepends=True):
+            # pg_restore -L accepts its own -l output with entries commented out.
+            fields = line.split(";", 1)
+            if len(fields) == 2 and fields[0].strip().isdigit():
+                parts = fields[1].split()
+                if (
+                    len(parts) >= 6
+                    and parts[2:5] == ["TABLE", "DATA", "public"]
+                    and parts[5] in _RESTORE_EXCLUDED_TABLE_DATA
+                ):
+                    line = ";" + line
+            selected.append(line)
+        list_path.write_text("".join(selected), encoding="utf-8")
+
+    def _restore_environment(self) -> dict[str, str]:
+        env = dict(self.environment)
+        env.pop("DATABASE_URL", None)
+        url = make_url(self.target_engine.url)
+        if url.password:
+            env["PGPASSWORD"] = url.password
+        return env
+
+    def _pg_restore_command(
+        self, dump_path: Path, list_path: Path
+    ) -> tuple[list[str], dict[str, str]]:
         url = make_url(self.target_engine.url)
         if not url.drivername.startswith("postgresql"):
             raise DatabaseReconstructionError("Only PostgreSQL database URLs are supported")
@@ -111,9 +152,9 @@ class DatabaseReconstructionService:
             "--dbname",
             url.database,
             "--no-password",
+            "--use-list",
+            str(list_path),
         ]
-        for table_name in sorted(_RESTORE_EXCLUDED_TABLE_DATA):
-            args.append(f"--exclude-table-data={table_name}")
         if url.host:
             args.extend(["--host", url.host])
         if url.port:
@@ -121,11 +162,7 @@ class DatabaseReconstructionService:
         if url.username:
             args.extend(["--username", url.username])
         args.append(str(dump_path))
-        env = dict(self.environment)
-        env.pop("DATABASE_URL", None)
-        if url.password:
-            env["PGPASSWORD"] = url.password
-        return args, env
+        return args, self._restore_environment()
 
     def _apply_restored_authority(self, preflight: RestorePreflightResult) -> None:
         authority = preflight.manifest.authority

@@ -1,6 +1,7 @@
 """M2.5 reconstruction command boundary and credential handling."""
 
 from pathlib import Path
+from subprocess import CompletedProcess
 
 import pytest
 from sqlalchemy import create_engine
@@ -23,7 +24,8 @@ def test_pg_restore_command_uses_supported_flags_and_excludes_bootstrap_data(tmp
         pg_restore_path="pg_restore-test",
         environment={"PATH": "test", "DATABASE_URL": "postgresql://leak"},
     )
-    args, env = service._pg_restore_command(dump)
+    restore_list = tmp_path / "restore.list"
+    args, env = service._pg_restore_command(dump, restore_list)
     assert args[:9] == [
         "pg_restore-test",
         "--data-only",
@@ -35,8 +37,7 @@ def test_pg_restore_command_uses_supported_flags_and_excludes_bootstrap_data(tmp
         "db",
         "--no-password",
     ]
-    assert "--exclude-table-data=research_agent_schema_migrations" in args
-    assert "--exclude-table-data=security_state" in args
+    assert args[9:11] == ["--use-list", str(restore_list)]
     assert "secret" not in args
     assert str(dump) == args[-1]
     assert env["PGPASSWORD"] == "secret"
@@ -46,4 +47,33 @@ def test_pg_restore_command_uses_supported_flags_and_excludes_bootstrap_data(tmp
 def test_pg_restore_command_requires_postgresql():
     service = DatabaseReconstructionService(engine("sqlite:///local.db"))
     with pytest.raises(DatabaseReconstructionError, match="PostgreSQL"):
-        service._pg_restore_command(Path("database.dump"))
+        service._pg_restore_command(Path("database.dump"), Path("restore.list"))
+
+
+def test_restore_list_excludes_only_protected_table_data(tmp_path):
+    dump = tmp_path / "database.dump"
+    listing = (
+        "; archive header\n"
+        "1; 0 101 TABLE DATA public research_agent_schema_migrations owner\n"
+        "2; 0 102 TABLE DATA public security_state owner\n"
+        "3; 0 103 TABLE DATA public research_tasks owner\n"
+        "4; 0 104 TABLE DATA public trusted_sources owner\n"
+        "5; 0 105 TABLE public security_state owner\n"
+    )
+
+    def runner(args, *, env, cwd=None):
+        assert args == ["pg_restore", "--list", str(dump)]
+        assert "DATABASE_URL" not in env
+        return CompletedProcess(args, 0, listing, "")
+
+    service = DatabaseReconstructionService(
+        engine(), runner=runner, environment={"DATABASE_URL": "secret"}
+    )
+    restore_list = tmp_path / "restore.list"
+    service._write_restore_list(dump, restore_list)
+    selected = restore_list.read_text(encoding="utf-8")
+    assert ";1; 0 101 TABLE DATA public research_agent_schema_migrations" in selected
+    assert ";2; 0 102 TABLE DATA public security_state" in selected
+    assert "3; 0 103 TABLE DATA public research_tasks" in selected
+    assert "4; 0 104 TABLE DATA public trusted_sources" in selected
+    assert "5; 0 105 TABLE public security_state" in selected

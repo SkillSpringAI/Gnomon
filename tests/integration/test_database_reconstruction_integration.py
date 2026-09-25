@@ -3,6 +3,7 @@
 import shutil
 from datetime import UTC, datetime
 from hashlib import sha256
+from subprocess import CalledProcessError, CompletedProcess
 from uuid import uuid4
 
 import pytest
@@ -29,6 +30,7 @@ from research_agent.persistence.database import engine
 
 SOURCE_REVISION = "316c90bf1816743ce73571e907b5c24e4da6cdec"
 DUMP_BYTES = b"pg-restore-custom-bytes"
+TEST_ARCHIVE_LISTING = "3; 0 103 TABLE DATA public research_tasks owner\n"
 
 
 @pytest.fixture
@@ -81,10 +83,11 @@ def test_reconstruction_runs_restore_and_verifies_target(
     task_id = uuid4()
 
     def runner(args, *, env, cwd=None):
+        if "--list" in args:
+            return CompletedProcess(args, 0, TEST_ARCHIVE_LISTING, "")
         assert "--data-only" in args
         assert "--single-transaction" in args
-        assert "--exclude-table-data=security_state" in args
-        assert "--exclude-table-data=research_agent_schema_migrations" in args
+        assert "--use-list" in args
         assert cwd == backup
         with reconstruction_target_db.begin() as conn:
             conn.execute(
@@ -133,9 +136,11 @@ def test_failed_pg_restore_surfaces_without_rewriting_authority(
         before = conn.scalar(text("SELECT to_jsonb(s) FROM security_state s"))
 
     def runner(args, *, env, cwd=None):
-        raise SQLAlchemyError("restore failed")
+        if "--list" in args:
+            return CompletedProcess(args, 0, TEST_ARCHIVE_LISTING, "")
+        raise CalledProcessError(1, args, stderr="pg_restore: error: COPY research_tasks failed")
 
-    with pytest.raises(DatabaseReconstructionError):
+    with pytest.raises(DatabaseReconstructionError, match="COPY research_tasks failed"):
         DatabaseReconstructionService(
             reconstruction_target_db,
             runner=runner,
@@ -152,6 +157,8 @@ def test_reconstruction_rejects_malformed_restored_authority(
     backup = write_backup(tmp_path, manifest)
 
     def runner(args, *, env, cwd=None):
+        if "--list" in args:
+            return CompletedProcess(args, 0, TEST_ARCHIVE_LISTING, "")
         with reconstruction_target_db.begin() as conn:
             conn.execute(text("DELETE FROM security_state"))
 
