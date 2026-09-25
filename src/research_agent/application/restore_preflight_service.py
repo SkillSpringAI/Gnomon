@@ -102,10 +102,12 @@ class RestorePreflightService:
                 for (table_name,) in rows:
                     if table_name in _PRISTINE_ALLOWED_TABLES:
                         continue
-                    count = conn.execute(
-                        text(f'SELECT count(*) FROM "{table_name}"')
-                    ).scalar_one()
-                    if int(count) > 0:
+                    count: int = int(
+                        conn.execute(
+                            text(f'SELECT count(*) FROM "{table_name}"')
+                        ).scalar_one()
+                    )
+                    if count > 0:
                         populated.append(str(table_name))
                 if populated:
                     raise RestorePreflightDenied("Target database is not pristine")

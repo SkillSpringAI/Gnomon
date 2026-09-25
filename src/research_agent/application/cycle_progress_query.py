@@ -1,5 +1,6 @@
 """Read-only projection of durable cycle-attempt progress."""
 
+from typing import Literal, cast
 from uuid import UUID
 
 from sqlalchemy import select
@@ -14,6 +15,59 @@ from research_agent.persistence.models import (
 
 class CycleAttemptNotFound(LookupError):
     """No persisted attempt exists for the requested task-scoped cycle."""
+
+
+AttemptStatus = Literal[
+    "RUNNING",
+    "COMPLETED",
+    "BLOCKED",
+    "FAILED",
+    "INTERRUPTED",
+]
+
+DurableStage = Literal[
+    "CREATED",
+    "STARTED",
+    "QUESTIONING",
+    "EVIDENCE_RECORDED",
+    "EXTRACTING_CLAIMS",
+    "FINALIZING",
+    "COMPLETED",
+    "BLOCKED",
+    "FAILED",
+    "INTERRUPTED",
+]
+
+
+def _attempt_status(value: str) -> AttemptStatus:
+    allowed = {
+        "RUNNING",
+        "COMPLETED",
+        "BLOCKED",
+        "FAILED",
+        "INTERRUPTED",
+    }
+    if value not in allowed:
+        raise ValueError(f"Unknown attempt status: {value}")
+    return cast(AttemptStatus, value)
+
+
+def _durable_stage(value: str) -> DurableStage:
+    allowed = {
+        "CREATED",
+        "STARTED",
+        "QUESTIONING",
+        "EVIDENCE_RECORDED",
+        "EXTRACTING_CLAIMS",
+        "FINALIZING",
+        "COMPLETED",
+        "BLOCKED",
+        "FAILED",
+        "INTERRUPTED",
+    }
+    if value not in allowed:
+        raise ValueError(f"Unknown durable stage: {value}")
+    return cast(DurableStage, value)
 
 
 class CycleAttemptProgressService:
@@ -47,8 +101,8 @@ class CycleAttemptProgressService:
         return CycleAttemptProgress(
             attempt_id=attempt.id,
             cycle_number=cycle.cycle_number,
-            attempt_status=attempt.status,
-            last_durable_stage=attempt.stage,
+            attempt_status=_attempt_status(attempt.status),
+            last_durable_stage=_durable_stage(attempt.stage),
             started_at=attempt.started_at,
             finished_at=attempt.finished_at,
             recovery_reason=attempt.recovery_reason,

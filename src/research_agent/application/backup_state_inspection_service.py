@@ -97,9 +97,18 @@ class BackupStateInspectionService:
 
     @staticmethod
     def _postgresql_major_version(session: Session) -> int:
-        raw = session.execute(text("SHOW server_version_num")).scalar_one()
-        version_num = int(raw)
-        return version_num // 10000 if version_num < 100000 else version_num // 10000
+        raw: object = session.execute(text("SHOW server_version_num")).scalar_one()
+        if not isinstance(raw, (str, int)):
+            raise BackupStateInspectionUnavailable(
+                "PostgreSQL version is malformed"
+            )
+        try:
+            version_num = int(raw)
+        except (TypeError, ValueError) as exc:
+            raise BackupStateInspectionUnavailable(
+                "PostgreSQL version is malformed"
+            ) from exc
+        return version_num // 10000
 
     @staticmethod
     def _database_scope(session: Session) -> str:
@@ -119,6 +128,8 @@ class BackupStateInspectionService:
         for version_name, checksum in rows:
             if not isinstance(version_name, str) or len(version_name) < 4:
                 raise BackupStateInspectionUnavailable("Migration version is malformed")
+            if not isinstance(checksum, str):
+                raise BackupStateInspectionUnavailable("Migration checksum is malformed")
             try:
                 version = int(version_name[:3])
             except ValueError as exc:
