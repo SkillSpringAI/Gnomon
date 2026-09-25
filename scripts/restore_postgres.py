@@ -1,4 +1,4 @@
-"""Operator entry point for M2.5 PostgreSQL reconstruction."""
+"""Operator entry point for PostgreSQL reconstruction into governed recovery."""
 
 from argparse import ArgumentParser
 from pathlib import Path
@@ -22,7 +22,10 @@ def main() -> int:
         ).reconstruct(args.backup_directory)
     except DatabaseReconstructionError as exc:
         parser.error(str(exc))
-    print(f"Reconstructed {result.target_database_scope} from {result.backup_directory}")
+    print(
+        f"Reconstructed {result.target_database_scope} from {result.backup_directory}; "
+        f"recovery context {result.recovery_context_id}"
+    )
     return 0
 
 

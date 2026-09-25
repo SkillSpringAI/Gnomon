@@ -12,7 +12,12 @@ from m2_reconstruction_fixture import seed_canonical_reconstruction_fixture
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
+from research_agent.application.authority_bootstrap import (
+    AuthorityBootstrapService,
+    AuthorityStartupMode,
+)
 from research_agent.application.backup_creation_service import (
     DUMP_FILENAME,
     MANIFEST_FILENAME,
@@ -26,8 +31,19 @@ from research_agent.application.database_reconstruction_service import (
     DatabaseReconstructionService,
 )
 from research_agent.application.migrations import run_migrations
+from research_agent.application.recovery_context_service import (
+    RecoveryContextConflict,
+    RecoveryContextService,
+)
+from research_agent.application.security_capability import (
+    SecurityCapability,
+    SecurityCapabilityDenied,
+    require_capability,
+)
+from research_agent.application.security_state_store import SecurityStateStore
 from research_agent.config.settings import get_settings
 from research_agent.domain.backup import BackupIntegrityMetadata, BackupManifest
+from research_agent.domain.security import SecurityState
 from research_agent.persistence.database import engine
 
 SOURCE_REVISION = "316c90bf1816743ce73571e907b5c24e4da6cdec"
@@ -112,6 +128,7 @@ def test_reconstruction_runs_restore_and_verifies_target(
     ).reconstruct(backup)
 
     assert result.applied_migrations == ()
+    assert result.recovery_context_id is not None
     with reconstruction_target_db.connect() as conn:
         assert conn.scalar(
             text("SELECT title FROM research_tasks WHERE id = :id"), {"id": task_id}
@@ -119,15 +136,110 @@ def test_reconstruction_runs_restore_and_verifies_target(
         restored = conn.execute(
             text(
                 """
-                SELECT state, version, authority_epoch_id, recovery_bootstrap_pending
+                SELECT state, version, authority_epoch_id, recovery_bootstrap_pending,
+                       recovery_bootstrap_from_state, recovery_bootstrap_from_version
                 FROM security_state WHERE id = 1
                 """
             )
         ).one()
     assert restored.state == manifest.authority.security_state.value
-    assert restored.version == manifest.authority.security_state_version
+    assert restored.version == manifest.authority.security_state_version + 1
     assert restored.authority_epoch_id == manifest.authority.authority_epoch_id
-    assert restored.recovery_bootstrap_pending is manifest.authority.recovery_bootstrap_pending
+    assert restored.recovery_bootstrap_pending is True
+    assert restored.recovery_bootstrap_from_state == manifest.authority.security_state.value
+    assert restored.recovery_bootstrap_from_version == manifest.authority.security_state_version
+
+
+@pytest.mark.parametrize(
+    ("stored_state", "source_pending"),
+    [
+        (SecurityState.NORMAL, False),
+        (SecurityState.DEGRADED, False),
+        (SecurityState.LOCKDOWN, False),
+        (SecurityState.RECOVERY_REQUIRED, False),
+        (SecurityState.RECOVERY_REQUIRED, True),
+    ],
+)
+def test_reconstruction_enters_recovery_with_new_context(
+    reconstruction_target_db, tmp_path, stored_state, source_pending
+):
+    original = manifest_from_target(reconstruction_target_db)
+    manifest = original.model_copy(
+        update={
+            "authority": original.authority.model_copy(
+                update={
+                    "security_state": stored_state,
+                    "security_state_version": 7,
+                    "recovery_bootstrap_pending": source_pending,
+                }
+            )
+        }
+    )
+    backup = write_backup(tmp_path, manifest)
+    historical_id = uuid4()
+
+    def runner(args, *, env, cwd=None):
+        if "--list" in args:
+            return CompletedProcess(args, 0, TEST_ARCHIVE_LISTING, "")
+        with reconstruction_target_db.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO recovery_contexts (
+                        context_id, incident_id, authority_epoch_id,
+                        security_state_version, created_at, expires_at,
+                        context, command
+                    ) VALUES (
+                        :context_id, :incident_id, :epoch_id, 5,
+                        now() - interval '2 hours', now() - interval '1 hour',
+                        '{}'::jsonb, '{}'::jsonb
+                    )
+                    """
+                ),
+                {
+                    "context_id": historical_id,
+                    "incident_id": uuid4(),
+                    "epoch_id": manifest.authority.authority_epoch_id,
+                },
+            )
+
+    result = DatabaseReconstructionService(reconstruction_target_db, runner=runner).reconstruct(
+        backup
+    )
+    assert result.recovery_context_id is not None
+    assert result.recovery_context_id != historical_id
+    with reconstruction_target_db.connect() as conn:
+        row = conn.execute(
+            text(
+                """
+                SELECT state, version, recovery_bootstrap_pending,
+                       recovery_bootstrap_from_state, recovery_bootstrap_from_version
+                FROM security_state WHERE id = 1
+                """
+            )
+        ).one()
+        assert conn.scalar(text("SELECT count(*) FROM recovery_contexts")) == 2
+        context = conn.scalar(
+            text("SELECT context FROM recovery_contexts WHERE context_id = :id"),
+            {"id": result.recovery_context_id},
+        )
+    assert row.state == stored_state.value
+    assert row.version == 8
+    assert row.recovery_bootstrap_pending is True
+    assert row.recovery_bootstrap_from_state == stored_state.value
+    assert row.recovery_bootstrap_from_version == 7
+    assert context["authority_basis"]["state"] == SecurityState.RECOVERY_REQUIRED.value
+    assert context["authority_basis"]["bootstrap_origin"]["state"] == stored_state.value
+    with Session(reconstruction_target_db) as session:
+        current = AuthorityBootstrapService(session).initialize(AuthorityStartupMode.CONTINUING)
+        assert current.state is SecurityState.RECOVERY_REQUIRED
+        assert current.version == 8
+        assert SecurityStateStore(session).load().recovery_bootstrap_pending
+        with pytest.raises(SecurityCapabilityDenied):
+            require_capability(session, SecurityCapability.MEMORY_MUTATION)
+    assert RecoveryContextService(reconstruction_target_db).read(
+        result.recovery_context_id, require_current=True
+    ).context_id == result.recovery_context_id
 
 
 def test_failed_pg_restore_surfaces_without_rewriting_authority(
@@ -150,6 +262,27 @@ def test_failed_pg_restore_surfaces_without_rewriting_authority(
 
     with reconstruction_target_db.connect() as conn:
         assert conn.scalar(text("SELECT to_jsonb(s) FROM security_state s")) == before
+
+
+def test_context_capture_failure_keeps_reconstruction_fenced(
+    reconstruction_target_db, tmp_path, monkeypatch
+):
+    backup = write_backup(tmp_path, manifest_from_target(reconstruction_target_db))
+
+    def runner(args, *, env, cwd=None):
+        if "--list" in args:
+            return CompletedProcess(args, 0, TEST_ARCHIVE_LISTING, "")
+
+    def fail_capture(self, request):
+        raise RecoveryContextConflict("simulated capture failure")
+
+    monkeypatch.setattr(RecoveryContextService, "capture", fail_capture)
+    with pytest.raises(DatabaseReconstructionError, match="context capture failed"):
+        DatabaseReconstructionService(reconstruction_target_db, runner=runner).reconstruct(backup)
+    with Session(reconstruction_target_db) as session:
+        state = SecurityStateStore(session).load()
+    assert state.state is SecurityState.RECOVERY_REQUIRED
+    assert state.recovery_bootstrap_pending
 
 
 def test_reconstruction_rejects_malformed_restored_authority(
@@ -217,13 +350,22 @@ def test_real_pg_restore_reconstructs_task_data(tmp_path, variant):
             application_version="0.1.0",
             source_revision=SOURCE_REVISION,
         )
-        DatabaseReconstructionService(target).reconstruct(backup.backup_directory)
+        service = DatabaseReconstructionService(target)
+        verified = service._restore_verified_data(backup.backup_directory)
         with target.connect() as conn:
             assert conn.scalar(
                 text("SELECT title FROM research_tasks WHERE id = :id"),
                 {"id": task_id},
             ) == "Real restore"
         assert_reconstruction_equivalent(source, target, task_id=fixture.task_id)
+        recovered = service._enter_recovery(verified)
+        assert recovered.recovery_context_id is not None
+        assert recovered.recovery_context_id != fixture.recovery_context_id
+        basis = RecoveryContextService(target).current_basis()
+        assert basis.state is SecurityState.RECOVERY_REQUIRED
+        assert basis.bootstrap_origin is not None
+        assert basis.bootstrap_origin.state.value == fixture.security_state
+        assert basis.bootstrap_origin.version == fixture.security_state_version
     finally:
         source.dispose()
         target.dispose()

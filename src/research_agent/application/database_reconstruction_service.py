@@ -3,26 +3,41 @@
 import os
 import subprocess
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Protocol
+from uuid import UUID, uuid4
 
 from sqlalchemy import Engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
+from research_agent.application.authority_bootstrap import (
+    AuthorityBootstrapService,
+    AuthorityBootstrapUnavailable,
+    AuthorityStartupMode,
+)
 from research_agent.application.backup_creation_service import ProcessRunner, _default_runner
 from research_agent.application.backup_state_inspection_service import (
     BackupStateInspectionService,
     BackupStateInspectionUnavailable,
 )
 from research_agent.application.migrations import MIGRATIONS_TABLE, run_migrations
+from research_agent.application.recovery_context_service import (
+    RecoveryContextConflict,
+    RecoveryContextService,
+    RecoveryContextUnavailable,
+)
 from research_agent.application.restore_preflight_service import (
     RestorePreflightDenied,
     RestorePreflightResult,
     RestorePreflightService,
 )
+from research_agent.domain.recovery import CaptureRecoveryContext
+from research_agent.domain.security import SecurityState
 
 _RESTORE_EXCLUDED_TABLE_DATA = frozenset({MIGRATIONS_TABLE, "security_state"})
 _CRITICAL_TABLES = (MIGRATIONS_TABLE, "security_state", "research_tasks")
@@ -43,10 +58,11 @@ class DatabaseReconstructionResult:
     dump_path: Path
     applied_migrations: tuple[str, ...]
     target_database_scope: str
+    recovery_context_id: UUID | None = None
 
 
 class DatabaseReconstructionService:
-    """Restore backup data into a preflighted pristine PostgreSQL target."""
+    """Restore into a pristine target, then enter governed recovery."""
 
     def __init__(
         self,
@@ -64,6 +80,41 @@ class DatabaseReconstructionService:
         self.preflight = preflight
 
     def reconstruct(self, backup_directory: Path) -> DatabaseReconstructionResult:
+        return self._enter_recovery(self._restore_verified_data(backup_directory))
+
+    def _enter_recovery(self, result: DatabaseReconstructionResult) -> DatabaseReconstructionResult:
+        try:
+            with Session(self.target_engine) as session:
+                AuthorityBootstrapService(session).initialize(AuthorityStartupMode.RECOVERY)
+            contexts = RecoveryContextService(self.target_engine)
+            basis = contexts.current_basis()
+            if (
+                not basis.recovery_bootstrap_pending
+                or basis.state is not SecurityState.RECOVERY_REQUIRED
+            ):
+                raise DatabaseReconstructionError("Recovery bootstrap did not establish a fence")
+            context = contexts.capture(
+                CaptureRecoveryContext(
+                    context_id=uuid4(),
+                    expected_basis=basis,
+                    expires_at=datetime.now(UTC) + timedelta(hours=1),
+                )
+            )
+            return replace(result, recovery_context_id=context.context_id)
+        except DatabaseReconstructionError:
+            raise
+        except (
+            AuthorityBootstrapUnavailable,
+            RecoveryContextConflict,
+            RecoveryContextUnavailable,
+            SQLAlchemyError,
+        ) as exc:
+            raise DatabaseReconstructionError(
+                "Recovery bootstrap or context capture failed"
+            ) from exc
+
+    def _restore_verified_data(self, backup_directory: Path) -> DatabaseReconstructionResult:
+        """Internal pre-recovery boundary used by the equivalence drill."""
         try:
             preflight = (self.preflight or RestorePreflightService(self.target_engine)).validate(
                 Path(backup_directory)
@@ -79,7 +130,14 @@ class DatabaseReconstructionService:
                 application_version=preflight.manifest.application.application_version,
                 source_revision=preflight.manifest.application.source_revision,
             )
-            if inspection.authority != preflight.manifest.authority:
+            if (
+                inspection.authority.security_state != preflight.manifest.authority.security_state
+                or inspection.authority.security_state_version
+                != preflight.manifest.authority.security_state_version
+                or inspection.authority.authority_epoch_id
+                != preflight.manifest.authority.authority_epoch_id
+                or inspection.authority.recovery_bootstrap_pending
+            ):
                 raise DatabaseReconstructionError("Restored authority metadata mismatch")
             self._verify_critical_tables()
             return DatabaseReconstructionResult(
@@ -220,7 +278,7 @@ class DatabaseReconstructionService:
                     SET state = :state,
                         version = :version,
                         authority_epoch_id = :authority_epoch_id,
-                        recovery_bootstrap_pending = :recovery_bootstrap_pending,
+                        recovery_bootstrap_pending = false,
                         recovery_bootstrap_started_at = NULL,
                         recovery_bootstrap_from_state = NULL,
                         recovery_bootstrap_from_version = NULL,
@@ -232,7 +290,6 @@ class DatabaseReconstructionService:
                     "state": authority.security_state.value,
                     "version": authority.security_state_version,
                     "authority_epoch_id": authority.authority_epoch_id,
-                    "recovery_bootstrap_pending": authority.recovery_bootstrap_pending,
                 },
             )
             if updated.rowcount != 1:

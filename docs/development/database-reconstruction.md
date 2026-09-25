@@ -23,6 +23,8 @@ The service:
 - reruns local migrations after import;
 - verifies migration, security-state and task-table accessibility;
 - verifies restored authority metadata through M2.2 state inspection.
+- enters the existing M1 recovery bootstrap and captures a new RecoveryContext
+  before the operator entry point reports success.
 
 The migration ledger is retained from the preflighted target. This keeps the
 target schema under the locally reviewed migration set and avoids importing old
@@ -40,10 +42,9 @@ Quality at `a75e47a`.
 
 ## Authority Boundary
 
-This slice reconstructs database state only. It does not start ordinary
-application authority, enter governed recovery mode, issue operator or execution
-authorization, clear recovery fences, rotate the Authority Epoch or claim
-post-restore equivalence. Those remain later M2 slices.
+The operator path enters governed recovery after verified import. It does not
+start ordinary application authority, issue operator or execution authorization,
+clear recovery fences or rotate the Authority Epoch. Those remain later M2 slices.
 
 ## Credential Boundary
 

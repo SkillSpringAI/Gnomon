@@ -334,6 +334,10 @@ Pre-recovery reconstructed state is demonstrably equivalent to source state with
 
 # M2.8 — Restore-to-Recovery Integration
 
+Implemented locally: [Restore-to-Recovery Integration](restore-to-recovery.md)
+uses the M1 startup bootstrap and captures a new RecoveryContext after verified
+reconstruction. Hosted confirmation remains pending.
+
 Connect reconstruction to M1.
 
 After database reconstruction:
