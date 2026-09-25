@@ -1,7 +1,7 @@
 # Reconstruction Epoch Rotation — M2.10
 
 Date: 25 September 2026.
-Status: local verification complete; hosted Quality pending.
+Status: hosted-verified at `3474545`.
 
 The supported reconstruction completion path is
 `RecoveryRestorationService.complete_reconstruction`. It runs M1.5 protected
@@ -23,3 +23,7 @@ ordinary recovery. Reconstruction callers must use `complete_reconstruction`
 so there is no committed interval of `NORMAL` authority under the restored
 epoch. This boundary does not protect against direct database writes or a caller
 deliberately choosing the ordinary recovery API for a reconstructed database.
+
+Hosted [Quality run 36107345233](https://github.com/SkillSpringAI/Gnomon/actions/runs/36107345233)
+passed `checks`, `minimal-install`, and `browser`. The main suite reported
+1,817 passed and 28 skipped, including the real PostgreSQL reconstruction drill.
