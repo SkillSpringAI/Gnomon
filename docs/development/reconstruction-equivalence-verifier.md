@@ -31,8 +31,13 @@ The verifier is intentionally projection-based. It avoids whole-database dumps
 and unordered row comparison. Each group uses explicit stable ordering and is
 intended to support later backup -> restore equivalence drills.
 
-This slice does not yet perform the full `pg_dump`/`pg_restore` round trip,
-credential sentinel scan, recovery bootstrap or epoch rotation.
+The real PostgreSQL integration test now performs backup, restore and full
+projection comparison for both the baseline and restrictive/unresolved fixture
+variants. The `security_state.updated_at` field is excluded from comparison:
+reconstruction writes a new update timestamp when it applies the manifest's
+authority state. State, version, epoch, bootstrap flag and transition history
+remain in the comparison. Credential sentinel scan, recovery bootstrap and
+epoch rotation remain separate work.
 
 ## Verification
 

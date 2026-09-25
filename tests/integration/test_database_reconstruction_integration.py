@@ -7,6 +7,8 @@ from subprocess import CalledProcessError, CompletedProcess
 from uuid import uuid4
 
 import pytest
+from m2_reconstruction_equivalence import assert_reconstruction_equivalent
+from m2_reconstruction_fixture import seed_canonical_reconstruction_fixture
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import SQLAlchemyError
@@ -173,7 +175,8 @@ def test_reconstruction_rejects_malformed_restored_authority(
     shutil.which("pg_dump") is None or shutil.which("pg_restore") is None,
     reason="pg_dump and pg_restore are not installed",
 )
-def test_real_pg_restore_reconstructs_task_data(tmp_path):
+@pytest.mark.parametrize("variant", ["baseline", "restrictive_unresolved"])
+def test_real_pg_restore_reconstructs_task_data(tmp_path, variant):
     base_url = make_url(get_settings().database_url)
     if base_url.host not in {"localhost", "127.0.0.1", "::1"}:
         pytest.skip("real reconstruction integration requires local PostgreSQL")
@@ -196,6 +199,7 @@ def test_real_pg_restore_reconstructs_task_data(tmp_path):
         run_migrations(source)
         run_migrations(target)
         with source.begin() as conn:
+            fixture = seed_canonical_reconstruction_fixture(conn, variant=variant)
             conn.execute(
                 text(
                     """
@@ -219,6 +223,7 @@ def test_real_pg_restore_reconstructs_task_data(tmp_path):
                 text("SELECT title FROM research_tasks WHERE id = :id"),
                 {"id": task_id},
             ) == "Real restore"
+        assert_reconstruction_equivalent(source, target, task_id=fixture.task_id)
     finally:
         source.dispose()
         target.dispose()

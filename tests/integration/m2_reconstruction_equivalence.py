@@ -94,7 +94,7 @@ _PROJECTION_QUERIES: dict[str, tuple[str, ...]] = {
         """,
     ),
     "security_epoch": (
-        'SELECT to_jsonb(s) FROM security_state s ORDER BY s.id',
+        "SELECT to_jsonb(s) - 'updated_at' FROM security_state s ORDER BY s.id",
         """
         SELECT to_jsonb(t)
         FROM security_state_transitions t
