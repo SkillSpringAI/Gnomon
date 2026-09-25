@@ -38,5 +38,11 @@ credential sentinel scan, recovery bootstrap or epoch rotation.
 
 Local M2.7 verification:
 
-- `python -m pytest tests/integration/test_m2_reconstruction_equivalence.py` — 2 passed.
-- `python -m ruff check tests/integration/m2_reconstruction_equivalence.py tests/integration/test_m2_reconstruction_equivalence.py` — passed.
+- `python -m pytest tests/integration/test_m2_reconstruction_fixture.py tests/integration/test_m2_reconstruction_equivalence.py` — 4 passed.
+- Combined M2.1-M2.7 suite — 59 passed, 2 skipped because `pg_dump` and `pg_restore` are unavailable in the local environment.
+- Ruff — passed.
+- Mypy across 103 source files — passed.
+- `scripts/check_conformance.py` — passed traceability checks.
+- `git diff --check` — passed.
+
+Closeout boundary: this is local implementation evidence for deterministic projections and the canonical fixture. Hosted CI verification, a full `pg_dump`/`pg_restore` round trip, credential sentinel exclusion, recovery bootstrap, and fresh authority epoch rotation remain open in later M2 slices.

@@ -2,6 +2,7 @@
 
 **Last hosted-green implementation baseline:** `316c90bf1816743ce73571e907b5c24e4da6cdec` (`316c90b`, M1 recovery authority closeout). Hosted [Quality run 35981852013](https://github.com/SkillSpringAI/Gnomon/actions/runs/35981852013) tested this exact SHA; `checks`, `minimal-install`, and `browser` all passed.
 **Current planning baseline:** `661b072f3d36de98792ee9649adce8a2db22401f` (`661b072`, M2 implementation sequence). This is documentation-only planning after the hosted M1 closeout baseline.
+**Current local implementation baseline:** `b898e97` (M2.7 reconstruction equivalence projections). This baseline is not hosted-verified.
 **Previous failure:** Quality run `35818573020` for `11c46ae` failed listing-fixture setup. The corrective commit closes that failure and preserves unconfirmed requests after denied replay.
 **Current slice:** M2 backup/restore sequencing has begun. M2.1 has a local [Backup Manifest domain contract](backup-manifest.md) for frozen v1 metadata, ordered migration checksums, authority metadata and dump integrity metadata. M2.2 has a local [Backup State Inspection](backup-state-inspection.md) service that reads PostgreSQL, migration, application and authority metadata in a repeatable-read read-only transaction. M2.3 has a local [Backup Creation Boundary](backup-creation.md) that publishes a complete `database.dump` plus `manifest.json` set only after successful state inspection, `pg_dump`, dump hashing and manifest validation. M2.4 has a local [Restore Preflight](restore-preflight.md) service that rejects malformed backup material, dump hash mismatches, incompatible PostgreSQL/schema/migration state and populated restore targets before `pg_restore`. M2.5 has a local [Database Reconstruction](database-reconstruction.md) service that imports backup data into a preflighted pristine target through guarded `pg_restore`, reapplies manifest authority metadata and verifies critical restored structure. M2.6 has a local [Canonical Reconstruction Fixture](canonical-reconstruction-fixture.md) covering the M2 authority/history families plus a restrictive unresolved variant. M2.7 has a local [Reconstruction Equivalence Verifier](reconstruction-equivalence-verifier.md) with deterministic projection groups plus snapshot/report comparison for the canonical fixture task. Milestone 1 recovery authority is hosted-verified for the bounded local scope at `316c90b`: M1.1 has a local [RecoveryContext contract and diagnostic persistence boundary](recovery-context.md), including migration 033, trusted local capture, atomic audit and read validation. M1.2/M1.3 add local [authorization domain contracts and trusted issuance persistence](authorization.md) for operator grants and epoch-bound execution authorizations, including migration 034, exact replay validation and closeout hardening. M1.4 adds local [read-only recovery reconciliation](recovery-reconciliation.md) over supported evidence and operation streams. M1.5 adds local [protected restoration](recovery-restoration.md), including preflight and audited RECOVERY_REQUIRED fence clearing. M1.6 adds local [authority epoch replacement](authority-epoch-replacement.md) after restoration plus a current execution authorization boundary for protected effects. M2 credential exclusion and recovery integration remain open.
 **M1.6 review register:** Known authorization gaps to review before M1.6 exit are tracked in [M1 authorization gap register](m1-authorization-pre-m1.6-gap-register.md).
@@ -94,6 +95,22 @@ No current document should claim full autonomous operation, complete security co
 | P1 | Selected mutation/lockdown ordering | Closed for five paths | Task then security SHARE locking covers memory stage/reverse, source creation, general outcome and containment closure; same-task composition and both race orders are proven. Cross-task batching is unsupported. |
 
 The dated architecture review findings are historical evidence. They were reconciled into the current ledger where applicable and should not be treated as the active defect list without checking this document and the conformance records.
+
+## M2.7 closeout record
+
+Implementation SHA: `b898e97` (`Add M2 reconstruction equivalence projections`)
+
+Working tree: clean at closeout; documentation follow-up is recorded separately from the implementation commit.
+
+Commands and results: focused M2.6/M2.7 tests passed (`4 passed`); combined M2.1-M2.7 suite passed (`59 passed, 2 skipped`); Ruff passed; Mypy passed across 103 source files; `scripts/check_conformance.py` passed traceability checks; `git diff --check` passed. The two skips are expected because local `pg_dump` and `pg_restore` binaries are unavailable.
+
+Hosted run: pending.
+
+Hosted tested SHA: pending.
+
+Supported scope: deterministic projection groups, canonical fixture reconstruction, snapshot/report comparison, and mismatch detection for the reviewed M2.7 fixture boundary.
+
+Remaining gaps: full backup-to-restore execution, credential sentinel exclusion, restore-to-recovery integration, fresh authority epoch establishment, and release verification.
 
 ## Current exit criteria
 
