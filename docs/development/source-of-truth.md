@@ -1,7 +1,7 @@
 # Gnomon Current Source of Truth
 
 **Implementation HEAD reviewed for C1:** `6be538ed6b32107c0ba69dacb73e8c057d55386b` (documentation-only commit after M2.11).
-**Last hosted-green implementation SHA:** `93e383eb0acf8ba2a389d888c45023355b0ff7af`. [Quality run 36108631071](https://github.com/SkillSpringAI/Gnomon/actions/runs/36108631071) passed `checks`, `minimal-install`, and `browser`; the main suite reported 1,819 passed and 28 skipped. This run did not test the current uncommitted C1 documentation.
+**Hosted-green C1 baseline:** `8402fbfbf6dc4fc10f8fd3e94154a61f9db364d6`. [Quality run 36211693129](https://github.com/SkillSpringAI/Gnomon/actions/runs/36211693129) tested the committed C1 documentation and passed `checks`, `minimal-install`, and `browser`; the main suite reported 1,819 passed and 28 skipped, and all 28 Chromium browser cases passed separately. The underlying runtime remains unchanged from the pre-C1 implementation baseline.
 **Role:** Concise current implementation and gap baseline. The [roadmap](roadmap.md) owns future work, [architecture and governance](../README.md) own normative rules, [implementation status](../conformance/implementation-status.md) owns verification scope, and [development history](development-history.md) owns completed narratives.
 
 ## Current implementation
@@ -45,6 +45,6 @@ No P0 is identified in this reviewed documentation baseline. These P1 or P1/P2 a
 ## Evidence and provenance
 
 - [Implementation status](../conformance/implementation-status.md) records the current verification summary and its limits; the [authority matrix](../conformance/authority-matrix.md) retains requirement traceability.
-- The [C1 completion record](c1-documentation-authority-baseline.md) records this documentation reconciliation, local verification, and pending commit/hosted gates.
+- The [C1 completion record](c1-documentation-authority-baseline.md) records this documentation reconciliation, local verification, committed SHA, and hosted closure evidence.
 - [Development history](development-history.md) and the [M2 sequence](M2%20Incremental%20Implementation%20Sequence.md) link to dated completion records and hosted runs.
 - The [pre-C1 current-state journal](../archive/completed-slices/2026-09-26-pre-c1-source-of-truth-journal.md) preserves the former M2.7 closeout record, exact local commands, pending-at-that-time hosted status, and other chronological details. Those checkpoint claims are historical, not current M2 status.

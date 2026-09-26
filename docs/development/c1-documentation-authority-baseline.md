@@ -8,13 +8,15 @@
 
 **Working tree at the initial completion report:** Uncommitted C1 documentation changes; 48 changed paths, all under `docs/`, including this record. No C1 commit or hosted run was claimed at that checkpoint.
 
-**Last hosted-green implementation:** `93e383eb0acf8ba2a389d888c45023355b0ff7af`, [Quality run 36108631071](https://github.com/SkillSpringAI/Gnomon/actions/runs/36108631071), covering `checks`, `minimal-install`, and `browser`, with 1,819 passed and 28 skipped in the main suite. That run predates C1.
+**Pre-C1 hosted-green implementation:** `93e383eb0acf8ba2a389d888c45023355b0ff7af`, [Quality run 36108631071](https://github.com/SkillSpringAI/Gnomon/actions/runs/36108631071), covering `checks`, `minimal-install`, and `browser`, with 1,819 passed and 28 skipped in the main suite. That run predates C1.
+
+**Committed and hosted-green C1 baseline:** `8402fbfbf6dc4fc10f8fd3e94154a61f9db364d6`, [Quality run 36211693129](https://github.com/SkillSpringAI/Gnomon/actions/runs/36211693129), completed successfully on 26 September 2026. All three jobs passed; the main suite reported 1,819 passed and 28 skipped, and the Chromium browser job reported 28 passed with no skips.
 
 ## Outcome
 
 The maintained documents now distinguish current truth, future work, normative rules, execution records, verification evidence, and history. INV-01–INV-12 and the transaction vocabulary are established without changing runtime behavior. Useful historical records and their original limitations remain available.
 
-The documentation objective is fulfilled and locally verified within the limits below. Commit and hosted verification remain pending; this record does not assert the roadmap's committed-and-hosted slice closure gate or release conformance. C2 has not begun.
+The documentation objective is fulfilled, committed, and locally and hosted verified within the limits below. The committed-and-hosted C1 slice gate is satisfied at `8402fbf`; this does not establish release conformance. This subsequent documentation-only evidence update records the exact tested baseline rather than claiming its own not-yet-created commit identity. C2 has not begun.
 
 ## Files changed
 
@@ -69,7 +71,7 @@ Paths below are relative to the repository root. The moved roadmap is listed at 
 | `docs/archive/superseded-plans/2026-09-26-pre-c1-roadmap-detail.md` | Preserve the former completed M0/M1 instructions and detailed planning evidence; rebase links. |
 | `docs/archive/superseded-plans/Gnomon Dependency-Ordered Development Roadmap 2026-09-23.md` | Retain the moved dated roadmap with an explicit historical banner and corrected links. |
 | `docs/conformance/architectural-invariant-verification.md` | Map existing tests and their limits to each invariant without inventing coverage. |
-| `docs/development/c1-documentation-authority-baseline.md` | Record the required C1 completion report, local commands, host limits, and pending hosted gate. |
+| `docs/development/c1-documentation-authority-baseline.md` | Record the required C1 completion report, local commands, host limits, and exact committed/hosted evidence. |
 
 ## Authority reconciliation
 
@@ -178,6 +180,25 @@ raise SystemExit(bool(missing))
 - With `RUN_BROWSER_TESTS=1` and `PLAYWRIGHT_CHANNEL=chromium`, `python -m pytest tests/integration/test_workspace_browser.py -ra` produced 28 setup errors: Windows could not spawn the installed Chromium binary (`spawn UNKNOWN`). An elevated retry with `-ra -x -q` reproduced the launcher error. Edge is the successful local browser equivalent; the CI Chromium job has not been rerun for C1.
 - Warnings include existing FastAPI lifecycle deprecations and dependency warnings. C1 made no code changes to address them.
 - Final report/link additions received traceability, local-link, whitespace, and changed-path checks. Runtime tests were not repeated for those Markdown-only additions.
+
+## Hosted closure evidence
+
+The documentation baseline was staged, checked, committed with `git commit -m "Establish C1 documentation authority and invariant baseline"`, and pushed with `git push origin main`. The commit is `8402fbfbf6dc4fc10f8fd3e94154a61f9db364d6`; Git recorded 47 changed files because the 48 pre-commit status paths include both sides of one detected rename. The staged whitespace check found four Markdown hard-break spaces in this new record, which were removed before the successful staged check and commit. The working tree was clean after the commit.
+
+Hosted evidence was inspected with:
+
+```text
+gh run list --workflow quality.yml --commit 8402fbfbf6dc4fc10f8fd3e94154a61f9db364d6 --limit 3 --json databaseId,status,conclusion,headSha,url
+gh run watch 36211693129 --exit-status --interval 30
+gh run view 36211693129 --json headSha,status,conclusion,url,jobs
+gh run view 36211693129 --log
+```
+
+[Quality run 36211693129](https://github.com/SkillSpringAI/Gnomon/actions/runs/36211693129) concluded `success` for the exact C1 SHA. `checks` passed Ruff, MyPy (101 files), migrations, normal pytest (1,819 passed, 28 skipped, 635 warnings, 57.54 seconds), smoke, prototype (34 fresh migrations and idempotent rerun), traceability, and database wheel checks. `minimal-install` passed clean-wheel installation. `browser` passed all 28 Chromium cases with zero skips (59 warnings, 41.67 seconds), including the workflow's exact-count/no-skips assertion.
+
+The four host-tool skips in the local normal suite were therefore exercised successfully in hosted Quality. Its 28 normal-suite skips remain the existing opt-in browser cases, executed by the separate successful browser job. No new skips were introduced. Existing runner/action migration notices did not fail any job and no workflow changes were made for C1.
+
+This closure evidence update also refreshes the maintained source-of-truth, implementation-status, roadmap baseline, history, and invariant-map references. It changes documentation only. The retained initial checkpoint statements above describe the earlier uncommitted report, not the current closure status.
 
 ## Runtime diff check
 

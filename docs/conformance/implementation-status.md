@@ -3,11 +3,11 @@
 **Role:** Current verification summary for the supported implementation scope. [Current source of truth](../development/source-of-truth.md) owns the implementation baseline and gaps; the [authority matrix](authority-matrix.md) owns requirement traceability; [development history](../development/development-history.md) and dated records preserve completed checkpoint detail.
 
 **Implementation HEAD reviewed for C1:** `6be538ed6b32107c0ba69dacb73e8c057d55386b` (documentation-only change after M2.11).
-**Last hosted-green implementation SHA:** `93e383eb0acf8ba2a389d888c45023355b0ff7af`. [Quality run 36108631071](https://github.com/SkillSpringAI/Gnomon/actions/runs/36108631071) passed `checks`, `minimal-install`, and `browser`; the main suite reported 1,819 passed and 28 skipped. C1 documentation edits have not yet received a hosted run.
+**Hosted-green C1 baseline:** `8402fbfbf6dc4fc10f8fd3e94154a61f9db364d6`. [Quality run 36211693129](https://github.com/SkillSpringAI/Gnomon/actions/runs/36211693129) passed `checks`, `minimal-install`, and `browser`; the main suite reported 1,819 passed and 28 skipped, and all 28 Chromium browser cases passed separately. C1 changed documentation only; its underlying runtime remains the pre-C1 implementation.
 
 The [architectural invariant verification map](architectural-invariant-verification.md) distinguishes executable evidence from documented rules and future recommendations for INV-01–INV-12.
 
-**C1 local verification:** The [26 September completion record](../development/c1-documentation-authority-baseline.md) records passing lint, strict types, traceability, migration, smoke/prototype, and both wheel checks; the normal suite passed with 1,815 passed and 32 skipped, and all 28 browser cases passed separately using Edge. Four host PostgreSQL-client-tool cases remain locally skipped; Chromium could not launch on this Windows host. C1 remains uncommitted and has no hosted run.
+**C1 local verification:** The [26 September completion record](../development/c1-documentation-authority-baseline.md) records passing lint, strict types, traceability, migration, smoke/prototype, and both wheel checks; the normal suite passed with 1,815 passed and 32 skipped, and all 28 browser cases passed separately using Edge. Four host PostgreSQL-client-tool cases were locally skipped and Chromium could not launch on this Windows host; the successful hosted run exercised those four cases and all 28 Chromium browser cases.
 
 ## Supported verification scope
 

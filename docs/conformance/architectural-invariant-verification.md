@@ -1,6 +1,6 @@
 # Architectural Invariant Verification Map
 
-**Baseline:** C1 review of implementation HEAD `6be538ed6b32107c0ba69dacb73e8c057d55386b`. The invariant definitions live in the maintained [architecture overview](../architecture/overview.md#architectural-invariants). This map identifies existing executable evidence by its tested boundary; it does not claim a separate complete test for every normative sentence or a new C1 test run. The last hosted-green implementation SHA and its limits are in [implementation status](implementation-status.md).
+**Baseline:** C1 review of implementation HEAD `6be538ed6b32107c0ba69dacb73e8c057d55386b`. The invariant definitions live in the maintained [architecture overview](../architecture/overview.md#architectural-invariants). This map identifies existing executable evidence by its tested boundary; it does not claim a separate complete test for every normative sentence. The committed C1 regression run and its limits are recorded in [implementation status](implementation-status.md) and the [completion record](../development/c1-documentation-authority-baseline.md).
 
 | ID | Invariant | Existing executable evidence | Refactoring implication |
 |---|---|---|---|

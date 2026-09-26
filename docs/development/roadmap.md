@@ -6,8 +6,8 @@ This document is the maintained future-work roadmap for Gnomon. It is not curren
 implementation truth. For what exists now, read [Current Source of Truth](source-of-truth.md).
 For completed work, read [Development History](development-history.md).
 
-**Last hosted-green implementation baseline:** `93e383eb0acf8ba2a389d888c45023355b0ff7af`
-(`93e383e`, Quality run `36108631071`).
+**Hosted-green C1 baseline:** `8402fbfbf6dc4fc10f8fd3e94154a61f9db364d6`
+(`8402fbf`, [Quality run 36211693129](https://github.com/SkillSpringAI/Gnomon/actions/runs/36211693129)); documentation-only reconciliation, with runtime unchanged from the M2 implementation baseline.
 **Roadmap review date:** 26 September 2026.
 
 The [23 September roadmap](../archive/superseded-plans/Gnomon%20Dependency-Ordered%20Development%20Roadmap%202026-09-23.md)

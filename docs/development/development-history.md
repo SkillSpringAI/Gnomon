@@ -58,7 +58,7 @@ The [completed incremental sequence](M2%20Incremental%20Implementation%20Sequenc
 
 ## C1 — Documentation authority and invariant baseline
 
-The 26 September documentation baseline reconciled current truth, future work, normative security and transaction vocabulary, INV-01–INV-12, and existing verification evidence while preserving dated records in the archive. The [completion record](c1-documentation-authority-baseline.md) lists every changed file, exact local results, environment limits, and pending commit/hosted gates. No runtime or test behavior changed and no C2 implementation began.
+The 26 September documentation baseline reconciled current truth, future work, normative security and transaction vocabulary, INV-01–INV-12, and existing verification evidence while preserving dated records in the archive. Commit `8402fbfbf6dc4fc10f8fd3e94154a61f9db364d6` passed hosted [Quality run 36211693129](https://github.com/SkillSpringAI/Gnomon/actions/runs/36211693129) across all three jobs, with 1,819 passed/28 skipped in the main suite and 28 Chromium browser cases passed separately. The [completion record](c1-documentation-authority-baseline.md) lists every changed file, exact local and hosted results, and environment limits. No runtime or test behavior changed and no C2 implementation began.
 
 ## Historical decisions retained
 
