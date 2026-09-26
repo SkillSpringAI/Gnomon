@@ -1,5 +1,7 @@
 # Recovery/bootstrap entry boundary
 
+> Dated execution and verification record. Status and remaining-work statements below describe this checkpoint; use the maintained [current source of truth](source-of-truth.md) and [roadmap](roadmap.md) for present claims.
+
 Date: 20 September 2026.
 Status: implemented for startup entry only.
 

@@ -139,7 +139,7 @@ Loss of a model or network service must not corrupt persisted research state. De
 | Durable provider attempts and unknown outcomes | Implemented with operation identities, dispatch fencing, expiry handling, and explicit uncertain outcomes. |
 | Structured model action-proposal runtime | The architectural boundary is defined; the repository’s main planning and acquisition paths remain deterministic and do not yet constitute a general model-driven runtime. |
 | Prompt-injection and untrusted-data handling | Implemented for current HTTP/provider boundary guards and deterministic planner isolation; broader adapter-wide adversarial tests remain open. |
-| Budgets, timeouts, retries, and cancellation | Implemented in current provider, HTTP, and bounded-runner scopes; a unified autonomous envelope and all cancellation semantics remain future work. |
+| Budgets, timeouts, retries, and cancellation | Implemented in current provider, HTTP, and bounded-runner scopes. M5 plans shared bounded-execution vocabulary and narrow lifecycle primitives, not a generic runner; broader cancellation semantics remain future work. |
 | Live external-agent communication | Not implemented; current agent network is a bounded read-only fake and local observation path. |
 | Full recovery and degraded runtime states | Partial; current recovery paths preserve explicit outcomes, while full runtime state-machine and operational degraded-state coverage remain open. |
 

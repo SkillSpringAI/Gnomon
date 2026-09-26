@@ -92,29 +92,35 @@ Every bounded execution path has an explicit completed, blocked, failed, or reco
 | Fake agent network and persisted agent observations | Implemented as a bounded read-only contract and local cycle path |
 | Live external-agent network, Moltbook adapter, long-running orchestration, and deployment queues | Not implemented |
 | Semantic/vector memory, object-storage source model, entity canonicalization, and cross-task retrieval | Deferred or partial |
-| Full authentication, privileged purge, backup/restore drill, incident response, and complete security-state operationalization | Open release/recovery work |
+| Full authentication, privileged purge, incident response, and complete security-state operationalization | Open release/recovery work; the bounded M2 backup/reconstruction/recovery drill is hosted-verified, while a consolidated operator procedure and broader deployment evidence remain open |
 
 The conformance records under the current `docs/conformance/` directory provide detailed evidence and limitations until their maintained Markdown destination is established.
 
 ## Architectural invariants
 
-The implementation and tests should preserve these invariants:
+This register states durable architectural rules. It does not assert that every rule has complete executable coverage; the [architectural invariant verification map](../conformance/architectural-invariant-verification.md) identifies supported evidence, documented rules, and remaining gaps.
 
-- The model cannot directly establish authoritative persistent state.
-- External agents and retrieved content cannot establish Gnomon policy.
-- Accepted substantive knowledge retains provenance.
-- Autonomous execution is bounded and has an explicit termination path.
-- Provider and adapter failures cannot silently corrupt unrelated authoritative state.
-- Conversation context is not authoritative memory.
-- Structured state is not replaced solely by semantic similarity.
-- Critical mutations are validated before commitment and preserve meaningful audit/history.
-- Security and constitutional authority remain outside model reasoning.
+| ID | Invariant |
+|---|---|
+| INV-01 | Governed mutation fails closed: missing, stale, contradictory, or unauthorized authority never silently grants permission. |
+| INV-02 | Consequential external dispatch requires its durable attempt or reservation state to commit before dispatch. |
+| INV-03 | Governed database locks and transactions are released before slow, untrusted, or external work. Validate and persist authority, commit, perform external work, then reacquire and revalidate before governed mutation. |
+| INV-04 | Governed state and its required audit or history evidence commit atomically; audit failure rolls back the mutation. |
+| INV-05 | Runner write authority is bound to its exact durable execution attempt. A terminally closed attempt cannot regain authority because the investigation later becomes active. |
+| INV-06 | Operator execution recovery is bound to the observed progress fingerprint; a stale fingerprint fails. |
+| INV-07 | Authorized trusted mechanisms may restrict authority. Recovery-qualified state transitions require their separate actor, reason, and capability checks; a pending recovery-bootstrap fence blocks those transitions and requires the dedicated protected restoration path before ordinary authority returns. |
+| INV-08 | SecurityState, recovery bootstrap state, AuthorityEpoch, execution attempt identity, and recovery fingerprint remain separate authority dimensions. |
+| INV-09 | Governed audit, review, authority, and historical evidence remains append-only wherever its contract specifies append-only history. |
+| INV-10 | Source, provider, and agent execution retain explicit orchestration. They may share bounded lifecycle vocabulary and narrow primitives without requiring a generic runner or workflow engine. |
+| INV-11 | A persistence abstraction must state any stronger concrete infrastructure it needs for an advertised operation. Durable execution dependencies are explicit at composition boundaries. |
+| INV-12 | Successful database reconstruction does not establish ordinary operational trust. Reconstructed state passes through governed recovery before ordinary authority is restored. |
 
-When a feature adds a new provider, network, retrieval mechanism, or execution path, it must extend the appropriate boundary and preserve these invariants. It must not make a provider-specific schema, external message, or model output into the system’s authority source.
+These rules complement the existing model, evidence, and runtime boundaries: model output, external agents, and retrieved content cannot establish Gnomon policy or directly write authoritative state; accepted substantive knowledge retains provenance; conversation context and semantic similarity do not replace structured authoritative memory; autonomous execution remains bounded with an explicit termination path. New execution or adapter paths must preserve these boundaries.
 
 ## Related documentation
 
 - [Documentation map](../README.md)
 - [Repository documentation inventory](../source_of_truth/repository-documentation-inventory.md)
 - [Current conformance records](../conformance/implementation-status.md)
+- [Architectural invariant verification map](../conformance/architectural-invariant-verification.md)
 - [Original architecture authority document](../archive/original-authority-documents/Gnomon%20System%20Architecture%20Authority.docx)

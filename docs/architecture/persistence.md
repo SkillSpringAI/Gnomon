@@ -79,6 +79,19 @@ Concurrency controls prevent silent overwrite. Depending on the operation, the i
 
 External operations have explicit outcomes. A provider or network call that may have executed but whose result is unknown remains unknown until reconciled; it is not blindly retried or refunded as if no side effect occurred.
 
+### Transaction protocol vocabulary
+
+These names describe existing correctness needs and transaction ownership; they do not introduce a transaction framework or prescribe one global Unit of Work.
+
+| Protocol | Boundary | Existing example |
+|---|---|---|
+| `ATOMIC` | Governed state, required history or audit, and related evidence commit or roll back together. | A security-state transition and its transition audit; governed memory state and journal. |
+| `FENCED` | Authorization, intent, or a reservation is durable before consequential external dispatch. The governing transaction commits and releases its locks before external work; the outcome is later recorded or reconciled, with uncertainty kept explicit. | A provider attempt is reserved and marked dispatched before provider generation; a cycle attempt is committed before source or agent work, with objective progress committed before each fetch or ask. |
+| `STAGED` | A callee stages mutation and evidence without committing. Its caller owns the transaction's commit or rollback. | `MemoryService.stage` composes same-task governed changes; `AuditService.stage` adds an event to its caller's transaction. |
+| `FAILURE-EVIDENCE` | Failed work is rolled back; bounded failure evidence may then be persisted in an independent transaction where that behavior is explicitly designed. Failure-evidence persistence can itself fail and must not turn failed work into success. | `AuditService.record_failure` rolls back staged work before recording a task-scoped failure event. |
+
+An operation may use more than one protocol at different boundaries. For example, a fenced external attempt can use atomic writes for its reservation and later outcome. The protocols are not interchangeable: atomicity protects a governed mutation, fencing protects dispatch ordering, staging assigns commit ownership, and failure evidence records a bounded failed outcome after rollback.
+
 ## Research and execution state
 
 Persistence retains task lifecycle, cycle planning and progress, objectives, evidence associations, claims, assessments, reports, provider attempts, agent observations, audit events, and security state within their respective authority boundaries.
@@ -109,7 +122,7 @@ Backups preserve authoritative state, provenance, event history, and migration c
 
 Recovery follows a hierarchy of durable state, committed operations, explicit unknown outcomes, audit/history, verified backup, and authorized repair. Repair is controlled and attributable; it must not silently rewrite evidence or manufacture a successful outcome.
 
-The current repository has transactional recovery, cycle recovery, provider-attempt reconciliation, migration verification, and governed rollback tests. A complete operational backup/restore procedure and restore drill remain open release work.
+The current repository has transactional recovery, cycle recovery, provider-attempt reconciliation, migration verification, governed rollback tests, and the hosted-verified M2 backup/reconstruction/recovery drill for a supported test deployment. A consolidated operator procedure and broader deployment or release conformance remain open.
 
 ## Security and portability
 
@@ -161,7 +174,7 @@ For any significant persisted mutation, Gnomon should be able to answer:
 | Idempotency and unknown outcomes | Implemented for provider attempts, cycle recovery, lifecycle finalization, and governed memory operations within current scope. |
 | Provenance and historical state | Implemented for current sources, claims, assessments, cycles, agent observations, and governed memory history; full dependency graph reconstruction remains partial. |
 | Derived state and semantic indexes | Structured state remains authoritative; broad vector/search index rebuildability and object-storage source separation are deferred. |
-| Deletion, purge, retention, backup, and restore | Logical/archive protections and tests exist; privileged purge policy and operational backup/restore drill remain open. |
+| Deletion, purge, retention, backup, and restore | Logical/archive protections and the bounded M2 reconstruction/recovery drill exist; privileged purge, a consolidated operator procedure, and broader deployment/release evidence remain open. |
 | Distributed storage and portability | Not implemented; local PostgreSQL is the current reference deployment. |
 
 The [architecture overview](overview.md), [memory authority](../governance/memory-authority.md), [security authority](../governance/security-authority.md), [workspace verification](../operations/workspace-verification.md), and [conformance records](../conformance/implementation-status.md) provide supporting evidence and limitations.

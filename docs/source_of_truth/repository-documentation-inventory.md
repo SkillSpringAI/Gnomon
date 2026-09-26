@@ -1,5 +1,7 @@
 # Repository Documentation Inventory
 
+> Historical inventory from the 16 September cleanup baseline. Its proposed actions describe that checkpoint; the maintained [documentation map](../README.md), [source of truth](../development/source-of-truth.md), and [roadmap](../development/roadmap.md) govern current roles and claims.
+
 **Date:** 16 September 2026
 **Purpose:** Phase One deliverable for the repository cleanup working plan.
 **Status:** Working inventory; classifications must be confirmed against implementation before conversion or movement.

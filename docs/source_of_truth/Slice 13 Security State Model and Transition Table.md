@@ -1,5 +1,7 @@
 # Slice 13: Security State Machine
 
+**Lifecycle:** Completed implementation directive, retained as historical evidence. The maintained [security authority](../governance/security-authority.md) owns the current global state vocabulary. This record explains the Slice 13 transition design and must be read with later recovery-bootstrap, authorization, and restoration evidence; it does not by itself establish current recovery authority or release conformance.
+
 ## Goal
 
 Introduce an explicit, persisted, fail-closed operational security state machine that governs whether Gnomon may perform authority-bearing or externally interacting operations.

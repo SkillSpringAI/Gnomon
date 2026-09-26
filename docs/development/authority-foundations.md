@@ -1,5 +1,7 @@
 # Authority foundations — 19 September 2026
 
+> Dated execution and verification record. Status and remaining-work statements below describe this checkpoint; use the maintained [current source of truth](source-of-truth.md) and [roadmap](roadmap.md) for present claims.
+
 ## Scope and baseline
 
 The starting verified commit is `9c82544ddd582770332df2174d93c2ca759a28bd`:

@@ -34,13 +34,31 @@ Completed 15 September 2026. Clean-wheel resources, concurrent bootstrap, popula
 
 ## Slice 13 — Security state machine
 
-Completed 15 September 2026 for the reviewed scope. Security state gained canonical persisted records, versioned transitions, compare-and-set controls, centralized capability policy, operator visibility, bounded API enforcement, transition tests, and an exit-gate hardening pass. The authority-document vocabulary still requires reconciliation with the Slice 13 model before the security state can be considered fully canonical.
+Completed 15 September 2026 for the reviewed scope. Security state gained canonical persisted records, versioned transitions, compare-and-set controls, centralized capability policy, operator visibility, bounded API enforcement, transition tests, and an exit-gate hardening pass. At that checkpoint the older authority-document vocabulary still required reconciliation with the Slice 13 model. The maintained [security authority](../governance/security-authority.md#security-state-and-containment) now records the reconciled current vocabulary; this dated note remains as provenance.
 
 ## Verification baseline
 
 The 15 September baseline recorded 296 passed and 5 skipped tests for the reviewed local suite, with Ruff and strict mypy passing, all 20 packaged migrations applying to a fresh database and rerunning idempotently, clean-wheel verification passing outside the checkout, smoke and real-HTTP checks passing, and authority traceability checks passing. These results establish a regression baseline, not full conformance or release readiness.
 
 No hosted CI result, live Bedrock call, live external-agent call, deployment penetration test, or backup/restore drill was claimed at that baseline.
+
+## Milestone 0 — Hosted baseline restoration
+
+The 24 September fixture and browser-retry correction at `ef11f70` restored a green canonical baseline after the failed `11c46ae` Quality run. Hosted [Quality run 35937991144](https://github.com/SkillSpringAI/Gnomon/actions/runs/35937991144) passed the required jobs for the corrective SHA. The [closure record](../archive/completed-slices/2026-09-24-baseline-restoration.md) retains the failed run, exact local and hosted results, and supported scope.
+
+## Milestone 1 — Recovery authority
+
+M1.1–M1.6 established a bounded local recovery context, separately issued operator and execution authorization, deterministic read-only reconciliation, protected restoration, and authority epoch replacement. Hosted [Quality run 35981852013](https://github.com/SkillSpringAI/Gnomon/actions/runs/35981852013) passed at `316c90bf1816743ce73571e907b5c24e4da6cdec`. The [M1.6 evidence map](authority-epoch-replacement.md#exit-gate-evidence-map) and linked M1 records retain adversarial tests and limits; M2 reconstruction and broader deployment recovery were outside that M1 claim.
+
+## Milestone 2 — Backup and reconstruction sequence
+
+M2.1–M2.11 established the supported PostgreSQL backup and guarded reconstruction path, canonical baseline and restrictive-fixture equivalence, recovery-bootstrap entry, fresh reconciliation and authorization, protected restoration with atomic epoch rotation, and credential-sentinel verification. The final implementation checkpoint `93e383eb0acf8ba2a389d888c45023355b0ff7af` passed hosted [Quality run 36108631071](https://github.com/SkillSpringAI/Gnomon/actions/runs/36108631071) across `checks`, `minimal-install`, and `browser`; the main suite reported 1,819 passed and 28 skipped. This is the bounded functional M2 baseline, not a general release-conformance claim.
+
+The [completed incremental sequence](M2%20Incremental%20Implementation%20Sequence.md) and its linked M2.1–M2.11 records retain the per-slice implementation, failure, verification, and hosted-run evidence. The maintained [roadmap](roadmap.md#milestone-2-backup-restore-and-reconstruction-conformance) owns the remaining architectural consolidation.
+
+## C1 — Documentation authority and invariant baseline
+
+The 26 September documentation baseline reconciled current truth, future work, normative security and transaction vocabulary, INV-01–INV-12, and existing verification evidence while preserving dated records in the archive. The [completion record](c1-documentation-authority-baseline.md) lists every changed file, exact local results, environment limits, and pending commit/hosted gates. No runtime or test behavior changed and no C2 implementation began.
 
 ## Historical decisions retained
 
@@ -59,3 +77,6 @@ These decisions remain useful context but are subordinate to the current source 
 - [Next-two-slices review](../archive/superseded-plans/Gnomon-Next-Two-Slices-2026-09-15.md)
 - [Slice 13 security state model](../source_of_truth/Slice%2013%20Security%20State%20Model%20and%20Transition%20Table.md)
 - [Implementation status](../conformance/implementation-status.md)
+- [Pre-C1 current-state journal](../archive/completed-slices/2026-09-26-pre-c1-source-of-truth-journal.md) — retains the M2.7 closeout record and dated status language.
+- [Pre-C1 implementation-status journal](../archive/completed-slices/2026-09-26-pre-c1-implementation-status-journal.md) — retains historical commands, failures, and checkpoint limits.
+- [Pre-C1 detailed roadmap](../archive/superseded-plans/2026-09-26-pre-c1-roadmap-detail.md) — retains completed M0/M1 instructions and exit-gate narrative.

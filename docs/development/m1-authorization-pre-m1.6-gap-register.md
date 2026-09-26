@@ -1,5 +1,7 @@
 # M1 Authorization Gap Register
 
+> Dated execution and verification record. Status and remaining-work statements below describe this checkpoint; use the maintained [current source of truth](source-of-truth.md) and [roadmap](roadmap.md) for present claims.
+
 Date: 24 September 2026.
 Status: M1.6 hosted closeout checkpoint. This file records the remaining
 limitations after the M1.6 exit gate. It does not

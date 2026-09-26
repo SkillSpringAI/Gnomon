@@ -11,4 +11,6 @@ Archived documents are non-normative. They are not the correct starting point fo
 - `completed-slices/` — dated reviews and completed-slice evidence retained for historical reconstruction.
 - `legacy-designs/` — earlier architecture, project, and investigation documents retained for context.
 
+The 26 September C1 snapshots in `completed-slices/` and `superseded-plans/` preserve the former source-of-truth journal, implementation-status chronology, and detailed M0/M1 roadmap before their lifecycle reduction. Their original checkpoint claims may conflict with later hosted evidence; follow the maintained documents for current scope.
+
 If an archived document is cited, treat it as historical evidence and verify any claim against the current maintained documentation, implementation, and tests.

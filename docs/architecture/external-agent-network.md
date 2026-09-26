@@ -97,9 +97,9 @@ Outbound communication applies data minimization and sends only the information 
 
 External-agent communication is bounded by requests per agent, platform, task, and cycle, outbound messages, total network budget, time, tokens, bandwidth, and applicable policy. A model cannot increase these limits by requesting additional messages.
 
-Networks and agents can be isolated for malicious behavior, misinformation, prompt-injection attempts, credential extraction, protocol abuse, resource exhaustion, or compromise concerns. Isolation should be reversible unless higher-level security policy requires otherwise.
+Future scoped containment should be able to isolate networks or agents for malicious behavior, misinformation, prompt-injection attempts, credential extraction, protocol abuse, resource exhaustion, or compromise concerns. Such isolation should be reversible unless higher-level security policy requires otherwise. A general scoped isolation facility is not implemented.
 
-Network states may include `NORMAL`, `DEGRADED`, `ISOLATED`, `SAFE`, and `RECOVERY`. Loss of network connectivity must not corrupt research state. Gnomon should continue with stored evidence, local state, permitted web sources, local models, deterministic planning, and existing conclusions and uncertainties. It must not fabricate agent observations.
+Earlier network design language used `NORMAL`, `DEGRADED`, `ISOLATED`, `SAFE`, and `RECOVERY` for possible component conditions. These are not additional persisted global SecurityState values. `ISOLATED` remains a future scoped-containment concept, `SAFE` describes explicit capabilities permitted under restriction, and recovery actions require separate authorization. The current global vocabulary is in [security authority](../governance/security-authority.md#security-state-and-containment). Loss of network connectivity must not corrupt research state. Gnomon should continue with stored evidence, local state, permitted web sources, local models, deterministic planning, and existing conclusions and uncertainties where current policy allows them. It must not fabricate agent observations.
 
 ## Retention and provenance-aware rollback
 

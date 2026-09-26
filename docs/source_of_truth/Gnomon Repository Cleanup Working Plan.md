@@ -1,5 +1,7 @@
 # Gnomon Repository Cleanup Working Plan
 
+> Historical working plan from 16 September 2026. Its classifications and sequence are retained as cleanup provenance; the maintained [roadmap](../development/roadmap.md) now owns current consolidation order and the [documentation map](../README.md) identifies current authority.
+
 **Date:** 16 September 2026
 **Status:** Temporary working document
 **Baseline:** Slice 13 complete

@@ -15,7 +15,7 @@ Conformance is behavioral and evidence-based. A design document, type annotation
 | 2 — Behaviorally conforming | Tests and implementation evidence demonstrate the required behavior, including relevant failure cases. |
 | 3 — Operationally conforming | Deployment, observability, recovery, configuration, and external-environment behavior are verified in the supported operating context. |
 
-The current repository is a progressing implementation baseline, not a blanket Level 3 or v0.1 conformance claim. Each requirement must be classified independently in the conformance matrix.
+The current repository is a progressing implementation baseline, not a blanket Level 3 or v0.1 conformance claim. Each requirement needs an independently evidenced classification before a broader conformance claim; the existing authority matrix retains dated section-level observations and is not yet a refreshed current ledger.
 
 ## Requirement language and traceability
 
@@ -23,7 +23,7 @@ The current repository is a progressing implementation baseline, not a blanket L
 - **SHOULD** defines a strong default that requires a documented reason to defer.
 - **MAY** permits an option without requiring it.
 
-Every normative requirement should trace to its authority source, implementation location, tests or verification evidence, and known limitation. The [authority matrix](../conformance/authority-matrix.md) is the detailed traceability record; the [implementation status](../conformance/implementation-status.md) is the current verification summary.
+Every normative requirement should trace to its authority source, implementation location, tests or verification evidence, and known limitation. The [authority matrix](../conformance/authority-matrix.md) preserves the source-section traceability baseline and dated observations; some row-level implementation classifications predate later slices and are not a current status ledger. The [implementation status](../conformance/implementation-status.md) is the current verification summary. A future row-level refresh requires new evidence rather than silently promoting historical cells.
 
 The source-of-truth hierarchy is: constitutional principles, system architecture, epistemic authority, memory/state authority, runtime/tool authority, research methodology, external-agent authority, security/audit/recovery authority, persistence/data authority, and implementation/conformance authority. Lower-level documents and code cannot silently weaken higher-level requirements.
 
@@ -49,6 +49,16 @@ Conformance evidence should combine:
 8. Operational verification for packaging, startup, workspace behavior, backup/restore, supported deployment, and observability.
 
 Tests must cover negative and failure behavior, not only successful paths. A missing external service is not a reason to skip a boundary test when a deterministic substitute can exercise the contract.
+
+## Verification architecture
+
+| Gate | Question answered | Required interpretation |
+|---|---|---|
+| Development regression | Does the current checkout pass the normal [Quality workflow](../../.github/workflows/quality.yml) or its practical local equivalents: lint, strict types, migrations, pytest, smoke/prototype checks, traceability, wheel, and browser checks? | Record the exact commands, results, skips, working-tree state, and tested SHA. A green gate protects the tested scope; it is not milestone or release approval. |
+| Milestone verification | Has a bounded slice satisfied its own exit gate, including relevant failure, concurrency, recovery, real PostgreSQL, or hosted evidence? | Retain the implementation SHA, working-tree state, commands/results, hosted run and tested SHA, supported scope, and remaining gaps in the completion record. A later documentation edit is not verified by an earlier hosted run. |
+| Release conformance | Are the maintained authority requirements and supported deployment obligations demonstrated at the release boundary? | Requires the [release gate](#release-gate), refreshed requirement evidence and classifications, operational proof, and explicit gap disposition. Quality or a closed milestone alone cannot establish this claim. |
+
+`python scripts/check_conformance.py` is a traceability check: it validates pinned authority-source hashes, Documents 01–07 section-group coverage, matrix status vocabulary, and evidence-reference integrity. It does not execute behavioral tests, verify that a status cell is currently true, or prove release conformance. A future name such as `check_authority_traceability.py` may be clearer, but renaming the script and its callers is outside C1.
 
 ## Definition of done
 
@@ -119,7 +129,7 @@ Before a v0.1 candidate, the repository must maintain:
 - Backup/restore and recovery evidence appropriate to the deployment.
 - No unsupported claim that the system is fully autonomous, fully secure, or fully conformant.
 
-The current implementation status and authority matrix define the current gap set. The v0.1 gate is not satisfied merely because the current test suite passes; open mandatory requirements remain release work until executable evidence exists.
+The [current source of truth](source-of-truth.md) and [implementation status](../conformance/implementation-status.md) identify present gaps and verification limits. The authority matrix preserves source coverage and dated classifications that require a separate row-level refresh. The v0.1 gate is not satisfied merely because the current test suite passes; open mandatory requirements remain release work until executable evidence exists.
 
 ## Mandatory conformance invariants
 
@@ -148,6 +158,7 @@ The current implementation status and authority matrix define the current gap se
 
 - [Authority matrix](../conformance/authority-matrix.md)
 - [Implementation status](../conformance/implementation-status.md)
+- [Architectural invariant verification map](../conformance/architectural-invariant-verification.md)
 - [Archived known gaps](../archive/superseded-plans/known-gaps.md)
 - [Workspace verification](../operations/workspace-verification.md)
 - [Migration operations](../../migrations/README.md)

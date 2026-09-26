@@ -35,12 +35,14 @@ The operations area contains local development, provider configuration, migratio
 
 ### Development
 
-The development area separates current implementation truth, future work, conformance evidence, and completed history.
+The development area separates current implementation truth, future work, conformance rules, and completed history. Dated M1/M2 pages are execution and verification records: their status and remaining-work text applies to their original checkpoint, not automatically to the current repository.
 
 - [Source of truth](development/source-of-truth.md) — concise current-state reference.
 - [Roadmap](development/roadmap.md) — dependency-ordered future-work reference.
 - [Conformance](development/conformance.md) — maintained implementation, evidence, testing, and release-gate rules.
 - [Development history](development/development-history.md) — completed slices and meaningful exit-gate evidence.
+- [Implementation status](conformance/implementation-status.md) — current verification summary and exact hosted baseline; the [authority matrix](conformance/authority-matrix.md) retains requirement traceability.
+- [Architectural invariant verification map](conformance/architectural-invariant-verification.md) — existing tests, coverage limits, and refactoring implications for INV-01–INV-12.
 
 ### Archive
 
@@ -48,7 +50,7 @@ Archived material is retained for historical context only. It may conflict with 
 
 ## Current source materials during cleanup
 
-The [repository documentation inventory](source_of_truth/repository-documentation-inventory.md) records the cleanup classification and destination of each reviewed document. The [cleanup working plan](source_of_truth/Gnomon%20Repository%20Cleanup%20Working%20Plan.md) governs the consolidation sequence.
+The [repository documentation inventory](source_of_truth/repository-documentation-inventory.md) and [cleanup working plan](source_of_truth/Gnomon%20Repository%20Cleanup%20Working%20Plan.md) retain the 16 September cleanup baseline and classifications. The maintained [roadmap](development/roadmap.md) owns current consolidation order; the current source of truth and normative documents above own present claims.
 
 ## Navigation rule
 

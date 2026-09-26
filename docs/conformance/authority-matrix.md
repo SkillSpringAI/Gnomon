@@ -5,6 +5,16 @@ This is an implementation inventory, not an authority certification.
 Supplemental S05–S07 record the 19 September authority work; older section-wide
 classifications below retain their stated limitations.
 
+**Lifecycle and reading rule (C1):** This matrix preserves authority-source section
+traceability and dated implementation observations, beginning at the baseline SHA
+above and augmented at later checkpoints. Individual classification and gap cells
+are not a current implementation ledger: some pre-M2 rows still describe work
+since completed. Use [current source of truth](../development/source-of-truth.md)
+and [implementation status](implementation-status.md) for present claims, then
+consult the row's evidence and original checkpoint for provenance. A future
+requirement-by-requirement remap must be separately verified before promoting old
+cells; C1 does not silently relabel them.
+
 ## Authority coverage
 
 The user supplied all ten authority DOCX files on 2026-09-13. Documents 01–07 are

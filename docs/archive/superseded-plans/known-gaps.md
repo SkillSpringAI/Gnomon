@@ -8,7 +8,7 @@
 
 Baseline: `2d786916f707f9d6eda89c4003d73942da4dc2d2`, 2026-09-13.
 Findings below are code-review observations unless a passing test is explicitly
-identified in the [matrix](authority-matrix.md). They are not demonstrated exploits.
+identified in the [matrix](../../conformance/authority-matrix.md). They are not demonstrated exploits.
 
 ## Authority input needed
 

@@ -4,7 +4,7 @@
 
 This document is the maintained Markdown form of Gnomon’s security, audit, and recovery authority. It defines how Gnomon protects authority boundaries, secrets, network access, state integrity, audit history, privacy, and recovery operations.
 
-These requirements are normative. The current implementation-status section identifies demonstrated controls and open release gaps. The security state vocabulary requires explicit reconciliation with the newer Slice 13 state model before either is treated as the sole operational specification.
+These requirements are normative. The current implementation-status section identifies demonstrated controls and open release gaps. The persisted global security-state vocabulary below follows the implemented Slice 13 model; the original authority document and Slice 13 directive remain historical source records.
 
 ## Governing security principles
 
@@ -69,17 +69,31 @@ Audit integrity requires protection against ordinary deletion or mutation, tampe
 
 ## Security state and containment
 
-The authority document defines explicit operational security states:
+The persisted global operational security states are:
 
 | State | Meaning |
 |---|---|
 | `NORMAL` | Expected capabilities operate under ordinary policy. |
-| `DEGRADED` | One or more dependencies or controls are impaired; safe local capabilities may continue. |
-| `ISOLATED` | A network, provider, agent, or component is restricted from affected operations. |
-| `SAFE` | Only explicitly safe, bounded operations remain available. |
-| `RECOVERY` | The system is preserving state, reconciling outcomes, and restoring approved capabilities. |
+| `DEGRADED` | Security assurance is reduced without established compromise; safe local capabilities remain available and consequential capabilities are restricted by policy. |
+| `COMPROMISED_SUSPECTED` | Evidence suggests possible compromise of the environment or authority boundary; it is distinct from ordinary degradation and denies consequential execution. |
+| `LOCKDOWN` | Explicit global containment denies ordinary external and authority-bearing execution while preserving evidence and diagnostics. |
+| `RECOVERY_REQUIRED` | Ordinary authority remains unavailable pending governed recovery verification and separately authorized recovery actions. This state grants no recovery authority by itself. |
 
-This vocabulary is not yet the final operational state contract. Slice 13 introduces a different canonical state/transition model with `NORMAL`, `DEGRADED`, `LOCKDOWN`, `RECOVERY_REQUIRED`, and `COMPROMISED_SUSPECTED`. The two authorities must be reconciled before documentation or code claims one complete state machine.
+The older authority document's `SAFE` is not a persisted global state. Its useful meaning is expressed through explicit read, audit, local-report, and diagnostic capabilities permitted under restrictive states. `ISOLATED` is likewise not a global state: it describes future scoped containment of a provider, agent, network, or other bounded component. Scoped containment is not implemented as a general operational facility. The older `RECOVERY` term is expressed as `RECOVERY_REQUIRED` plus separately authorized recovery actions; a state label alone never grants those actions.
+
+Structural transition legality, actor and reason authorization, capability policy, and persisted version validation all apply to state changes. A pending recovery-bootstrap fence is a separate restriction and cannot be cleared through the ordinary security-state transition service. The [architecture overview](../architecture/overview.md#architectural-invariants) records the cross-boundary invariants; the [Slice 13 record](../source_of_truth/Slice%2013%20Security%20State%20Model%20and%20Transition%20Table.md) preserves the implementation rationale and original transition table.
+
+### AuthorityDirection
+
+`AuthorityDirection` classifies the direction of a requested authority-bearing effect for capability checks. It is not a complete ordering of how permissive or hazardous every restricted state is, and it does not grant authority by itself. The current transition classifier uses:
+
+| Transition shape | Direction |
+|---|---|
+| `NORMAL` to any other global state | `REDUCE` |
+| Any non-`NORMAL` state to `NORMAL` | `BROADEN` |
+| Between two non-`NORMAL` states | `PRESERVE` |
+
+For example, `DEGRADED` to `LOCKDOWN` is classified `PRESERVE`; that label does not say the states have equal incident meaning or that the transition is automatically permitted. A request must also pass structural transition legality, actor and reason authorization, direction-aware authority administration, recovery or containment capability as applicable, and locked persisted state/version validation. Recovery bootstrap adds its own fence. These checks serve different purposes and no direction value substitutes for another check.
 
 Containment should preserve research state while restricting compromised providers, agents, networks, derived indexes, or storage paths. Examples include provider loss without research-state corruption, agent isolation without deleting unrelated evidence, and vector-index loss while structured state remains authoritative.
 
@@ -98,11 +112,25 @@ A compromised provider or agent must not be treated as authoritative. Its contri
 
 Backups are security controls, not merely operational conveniences. Backup integrity requires known provenance, verification, version compatibility, protected access, and evidence that restoration can recover authoritative state without silently erasing history.
 
+### Separate recovery authority dimensions
+
+| Dimension | Role |
+|---|---|
+| SecurityState | The current global operational restriction. `RECOVERY_REQUIRED` permits only capabilities allowed by current policy; it is not a recovery grant. |
+| Recovery bootstrap | A separate persisted pending fence for reconstructed or restored authority. While pending, effective state is `RECOVERY_REQUIRED` even if the restored raw state was `NORMAL`; ordinary authority-bearing capabilities and normal security transitions remain blocked. |
+| AuthorityEpoch | The UUID lineage of the canonical authority state. Possessing an epoch ID grants no permission; current protected effects must validate authorization against the current epoch. Reconstruction completion replaces the restored epoch. |
+| Recovery context and evidence | A bounded, time-limited snapshot of bootstrap basis and supported evidence/operation inventory, followed by fresh reconciliation and separately issued operator/execution authorization. A context or a passing verdict alone grants no restoration authority. |
+| Recovery fingerprint | A hash of observed investigation status and cycle progress used for operator recovery of an execution cycle. A stale fingerprint rejects recovery; it is neither a SecurityState version nor an AuthorityEpoch. |
+
+**Recovery from reconstructed or restored authority is not an ordinary security-state transition.** Database restoration does not manufacture trust. The reconstruction path enters the recovery-bootstrap fence, captures fresh context, reconciles supported evidence and outcomes, and requires protected restoration with epoch rotation before ordinary authority becomes available. The ordinary security-state transition service cannot clear the pending fence. Historical recovery contexts and authorizations remain evidence, not current grants.
+
+The bounded implementation and verification records are [recovery bootstrap](../development/recovery-bootstrap-boundary.md), [RecoveryContext](../development/recovery-context.md), [reconciliation](../development/recovery-reconciliation.md), [protected restoration](../development/recovery-restoration.md), [epoch replacement](../development/authority-epoch-replacement.md), and [reconstruction epoch rotation](../development/reconstruction-epoch-rotation.md).
+
 Restore must distinguish current state from historical state, preserve audit and provenance requirements, and record the restoration event. Rollback reverses eligible state transitions without pretending the attempted mutation never happened. Provenance-aware recovery identifies dependent claims, assessments, inferences, and conclusions rather than indiscriminately deleting records.
 
 Derived state such as indexes, caches, embeddings, and summaries should be rebuildable from authoritative state. Their loss must not become loss of the underlying research record.
 
-The repository currently has transactional recovery and rollback tests but does not yet have a complete documented backup/restore procedure and operational drill. This is a release-gate gap.
+The repository has transactional recovery and rollback tests plus the hosted-verified M2 backup/reconstruction/recovery drill for a supported test deployment. A consolidated operator procedure and broader deployment or release conformance remain open.
 
 ## Privacy and secure deletion
 
@@ -145,9 +173,9 @@ Security controls enforce bounded time, tokens, requests, bytes, concurrency, re
 | Secrets and provider configuration | Current settings and provider status expose credential mode without secret values; full authentication and rotation operations remain open. |
 | State integrity, concurrency, idempotency, and explicit unknown outcomes | Implemented across migrations, lifecycle, provider attempts, memory governance, cycle recovery, and audit transactions for the current scope. |
 | Auditability and redaction | Broad task-scoped redacted audit coverage exists; provider-session create/delete lifecycle metadata is now durable; complete retention, tamper evidence, operator identity, and unrelated provider/configuration-writer coverage remain open. |
-| Security state machine | Slice 13 state persistence and transitions exist, but the authority document’s state vocabulary and the Slice 13 vocabulary require reconciliation. |
-| Failure containment and degraded operation | Current provider, cycle, and retrieval failures preserve explicit outcomes and local state; full incident isolation and operational safe-mode controls remain partial. |
-| Backup, restore, and recovery | Transactional rollback/recovery tests exist; documented backup/restore procedure and restore drill are not complete. |
+| Security state machine | The five-state Slice 13 vocabulary, persisted versioned transitions, and centralized capability policy are implemented for the reviewed scope. Recovery bootstrap and protected restoration remain distinct from ordinary state transitions; scoped component isolation remains future work. |
+| Failure containment and degraded operation | Current provider, cycle, and retrieval failures preserve explicit outcomes and local state; broader incident containment and restrictive-state operations remain partial. |
+| Backup, restore, and recovery | Transactional recovery and the bounded M2 backup/reconstruction/recovery drill have executable evidence; a consolidated operator procedure and broader deployment/release evidence remain open. |
 | Secure deletion, privacy, and external disclosure | Redacted audit and provider boundaries exist; privileged purge, full export review, and outbound privacy enforcement remain open. |
 | Security conformance tests | Deterministic boundary, injection, lifecycle, persistence, provider, and state-transition tests exist; the complete contract-test set is not yet satisfied. |
 

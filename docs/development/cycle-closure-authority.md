@@ -1,11 +1,13 @@
 # Interrupted-cycle closure authority
 
+> Dated execution and verification record. Status and remaining-work statements below describe this checkpoint; use the maintained [current source of truth](source-of-truth.md) and [roadmap](roadmap.md) for present claims.
+
 Date: 20 September 2026.
 Status: implemented and closed at the 20 September closure checkpoint. The archived
 [closure checklist](../archive/completed-slices/2026-09-20-slice-closure-gaps.md)
 records the gap-by-gap disposition.
 This is bounded containment bookkeeping, not restoration authority. Contracts #1–#5
-are unchanged. Verification is recorded in implementation-status.md.
+are unchanged. Checkpoint verification is preserved in the [historical implementation-status journal](../archive/completed-slices/2026-09-26-pre-c1-implementation-status-journal.md).
 Baseline: `4ea2693d368eee016b6f0436a0366faf17922c5d`, checkpoint
 `checkpoint-2026-09-19-authority-foundations`.
 

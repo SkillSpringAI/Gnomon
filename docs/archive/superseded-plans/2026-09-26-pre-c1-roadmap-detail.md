@@ -1,17 +1,19 @@
 # Gnomon Dependency-Ordered Development Roadmap
 
+> Historical C1 archive snapshot of the former detailed roadmap, copied on 26 September 2026 while reconciling implementation SHA `6be538ed6b32107c0ba69dacb73e8c057d55386b`. It retains completed M0/M1 instructions and the pre-reduction milestone narrative. For future work use the maintained [roadmap](../../development/roadmap.md).
+
 ## Roadmap Status
 
 This document is the maintained future-work roadmap for Gnomon. It is not current
-implementation truth. For what exists now, read [Current Source of Truth](source-of-truth.md).
-For completed work, read [Development History](development-history.md).
+implementation truth. For what exists now, read [Current Source of Truth](../../development/source-of-truth.md).
+For completed work, read [Development History](../../development/development-history.md).
 
 **Last hosted-green implementation baseline:** `93e383eb0acf8ba2a389d888c45023355b0ff7af`
 (`93e383e`, Quality run `36108631071`).
 **Roadmap review date:** 26 September 2026.
 
-The [23 September roadmap](../archive/superseded-plans/Gnomon%20Dependency-Ordered%20Development%20Roadmap%202026-09-23.md)
-is retained as historical planning evidence; this stable path is the active roadmap.
+The earlier file `Gnomon Dependency-Ordered Development Roadmap.md` was reconciled
+into this stable linked path so repository navigation has one active roadmap.
 
 ## Roadmap Rule
 
@@ -32,23 +34,235 @@ Re-open roadmap ordering only when one of these occurs:
 
 Ordinary implementation friction does not trigger roadmap redesign.
 
-## Completed dependency gates
+## Milestone 0: Restore A Green Canonical Baseline
 
-**M0 — Green canonical baseline:** Closed at `ef11f70` by hosted Quality
-[run 35937991144](https://github.com/SkillSpringAI/Gnomon/actions/runs/35937991144).
-The [closure record](../archive/completed-slices/2026-09-24-baseline-restoration.md)
-retains the failed predecessor, fixture correction, exact commands, and scope.
+### Objective
 
-**M1 — Recovery authority:** Hosted-verified for the bounded local scope at
-`316c90bf1816743ce73571e907b5c24e4da6cdec` by Quality
-[run 35981852013](https://github.com/SkillSpringAI/Gnomon/actions/runs/35981852013).
-[Development history](development-history.md) and the M1.1–M1.6 completion records
-retain the recovery-context, authorization, reconciliation, protected restoration,
-epoch replacement, adversarial tests, and limitations. M1 closure does not claim
-general deployment recovery or privileged-tamper resistance.
+Establish one exact commit that is locally and hosted verified before further
+architectural work.
 
-The [pre-C1 roadmap detail](../archive/superseded-plans/2026-09-26-pre-c1-roadmap-detail.md)
-preserves the former M0/M1 implementation instructions and exit-gate narrative.
+### Resolved Blocker
+
+Quality run `35818573020` for `11c46ae` failed during the ordinary pytest job.
+
+Observed result:
+
+- Ruff: passed.
+- Strict mypy: passed.
+- Migrations: passed.
+- Browser job: passed.
+- Minimal wheel install: passed.
+- Pytest: 1,647 passed, 24 skipped, 2 setup errors.
+- Failures originate from missing `dependence_context` fixture in
+  `test_source_dependence_listing.py`.
+
+Resolved by `ef11f70`: explicit fixture discovery passes standalone and full-suite
+collection, and uncertain browser retries retain their original command through
+authority denial. Hosted Quality `35937991144` passed every required job for that
+exact SHA. Local full regression passed 1,677 tests, zero skipped. Milestone 0 is
+complete; the [closure record](../completed-slices/2026-09-24-baseline-restoration.md)
+retains the evidence and limitations. Milestone 1 subsequently closed for the
+bounded local recovery-authority scope at `316c90b`.
+
+### M0.1 Test Fixture Closure
+
+Repair the source-dependence listing test fixture boundary.
+
+Verify that the tests:
+
+- use the intended shared fixture;
+- run when invoked alone;
+- run as part of the full test suite;
+- do not depend accidentally on import or collection order.
+
+### M0.2 Full Verification
+
+The local preflight and hosted Quality workflow must cover the same evidence
+families. The hosted gate is the `.github/workflows/quality.yml` workflow:
+
+- `checks`: install `.[dev,aws]`, run Ruff, strict mypy, migrations, pytest,
+  smoke verification, prototype verification, conformance check, and database
+  wheel verification.
+- `minimal-install`: run minimal wheel verification.
+- `browser`: run the PostgreSQL-backed 28-case workspace browser suite with
+  zero failures, errors, or skips.
+
+### Exit Gate
+
+Milestone 0 closes only when one implementation SHA has a successful hosted
+Quality run across all required jobs.
+
+Do not begin architectural expansion from a known-red HEAD.
+
+## Milestone 1: Recovery Authority Completion
+
+### Objective
+
+Finish the authority model required to recover Gnomon itself safely.
+
+This is the highest-priority architectural milestone. Gnomon already knows how
+to enter restrictive recovery bootstrap. It does not yet have a complete governed
+path back out.
+
+### 1.1 Canonical RecoveryContext
+
+Implemented locally: the [RecoveryContext implementation](../../development/recovery-context.md) defines
+immutable bounded evidence, trusted local snapshot collection, atomic diagnostic
+persistence, and historical/current read checks. Commit `82bab04` records the local
+implementation. Restoration consumers are now covered by M1.5/M1.6; this evidence
+is included in the hosted M1 closeout baseline.
+
+Define an immutable/bounded recovery context containing at minimum:
+
+- current authority epoch;
+- security-state identity and version;
+- recovery-bootstrap origin state/version;
+- incident/recovery identifier;
+- initiating actor;
+- permitted recovery scope;
+- evidence basis;
+- required reconciliation items;
+- unresolved/unknown operations;
+- creation time;
+- validity/expiry rules where applicable.
+
+RecoveryContext is evidence about a recovery operation. It is not authority by
+itself.
+
+### 1.2 OperatorAuthorization
+
+Passes 1-2: [OperatorAuthorization and ExecutionAuthorization](../../development/authorization.md)
+define frozen domain artifacts, stale-epoch validation helpers, trusted local
+issuance, append-only persistence, audit coupling and exact replay behavior.
+Restoration consumption remains later M1 work.
+Pre-M1.6 gaps are tracked in the
+[M1 authorization gap register](../../development/m1-authorization-pre-m1.6-gap-register.md).
+
+Separate operator identity from operator authority.
+
+Define a structured authorization artifact containing:
+
+- authenticated principal or current bounded local identity;
+- granted capability;
+- scope;
+- authority epoch;
+- issuance basis;
+- expiry;
+- replay/idempotency identity;
+- optional recovery-context binding.
+
+Do not allow possession of a RecoveryContext to imply permission.
+
+### 1.3 ExecutionAuthorization Epoch Binding
+
+Passes 1-2 share the same authorization contract and issuance boundary: execution
+authorization must narrow an operator grant, persist under the current authority
+epoch and fail closed against a superseded authority epoch.
+
+Any authority-bearing execution authorization must be bound to the authority epoch
+under which it was issued.
+
+An authorization from a superseded epoch must fail closed.
+
+### 1.4 Recovery Reconciliation
+
+Implemented locally: [Recovery Reconciliation](../../development/recovery-reconciliation.md) adds a
+read-only deterministic verdict over the current RecoveryContext, supported
+evidence inventory and supported provider/cycle operation outcomes. It does not
+restore authority, clear RECOVERY_REQUIRED or replace the authority epoch.
+
+Implement deterministic reconciliation of recovery-bootstrap state.
+
+The service should determine, without model discretion:
+
+- what authoritative state survived;
+- which operations definitely committed;
+- which definitely did not;
+- which remain unknown;
+- which provider/network attempts require reconciliation;
+- whether retained evidence is structurally valid;
+- whether audit/history chains remain valid;
+- whether restoration is allowed to proceed.
+
+Reads must not silently repair state.
+
+### 1.5 Protected Authority Restoration
+
+Implemented locally: [Protected Recovery Restoration](../../development/recovery-restoration.md)
+adds one-transaction restoration preflight and completion that consume current
+RecoveryContext, M1.4 reconciliation, OperatorAuthorization and
+ExecutionAuthorization before clearing RECOVERY_REQUIRED with audit.
+
+Implement explicit recovery transitions rather than treating recovery as
+administrative superuser mode.
+
+Restoration must require:
+
+- valid current authority;
+- RecoveryContext;
+- appropriate OperatorAuthorization;
+- successful required reconciliation;
+- expected security-state version;
+- valid authority epoch;
+- structured reason code;
+- atomic audit.
+
+Direct `LOCKDOWN -> NORMAL` remains prohibited.
+
+### 1.6 Authority Epoch Replacement
+
+M1.5 deliberately does not replace the authority epoch. M1.6 owns the new lineage
+decision and invalidation semantics for old execution authorizations.
+
+Passes 1-2 implemented locally: [Authority Epoch Replacement](../../development/authority-epoch-replacement.md)
+adds post-restoration epoch replacement, version bump, audit and proof that old
+execution authorization remains historical replay only. Current protected effects
+must use `AuthorizationService.require_current_execution`, which rejects old-epoch,
+expired, wrong-context or wrong-capability execution authorization records and
+accepts freshly issued authorization in the replacement epoch.
+
+Define the conditions under which a new authority epoch is created.
+
+The old epoch remains historical evidence. New authority must not rewrite previous
+attribution.
+
+Explicitly specify behavior for:
+
+- old outstanding execution authorizations;
+- unknown provider attempts;
+- stale operator commands;
+- recovery records;
+- audit projections;
+- restored database state.
+
+### Required Adversarial Tests
+
+Include at minimum:
+
+- stale RecoveryContext;
+- stale authority epoch;
+- stale OperatorAuthorization;
+- duplicated recovery command;
+- concurrent restoration requests;
+- recovery interrupted midway;
+- audit failure;
+- invalid persisted authority state;
+- unknown provider outcome;
+- restrictive transition racing restoration;
+- replay of authorization from old epoch;
+- model/external-agent attempt to manufacture recovery authority.
+
+### Exit Gate
+
+Milestone 1 closes when Gnomon can enter restrictive recovery, reconcile its
+authoritative state, perform a separately authorized restoration, establish the
+correct authority epoch, and preserve an auditable history without granting
+recovery implicit superuser semantics.
+
+Milestone 1 is hosted-verified for the bounded local scope by Quality run
+`35981852013` at `316c90bf1816743ce73571e907b5c24e4da6cdec`. M2 backup and
+reconstruction remain outside that claim.
+
 ## Milestone 2: Backup, Restore, And Reconstruction Conformance
 
 **Status: Functionally established, with bounded architectural consolidation remaining.**
@@ -57,7 +271,7 @@ into a pristine PostgreSQL target, canonical equivalence checks, entry into M1
 recovery, fresh reconciliation and authorization, atomic restoration with epoch
 rotation, and credential-sentinel verification. The supported test-deployment
 path was hosted-verified through `93e383e`; this is a bounded functional claim,
-not general release or deployment conformance. The [incremental sequence](M2%20Incremental%20Implementation%20Sequence.md)
+not general release or deployment conformance. The [incremental sequence](../../development/M2%20Incremental%20Implementation%20Sequence.md)
 and linked M2 completion records preserve slice scope, commands, results, and
 provenance.
 
@@ -73,8 +287,6 @@ protected restoration, or deterministic reconciliation:
    and verification records.
 5. Preserve canonical reconstruction, restrictive unresolved-outcome, recovery,
    epoch-rotation, and credential-sentinel verification during consolidation.
-6. Complete the still-applicable adversarial reconstruction cases and a maintained
-   operator backup/restore procedure before claiming broader operational readiness.
 
 **Consolidation exit gate:** existing supported reconstruction and recovery
 behavior remains equivalent under the relevant tests and hosted Quality gate.

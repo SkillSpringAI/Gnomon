@@ -1,159 +1,50 @@
 # Gnomon Current Source of Truth
 
-**Last hosted-green implementation baseline:** `93e383e` (M2.11 credential sentinel verification). Hosted [Quality run 36108631071](https://github.com/SkillSpringAI/Gnomon/actions/runs/36108631071) passed `checks`, `minimal-install`, and `browser` with 1,819 tests passed and 28 skipped.
-**Current planning baseline:** `661b072f3d36de98792ee9649adce8a2db22401f` (`661b072`, M2 implementation sequence), amended with verified M2.11 progress.
-**Current implementation baseline:** `93e383e` (M2.11 credential sentinel drill across backup and reconstruction).
-**Previous failure:** Quality run `35818573020` for `11c46ae` failed listing-fixture setup. The corrective commit closes that failure and preserves unconfirmed requests after denied replay.
-**Current slice:** M2 backup/restore sequencing has begun. M2.1 has a local [Backup Manifest domain contract](backup-manifest.md) for frozen v1 metadata, ordered migration checksums, authority metadata and dump integrity metadata. M2.2 has a local [Backup State Inspection](backup-state-inspection.md) service that reads PostgreSQL, migration, application and authority metadata in a repeatable-read read-only transaction. M2.3 has a local [Backup Creation Boundary](backup-creation.md) that publishes a complete `database.dump` plus `manifest.json` set only after successful state inspection, `pg_dump`, dump hashing and manifest validation. M2.4 has a local [Restore Preflight](restore-preflight.md) service that rejects malformed backup material, dump hash mismatches, incompatible PostgreSQL/schema/migration state and populated restore targets before `pg_restore`. M2.5 has a local [Database Reconstruction](database-reconstruction.md) service that imports backup data into a preflighted pristine target through guarded `pg_restore`, reapplies manifest authority metadata and verifies critical restored structure. M2.6 has a local [Canonical Reconstruction Fixture](canonical-reconstruction-fixture.md) covering the M2 authority/history families plus a restrictive unresolved variant. M2.7 has a hosted-verified [Reconstruction Equivalence Verifier](reconstruction-equivalence-verifier.md) with canonical backup/restore comparison. M2.8 has hosted-verified [Restore-to-Recovery Integration](restore-to-recovery.md) using M1 bootstrap and a new RecoveryContext. M2.9 has hosted-verified [Reconstruction Reconciliation and Restoration](reconstruction-reconciliation-restoration.md) through the existing M1 authority services. Milestone 1 recovery authority is hosted-verified for the bounded local scope at `316c90b`: M1.1 has a local [RecoveryContext contract and diagnostic persistence boundary](recovery-context.md), including migration 033, trusted local capture, atomic audit and read validation. M1.2/M1.3 add local [authorization domain contracts and trusted issuance persistence](authorization.md) for operator grants and epoch-bound execution authorizations, including migration 034, exact replay validation and closeout hardening. M1.4 adds local [read-only recovery reconciliation](recovery-reconciliation.md) over supported evidence and operation streams. M1.5 adds local [protected restoration](recovery-restoration.md), including preflight and audited RECOVERY_REQUIRED fence clearing. M1.6 adds local [authority epoch replacement](authority-epoch-replacement.md) after restoration plus a current execution authorization boundary for protected effects. M2.10 has a hosted-verified [Reconstruction Epoch Rotation](reconstruction-epoch-rotation.md) completion path that atomically restores and replaces the epoch. M2.11 has a hosted-verified [Credential Sentinel Verification](credential-sentinel-verification.md) drill that checks runtime credential paths against backup material and restored persistence.
-**M1.6 review register:** Known authorization gaps to review before M1.6 exit are tracked in [M1 authorization gap register](m1-authorization-pre-m1.6-gap-register.md).
-**Purpose:** Concise current implementation truth, open release gaps, and immediate work.
-**Status:** Current authority for repository state; completed history belongs in [development history](development-history.md), and future work belongs in the [roadmap](roadmap.md).
+**Implementation HEAD reviewed for C1:** `6be538ed6b32107c0ba69dacb73e8c057d55386b` (documentation-only commit after M2.11).
+**Last hosted-green implementation SHA:** `93e383eb0acf8ba2a389d888c45023355b0ff7af`. [Quality run 36108631071](https://github.com/SkillSpringAI/Gnomon/actions/runs/36108631071) passed `checks`, `minimal-install`, and `browser`; the main suite reported 1,819 passed and 28 skipped. This run did not test the current uncommitted C1 documentation.
+**Role:** Concise current implementation and gap baseline. The [roadmap](roadmap.md) owns future work, [architecture and governance](../README.md) own normative rules, [implementation status](../conformance/implementation-status.md) owns verification scope, and [development history](development-history.md) owns completed narratives.
 
-## Current implementation state
+## Current implementation
 
-Gnomon is a local-first research API with PostgreSQL persistence, bounded investigations and cycles, deterministic planning, approved HTTP retrieval, conservative claim extraction, provenance, hypothesis assessments, snapshots, reports, governed memory changes, audit events, provider-backed drafts, and a bounded fake-agent research path.
+Gnomon is a local-first research API with PostgreSQL as its reference durable store. API, application, domain, ports, adapters, persistence, configuration, and security have explicit package boundaries. Models and external content can supply observations or proposals; deterministic services decide whether governed state changes.
 
-The implemented architecture remains layered across API, application, domain, ports, adapters, persistence, configuration, and security. External models, agents, providers, and sources produce observations, evidence, or proposals; they do not gain authority to mutate governed state merely by producing them.
+The supported local scope includes:
 
-Current supported behavior includes:
-
-- Investigation creation and retrieval with briefs, hypotheses, questions, plans, cycles, lifecycle controls, and bounded outcomes.
-- PostgreSQL persistence with ordered migrations, checksums, fresh bootstrap, populated upgrades, and idempotent reruns.
-- Registered-domain HTTP retrieval with redirect, private-address, content-type, size, and deadline controls.
-- Exact evidence and claim reuse, provenance links, deterministic claim extraction, and redacted audit events.
-- Task-scoped, operator-attributed `derived_from` and `common_origin` relationships with application-appended history, validated history reads, bounded traversal, API adapters, and report/planner/workspace limitation views. Missing relationships remain unknown and never establish independence or increase confidence.
-- Evidence-aware next-cycle planning with bounded objectives, persisted planning reasons, reviews, evidence fingerprints, and unresolved work.
-- Durable cycle attempts, partial-progress retention, operator recovery, late-write fencing, and explicit blocked/failed outcomes.
-- A read-only latest-attempt progress projection and workspace surface for retained evidence, claims, stages, timestamps, objective state, and unresolved active cycles.
-- Versioned governed memory for claims and hypothesis assessments with actor context, optimistic concurrency, append-only history, and eligible 48-hour reversal.
-- Deterministic snapshots and reports that preserve uncertainty, provenance, cycle outcomes, unresolved objectives, and non-authoritative agent comparison metadata.
-- Local rule-based and optional Bedrock provider boundaries with idempotent attempts, bounded output limits, dispatch fencing, and explicit unknown outcomes.
-- Local provider-session replacement and deletion are bounded by redacted durable audit, transactional in-memory rollback on stage/commit failure, controlled replacement/delete races, expiry/capacity protections, and populated migration-upgrade evidence. The process-memory crash boundary and authenticated operator identity remain explicit limitations.
-- A platform-neutral fake agent network with bounded adversarial scenarios, persisted agent-message evidence, deterministic comparison, and local cycle integration.
-- Versioned canonical security state persistence, controlled transitions, and centralized capability policy.
-- Point-of-effect enforcement for `READ_AUDIT` on audit/history reads, source retrieval in the cycle runner, and provider dispatch after reservation. Admission alone does not authorize a later effect.
-- Authority Epoch persistence and epoch-bound new transition audit records, with fail-closed lineage loading and no runtime epoch creation.
-- Post-restoration authority epoch replacement can rotate the singleton epoch,
-  bump security-state version, append audit and make old execution authorizations
-  fail current-use validation against the new epoch. Exact replay remains
-  historical through issuance APIs; `require_current_execution` rejects stale,
-  expired, wrong-context or wrong-capability execution authorizations before
-  protected effects.
-- Explicit transition actor/reason authorization and REDUCE/PRESERVE/BROADEN classification of current capability sets. See [authority foundations](authority-foundations.md) for the matrix and limits.
-- Direction-aware `AUTHORITY_ADMINISTRATION`: containment cannot broaden, recovery
-  is not a superuser capability, and recovery purpose cannot replace authorization
-  for the actual authority-bearing effect.
-- Local `OperatorAuthorization` and `ExecutionAuthorization` records are immutable,
-  epoch-bound evidence with trusted issuance, audit coupling and exact replay
-  checks. Protected restoration consumes them under a locked authority snapshot,
-  and future protected effects must use current execution validation rather than
-  historical replay. They do not replace point-of-effect capability checks.
-- Startup distinguishes pristine fresh bootstrap, authority-preserving continuation,
-  and recovery bootstrap. Recovery entry becomes effectively RECOVERY_REQUIRED before
-  requests, keeps restored active-looking records inert, and exposes read-only
-  reconciliation plus protected restoration completion.
-- Recognized PostgreSQL integrity failures are translated at reviewed write boundaries
-  using structured constraint diagnostics; unknown failures remain unexpected, and
-  public authority-invariant responses are generic and redacted.
-- Operator-controlled stopping decisions use structured reasons, persisted current
-  and immutable history records, evidence fingerprints, readiness limitations,
-  stale-basis reporting, atomic lifecycle conclusion, and legacy `unspecified`
-  compatibility for direct historical conclusions.
+- Investigations, briefs, hypotheses, questions, bounded cycles, lifecycle controls, evidence, conservative claim extraction, provenance, assessments, deterministic planning, snapshots, and reports.
+- Registered-domain HTTP retrieval with network and response bounds; source and fake-agent cycle runners with durable attempts, retained committed progress, exact-attempt fencing, interruption closure, and freshness-bound operator recovery.
+- Governed claim and assessment memory with versions, append-only application history, audit, optimistic conflict checks, and eligible rollback. Source-dependence relationships and stopping decisions have bounded, task-scoped command/history and read-projection contracts.
+- Local rule-based and optional Bedrock provider drafts with durable reservation and dispatch fencing, budgets, redacted audit, explicit unknown outcomes, and reconciliation. The fake agent network is bounded; live external-agent platforms are not enabled.
+- Five persisted global SecurityState values: `NORMAL`, `DEGRADED`, `COMPROMISED_SUSPECTED`, `LOCKDOWN`, and `RECOVERY_REQUIRED`. Versioned transitions, actor/reason checks, direction-aware capability policy, and point-of-effect guards are implemented for reviewed paths. Recovery bootstrap, AuthorityEpoch, exact execution attempt, and recovery fingerprint remain distinct.
+- M1 recovery authority for the bounded local scope: a restrictive bootstrap fence, fresh RecoveryContext, supported-evidence reconciliation, separate operator/execution authorization, protected restoration, and epoch replacement.
+- M2 backup and reconstruction for the supported PostgreSQL test-deployment path: manifest and state inspection, guarded backup/restore, canonical and restrictive-fixture equivalence, recovery entry, protected restoration with atomic epoch rotation, and credential-sentinel verification. M2 is functionally established with bounded consolidation remaining.
 
 ## Current guarantees and limits
 
-The following are current guarantees only within the tested and supported scope:
+| Area | Supported guarantee | Material limit |
+|---|---|---|
+| Authority | Governed writes validate current state and required capability; model or external-agent output grants no authority. | Authentication, privileged database-role separation, and full incident controls remain open. |
+| Persistence | Ordered checksummed migrations, reviewed atomic state/history/audit writes, attempt identities, and bounded failure handling. | Direct privileged database writes, broader constraint coverage, ambiguous commits, and cryptographic tamper evidence are not covered by these guarantees. |
+| Execution | Current source, provider, and fake-agent paths use bounded attempts and preserve explicit failure or unknown outcomes. | No live external-agent adapter, generic autonomous runtime, or universal cancellation guarantee exists. |
+| Recovery | Reconstructed state enters a separate recovery-bootstrap fence; supported reconciliation and authorization precede restoration and fresh epoch use. | Supported inventory is bounded; wider deployment recovery and full operational procedure remain separate work. |
+| Research | Structured evidence, provenance, uncertainty, current reviews, and derived reports survive supported workflows. | Semantic memory, full dependency-aware reassessment, causal independence inference, and unrestricted historical repair are not implemented. |
 
-| Area | Current truth |
-|---|---|
-| Authority | Model and external-agent outputs are proposals or observations, not direct authority. |
-| Persistence | PostgreSQL is the reference durable store; migrations are checksummed and drift-rejecting. |
-| Memory | Claims and hypothesis assessments use governed proposals, versions, history, audit, and eligible rollback. |
-| Cycles | Bounded local runners retain committed evidence and support explicit operator recovery. |
-| Providers | Provider work is outside long database transactions; dispatched or uncertain work retains capacity until reconciled. |
-| External agents | Only the bounded fake/read-only network is implemented; live outbound networks are not enabled. |
-| Security | Current boundary guards, redaction, security-state persistence, and transition tests exist; full incident, authentication, purge, and operational recovery controls remain open. |
-| Reports | Reports are derived read-only views and do not establish new knowledge or conclusions. |
-| Source dependence | Current relationships are explicit, bounded, task-scoped, and auditable; absent or truncated relationships remain unknown. Invalid persisted-graph recovery and causal/semantic independence evaluation remain deferred. |
+No blanket autonomous, complete security, general backup/restore readiness, or v0.1 release-conformance claim follows from hosted Quality being green. `SAFE` is not a persisted global state; `ISOLATED` remains a future scoped-containment concept. See the [security authority](../governance/security-authority.md#security-state-and-containment).
 
-No current document should claim full autonomous operation, complete security conformance, semantic memory, live agent networking, backup/restore readiness, or v0.1 release conformance.
+## Material open work
 
-## Open P0 and P1 work
+No P0 is identified in this reviewed documentation baseline. These P1 or P1/P2 areas remain bounded by the [roadmap](roadmap.md) and release gate:
 
-| Priority | Issue | Current status | Next evidence required |
-|---|---|---|---|
-| P1 | Backup and restore conformance | M2.1 manifest contract, M2.2 state inspection, M2.3 backup creation, M2.4 restore preflight, M2.5 database reconstruction, M2.6 canonical fixture and M2.7 equivalence projection helpers implemented locally | Credential non-persistence checks, recovery integration and release verification. |
-| P1/P2 | Historical journal compatibility | Hosted-verified for migration-007 claims/assessments | Populated pre-007 claim/assessment data remains readable through current HEAD without mutation; malformed, missing, and unsupported chains fail closed. Broader memory categories remain deferred. |
-| P1/P2 | Workflow atomicity observability | Implementing baseline hosted-verified | Latest-attempt read projection and workspace rendering expose retained progress without observation-side mutation; hosted run `35548463523` passed for exact SHA `41579173fd19e8316d020d4f9c59c624b684fdac`. |
-| P1/P2 | Lowest-layer invariant enforcement | Closed locally for reviewed scope | Migration 025 constraints and bounded translation cover reviewed authority/duplicate paths; broader lifecycle and memory vocabulary constraints remain deferred. |
-| P1/P2 | Security authority foundations | Hosted-verified for bounded local M1 scope | Epoch persistence, transition policy, direction-aware administration and restrictive recovery-bootstrap entry are implemented. M1.1 adds a local RecoveryContext domain contract, trusted diagnostic collection/persistence, atomic audit and negative tests. M1.2/M1.3 add local OperatorAuthorization and ExecutionAuthorization domain contracts plus trusted issuance/persistence, atomic audit and replay validation. M1.4 adds read-only recovery reconciliation over supported evidence and operation streams. M1.5 adds protected restoration preflight and audited fence clearing. M1.6 adds post-restoration epoch replacement, current execution authorization validation and an exit-gate evidence map. Quality run `35981852013` verifies `316c90b`; M2 backup reconstruction remains open. |
-| P1/P2 | Hosted CI evidence | M1 closeout hosted-verified | Quality run `35981852013` verifies `316c90b` across `checks`, `minimal-install`, and `browser`. The prior failed run remains recorded in the baseline restoration history. |
-| P1/P2 | Source-dependence contract | Implementing baseline hosted-verified | Migrations 028/030 provide canonical command replay, history-chain/head validation, bounded lock-stable traversal, invalid examined-graph detection, scoped review invalidation and concurrency coverage. Hosted run 35676307231 verifies 4fa785b. Legacy replay without command metadata, graph repair, database-role separation and privileged tamper resistance remain outside the guarantee. |
-| P1/P2 | Trusted-source/provider-session policy audit | Hosted-verified for the reviewed registry and provider-session boundaries | Configuration-scoped events preserve authority epoch/version, require READ_AUDIT to read, and provider-session failure/race/upgrade evidence now covers the reviewed scope; authenticated identity, memory-backend durability, distributed crash atomicity, and unrelated writer audit remain open. |
-| P1/P2 | Evidence-bound stopping decisions | Correctness closure hosted-verified | Migrations 029/031/032 persist accepted command identity and cycle-qualified objective references. Authorized exact retries return historical results; derived limitations survive caller caps, history and reports. Readiness retains unfinished objectives, unresolved assessments, current-review uncertainty, contradiction links and incomplete dependence. Runtime limits remain operator-reported. Legacy and pre-final development commands without complete metadata are readable but not replayable. Semantic automatic stopping, authenticated multi-operator identity, and automatic reopening remain deferred. |
-| P1 | Interrupted-cycle closure authority | Closed | Exact-attempt closure, runner failure propagation, complete preservation snapshots, restrictive-state coverage, and atomic audit/race tests pass. |
-| P1 | Selected mutation/lockdown ordering | Closed for five paths | Task then security SHARE locking covers memory stage/reverse, source creation, general outcome and containment closure; same-task composition and both race orders are proven. Cross-task batching is unsupported. |
+| Priority | Gap | Current boundary |
+|---|---|---|
+| P1 | Deployment and release conformance | The M2 reconstruction/recovery drill is hosted-verified for its supported test deployment. A consolidated operator procedure, remaining adversarial cases, broader deployment evidence, and release review remain open. |
+| P1 | Runtime and persistence hardening | Normal runtime database privileges, selected lower-layer constraints, ambiguous-commit evidence, and the audit durability/tamper-resistance decision remain open. |
+| P1/P2 | Security operations | Authenticated multi-operator authority, full incident containment, scoped isolation, privileged purge, and wider adapter privacy/egress coverage remain open. |
+| P1/P2 | Architectural consolidation | Shared recovery reads, reconstruction mechanics, investigation/execution responsibilities, repository/read projections, and invariant verification mapping remain the confirmed M4 programme. |
+| P1/P2 | Research expansion | Broader dependency-aware reassessment, semantic retrieval, live external-agent operation, long-running orchestration, and fresh-agent handoff remain deferred to their roadmap gates. |
 
-The dated architecture review findings are historical evidence. They were reconciled into the current ledger where applicable and should not be treated as the active defect list without checking this document and the conformance records.
+## Evidence and provenance
 
-## M2.7 closeout record
-
-Implementation SHA: `b898e97` (`Add M2 reconstruction equivalence projections`)
-
-Working tree: clean at closeout; documentation follow-up is recorded separately from the implementation commit.
-
-Commands and results: focused M2.6/M2.7 tests passed (`4 passed`); combined M2.1-M2.7 suite passed (`59 passed, 2 skipped`); Ruff passed; Mypy passed across 103 source files; `scripts/check_conformance.py` passed traceability checks; `git diff --check` passed. The two skips are expected because local `pg_dump` and `pg_restore` binaries are unavailable.
-
-Hosted run: pending.
-
-Hosted tested SHA: pending.
-
-Supported scope: deterministic projection groups, canonical fixture reconstruction, snapshot/report comparison, and mismatch detection for the reviewed M2.7 fixture boundary.
-
-Remaining gaps: full backup-to-restore execution, credential sentinel exclusion, restore-to-recovery integration, fresh authority epoch establishment, and release verification.
-
-## Current exit criteria
-
-The current hardening baseline advances only when:
-
-- Every new governed transition has implementation, positive/negative tests, concurrency coverage where relevant, migration handling, and documentation.
-- Backup/restore reproduces authoritative state, history, provenance, versions, audit, and deterministic snapshots.
-- Security-state vocabulary and transitions have one reviewed canonical contract.
-- CI runs the claimed quality, migration, smoke, packaging, conformance, and relevant integration checks.
-- No enabled adapter treats external content as authority or silently converts unknown outcomes into success.
-- The authority matrix and implementation status remain synchronized with code and tests.
-
-## Completion-record template
-
-Use this compact record in the relevant maintained status section when a slice closes:
-
-```text
-Implementation SHA: <commit tested>
-Working tree: <clean or dirty; list relevant uncommitted follow-up>
-Commands and results: <exact commands, pass/fail counts, and skips>
-Hosted run: <URL, or explicitly pending>
-Hosted tested SHA: <SHA, or explicitly pending>
-Supported scope: <what the evidence covers>
-Remaining gaps: <what is still deferred>
-```
-
-Implementation evidence and documentation-only follow-up evidence must remain distinct. A commit must not claim verification of documentation changes that were added after that commit.
-
-## Immediate next work
-
-1. Begin M2.8 Restore-to-Recovery Integration from the incremental sequence.
-2. Keep credential-exclusion claims deferred until sentinel verification is reviewed and complete.
-
-### Known implementation question
-
-The closed [bounded decision](cycle-closure-authority.md) uses SECURITY_CONTAINMENT for exact-attempt interruption closure and MEMORY_MUTATION for general outcome writes. Missing/invalid authority or persistence failure propagates through both runners and leaves state unresolved rather than manufacturing closure. Broader recovery and restoration questions remain deferred.
-
-## Navigation
-
-- [Roadmap](roadmap.md) — future and deferred work.
-- [Development history](development-history.md) — completed slices and historical evidence.
-- [Conformance](conformance.md) — implementation and release-gate rules.
-- [Authority matrix](../conformance/authority-matrix.md) — detailed requirement evidence.
-- [Implementation status](../conformance/implementation-status.md) — latest verification summary.
-- [Security authority](../governance/security-authority.md) — security requirements and historical vocabulary.
-- [Repository documentation inventory](../source_of_truth/repository-documentation-inventory.md) — cleanup classification record.
+- [Implementation status](../conformance/implementation-status.md) records the current verification summary and its limits; the [authority matrix](../conformance/authority-matrix.md) retains requirement traceability.
+- The [C1 completion record](c1-documentation-authority-baseline.md) records this documentation reconciliation, local verification, and pending commit/hosted gates.
+- [Development history](development-history.md) and the [M2 sequence](M2%20Incremental%20Implementation%20Sequence.md) link to dated completion records and hosted runs.
+- The [pre-C1 current-state journal](../archive/completed-slices/2026-09-26-pre-c1-source-of-truth-journal.md) preserves the former M2.7 closeout record, exact local commands, pending-at-that-time hosted status, and other chronological details. Those checkpoint claims are historical, not current M2 status.

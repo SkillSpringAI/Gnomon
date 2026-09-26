@@ -164,7 +164,7 @@ For any significant mutation, Gnomon should be able to answer:
 | Provenance and dependencies | Current sources, claims, assessments, cycle associations, and agent observations retain provenance; full dependency-aware propagation and graph reconstruction remain partial. |
 | Contradictory and superseded knowledge | Current reports and assessments preserve uncertainty and contradiction metadata; comprehensive supersession/retraction propagation is not complete. |
 | Rebuildable derived state and semantic memory | Structured persistence is authoritative; vector/semantic memory and broad rebuildable indexes are deferred. |
-| Access control, export review, backup, and restoration | Current local/operator boundaries and audit redaction exist; full authentication, backup/restore procedure, and privileged purge controls remain release work. |
+| Access control, export review, backup, and restoration | Current local/operator boundaries, audit redaction, and the bounded M2 reconstruction/recovery drill exist; full authentication, a consolidated operator procedure, broader deployment evidence, and privileged purge controls remain release work. |
 
 The [architecture overview](../architecture/overview.md), [epistemic authority](epistemic-authority.md), [constitutional principles](constitutional-principles.md), and [conformance records](../conformance/implementation-status.md) provide supporting evidence and limitations.
 

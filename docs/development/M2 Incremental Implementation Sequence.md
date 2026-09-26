@@ -1,5 +1,7 @@
 # M2 Incremental Implementation Sequence
 
+**Lifecycle:** Historical execution sequence. M2.0–M2.11 are implemented for their bounded scope; M2.12–M2.14 below remain original future instructions whose unresolved parts are owned by the maintained [roadmap](roadmap.md#milestone-2-backup-restore-and-reconstruction-conformance) and release gate. Dated instructions are retained for scope and provenance, not as authority to repeat completed slices.
+
 **Purpose:** Break M2 into bounded implementation slices while preserving the dependency order defined by the M2 authority document.
 
 ---

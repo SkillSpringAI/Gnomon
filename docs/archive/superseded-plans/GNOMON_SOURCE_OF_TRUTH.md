@@ -561,7 +561,7 @@ expand live agent networking.
 **Goal:** Implement explicit operational security states.
 
 The canonical state names and structural transition table are defined in
-[Slice 13 Security State Model and Transition Table](Slice%2013%20Security%20State%20Model%20and%20Transition%20Table.md).
+[Slice 13 Security State Model and Transition Table](../../source_of_truth/Slice%2013%20Security%20State%20Model%20and%20Transition%20Table.md).
 Slice 13 is decomposed into independently reviewable increments; 13.1 covers
 only the pure domain model and transition legality, before persistence,
 authorization, or API behavior changes.

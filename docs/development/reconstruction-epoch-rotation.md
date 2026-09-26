@@ -1,5 +1,7 @@
 # Reconstruction Epoch Rotation — M2.10
 
+> Dated execution and verification record. Status and remaining-work statements below describe this checkpoint; use the maintained [current source of truth](source-of-truth.md) and [roadmap](roadmap.md) for present claims.
+
 Date: 25 September 2026.
 Status: hosted-verified at `3474545`.
 

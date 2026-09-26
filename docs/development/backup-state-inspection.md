@@ -1,5 +1,7 @@
 # Backup State Inspection — M2.2
 
+> Dated execution and verification record. Status and remaining-work statements below describe this checkpoint; use the maintained [current source of truth](source-of-truth.md) and [roadmap](roadmap.md) for present claims.
+
 Date: 25 September 2026.
 Status: read-only inspection service implemented locally.
 

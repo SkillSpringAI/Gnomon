@@ -1,5 +1,7 @@
 # Authority Epoch Replacement — M1.6
 
+> Dated execution and verification record. Status and remaining-work statements below describe this checkpoint; use the maintained [current source of truth](source-of-truth.md) and [roadmap](roadmap.md) for present claims.
+
 Date: 24 September 2026.
 Status: passes 1-3 implemented and hosted-verified for the bounded local M1 scope.
 

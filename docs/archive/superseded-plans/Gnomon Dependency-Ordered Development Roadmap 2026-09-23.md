@@ -1,7 +1,9 @@
 # Gnomon Dependency-Ordered Development Roadmap
 
+> Historical roadmap dated 23 September 2026, superseded by the maintained [roadmap](../../development/roadmap.md). Its implementation instructions and baseline claims are retained for provenance, not current planning authority.
+
 > Reconciled note: this planning text has been incorporated into the maintained
-> roadmap at [roadmap.md](roadmap.md). Keep repository links pointed at
+> roadmap at [roadmap.md](../../development/roadmap.md). Keep repository links pointed at
 > `docs/development/roadmap.md` so there is one active roadmap path. This file is
 > retained as the original dependency-ordered planning snapshot.
 

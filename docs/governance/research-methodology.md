@@ -160,7 +160,7 @@ It must not:
 | Hypothesis assessment and historical reassessment | Current assessments and governed history exist; full dependency-aware reassessment and historical epistemic reconstruction remain open. |
 | External-agent research | Implemented only through a bounded fake network and local observation path; live networks are not implemented. |
 | Stopping criteria and information saturation | Explicit cycle outcomes, unresolved objectives, budgets, and operator controls exist; evidence-sufficient versus resource-exhausted stopping remains a broader future capability. |
-| Reproducible research history and backup/restore | Core persisted evidence and audit history exist; full backup/restore procedure and operational drill remain release work. |
+| Reproducible research history and backup/restore | Core persisted evidence and audit history exist; the bounded M2 reconstruction/recovery drill is hosted-verified. A consolidated operator procedure and broader release evidence remain open. |
 
 The [epistemic authority](epistemic-authority.md), [agent runtime](../architecture/agent-runtime.md), [memory authority](memory-authority.md), [architecture overview](../architecture/overview.md), and [conformance records](../conformance/implementation-status.md) provide supporting evidence and limitations.
 
