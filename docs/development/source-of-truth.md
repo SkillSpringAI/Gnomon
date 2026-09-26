@@ -4,12 +4,16 @@
 **Hosted-green C1 baseline:** `8402fbfbf6dc4fc10f8fd3e94154a61f9db364d6`. [Quality run 36211693129](https://github.com/SkillSpringAI/Gnomon/actions/runs/36211693129) tested the committed C1 documentation and passed `checks`, `minimal-install`, and `browser`; the main suite reported 1,819 passed and 28 skipped, and all 28 Chromium browser cases passed separately. The underlying runtime remains unchanged from the pre-C1 implementation baseline.
 **Role:** Concise current implementation and gap baseline. The [roadmap](roadmap.md) owns future work, [architecture and governance](../README.md) own normative rules, [implementation status](../conformance/implementation-status.md) owns verification scope, and [development history](development-history.md) owns completed narratives.
 
-**C2 working-tree implementation:** Shared recovery basis construction now lives in
+**Hosted-verified C2 implementation:** `2740d4a8817b01dd3949ae585788512b1a9dbe4b`.
+[Quality run 36278101826](https://github.com/SkillSpringAI/Gnomon/actions/runs/36278101826)
+passed `checks`, `minimal-install` and `browser`: 1,848 passed/28 intentional browser
+skips in the normal suite, and all 28 Chromium cases passed separately with no skips.
+Shared recovery basis construction now lives in
 `recovery_authority_basis.py`, and supported inventory reads live in
 `recovery_inventory.py`. Context, reconciliation and restoration retain transaction,
-lock, capability, freshness, authorization and policy ownership. This local change
-is uncommitted and has no C2 hosted verification or formal closure yet; see the
-[C2 verification assessment](c2-recovery-shared-read-verification.md).
+lock, capability, freshness, authorization and policy ownership. C2 is formally
+closed for this bounded extraction; see the
+[C2 closure record](c2-recovery-shared-read-verification.md).
 
 ## Current implementation
 
@@ -46,7 +50,7 @@ No P0 is identified in this reviewed documentation baseline. These P1 or P1/P2 a
 | P1 | Deployment and release conformance | The M2 reconstruction/recovery drill is hosted-verified for its supported test deployment. A consolidated operator procedure, remaining adversarial cases, broader deployment evidence, and release review remain open. |
 | P1 | Runtime and persistence hardening | Normal runtime database privileges, selected lower-layer constraints, ambiguous-commit evidence, and the audit durability/tamper-resistance decision remain open. |
 | P1/P2 | Security operations | Authenticated multi-operator authority, full incident containment, scoped isolation, privileged purge, and wider adapter privacy/egress coverage remain open. |
-| P1/P2 | Architectural consolidation | Shared recovery reads are implemented locally pending commit and hosted verification. Reconstruction mechanics, investigation/execution responsibilities, repository/read projections, and invariant verification mapping remain the confirmed M4 programme. |
+| P1/P2 | Architectural consolidation | C2 shared recovery reads are hosted-verified and closed. Reconstruction mechanics, investigation/execution responsibilities, repository/read projections, and invariant verification mapping remain the confirmed M4 programme. |
 | P1/P2 | Research expansion | Broader dependency-aware reassessment, semantic retrieval, live external-agent operation, long-running orchestration, and fresh-agent handoff remain deferred to their roadmap gates. |
 
 ## Evidence and provenance

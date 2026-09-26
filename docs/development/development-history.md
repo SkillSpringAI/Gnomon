@@ -60,6 +60,20 @@ The [completed incremental sequence](M2%20Incremental%20Implementation%20Sequenc
 
 The 26 September documentation baseline reconciled current truth, future work, normative security and transaction vocabulary, INV-01–INV-12, and existing verification evidence while preserving dated records in the archive. Commit `8402fbfbf6dc4fc10f8fd3e94154a61f9db364d6` passed hosted [Quality run 36211693129](https://github.com/SkillSpringAI/Gnomon/actions/runs/36211693129) across all three jobs, with 1,819 passed/28 skipped in the main suite and 28 Chromium browser cases passed separately. The [completion record](c1-documentation-authority-baseline.md) lists every changed file, exact local and hosted results, and environment limits. No runtime or test behavior changed and no C2 implementation began.
 
+## C2 — Recovery shared-read boundary
+
+Closed 27 September 2026 at implementation
+`2740d4a8817b01dd3949ae585788512b1a9dbe4b`. Shared recovery basis construction and
+supported inventory reads now have recovery-specific internal modules; callers
+retain transactions, locks, capability prerequisites, freshness, authorization,
+policy and error mapping. [Quality run 36278101826](https://github.com/SkillSpringAI/Gnomon/actions/runs/36278101826)
+passed all three required jobs, with 1,848 passed/28 intentional browser skips in
+the normal suite and all 28 Chromium cases passed separately with no skips. Both
+clean-wheel checks and all 34 migrations passed. The
+[closure record](c2-recovery-shared-read-verification.md) distinguishes the tested
+implementation commit from subsequent documentation, preserves local verification
+and excluded debt, and records that no C3 work began.
+
 ## Historical decisions retained
 
 - Preserve adapters → ports → application → governance/security → persistence boundaries.

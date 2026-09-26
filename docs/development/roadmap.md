@@ -62,19 +62,17 @@ and linked M2 completion records preserve slice scope, commands, results, and
 provenance.
 
 Remaining consolidation, without redesigning recovery bootstrap, AuthorityEpoch,
-protected restoration, or deterministic reconciliation:
+protected restoration, or deterministic reconciliation (C2 shared recovery reads
+are [closed at `2740d4a`](c2-recovery-shared-read-verification.md) by hosted Quality):
 
-1. Commit and hosted-verify the locally implemented C2 shared recovery read and
-   inventory boundaries. See the [local assessment](c2-recovery-shared-read-verification.md);
-   C2 is not formally closed.
-2. Separate database restore mechanics from governed recovery entry so each
+1. Separate database restore mechanics from governed recovery entry so each
    boundary has one clear responsibility and failure contract.
-3. Extract restore-list planning where it clarifies reconstruction mechanics.
-4. Complete documentation lifecycle cleanup while retaining the M2 execution
+2. Extract restore-list planning where it clarifies reconstruction mechanics.
+3. Complete documentation lifecycle cleanup while retaining the M2 execution
    and verification records.
-5. Preserve canonical reconstruction, restrictive unresolved-outcome, recovery,
+4. Preserve canonical reconstruction, restrictive unresolved-outcome, recovery,
    epoch-rotation, and credential-sentinel verification during consolidation.
-6. Complete the still-applicable adversarial reconstruction cases and a maintained
+5. Complete the still-applicable adversarial reconstruction cases and a maintained
    operator backup/restore procedure before claiming broader operational readiness.
 
 **Consolidation exit gate:** existing supported reconstruction and recovery
@@ -166,9 +164,11 @@ recovery invariants harder to inspect.
 2. **Recovery shared-read boundary.** Make the common authority-basis and supported
    evidence/operation inventory reads explicit for RecoveryContext capture and
    reconciliation. Preserve freshness, boundedness, and fail-closed results.
-   C2 is implemented in the working tree; commit and hosted verification remain
-   required before formal closure. The [C2 assessment](c2-recovery-shared-read-verification.md)
-   records the local evidence and excluded debt.
+   C2 is formally closed at implementation `2740d4a8817b01dd3949ae585788512b1a9dbe4b`
+   by [Quality run 36278101826](https://github.com/SkillSpringAI/Gnomon/actions/runs/36278101826),
+   including all 28 required Chromium cases with no skips. The
+   [C2 closure record](c2-recovery-shared-read-verification.md) retains the evidence
+   and excluded debt; C3 has not begun in this closure.
 3. **Reconstruction mechanics boundary.** Separate guarded database import,
    restore-list planning where useful, and equivalence inspection from governed
    recovery entry. Preserve the M2 recovery fence, protected restoration, atomic

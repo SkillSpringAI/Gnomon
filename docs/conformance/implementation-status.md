@@ -7,12 +7,15 @@
 
 The [architectural invariant verification map](architectural-invariant-verification.md) distinguishes executable evidence from documented rules and future recommendations for INV-01–INV-12.
 
-**C2 local implementation:** Recovery basis construction and supported inventory
-reads have been extracted into recovery-specific internal modules. The
-[C2 verification assessment](../development/c2-recovery-shared-read-verification.md)
-records local checks against baseline `e84ff8e`. C2 is uncommitted, has no hosted
-Quality/browser result at a C2 SHA, and is not formally closed. The C1 hosted
-evidence above must not be interpreted as verification of the C2 working tree.
+**C2 hosted closure:** Implementation `2740d4a8817b01dd3949ae585788512b1a9dbe4b`
+passed [Quality run 36278101826](https://github.com/SkillSpringAI/Gnomon/actions/runs/36278101826)
+across `checks`, `minimal-install` and required `browser`. The normal suite reported
+1,848 passed and 28 intentional browser skips; all 28 Chromium cases passed
+separately with zero skips. All 34 migrations, prototype verification and both
+clean-wheel checks passed, including the four real PostgreSQL-client cases skipped
+locally. The [C2 closure record](../development/c2-recovery-shared-read-verification.md)
+retains local limits and exact hosted evidence. C2 is formally closed for the bounded
+shared-read extraction; this does not extend recovery policy or deployment claims.
 
 **C1 local verification:** The [26 September completion record](../development/c1-documentation-authority-baseline.md) records passing lint, strict types, traceability, migration, smoke/prototype, and both wheel checks; the normal suite passed with 1,815 passed and 32 skipped, and all 28 browser cases passed separately using Edge. Four host PostgreSQL-client-tool cases were locally skipped and Chromium could not launch on this Windows host; the successful hosted run exercised those four cases and all 28 Chromium browser cases.
 

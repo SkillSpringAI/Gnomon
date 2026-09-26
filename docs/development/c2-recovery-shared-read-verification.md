@@ -1,4 +1,4 @@
-# C2 Recovery Shared-Read Boundary — Local Verification Assessment
+# C2 Recovery Shared-Read Boundary — Verification and Closure
 
 Date: 27 September 2026.
 Baseline: clean `main` at `e84ff8e`.
@@ -7,13 +7,42 @@ extraction, and Pass 4 integration verification. No C3 work is included.
 
 ## Verification state
 
-Assessment: **COMMIT READY**, with the local host limitations below. This is not
-hosted verification or formal closure.
+Assessment: **FORMALLY CLOSED** for the bounded C2 extraction, on 27 September 2026.
 
-- Implementation exists locally in the working tree.
-- C2 has not been committed; there is no implementation SHA to cite yet.
-- Hosted Quality and browser verification at a C2 SHA remain pending.
-- C2 is not formally closed. Historical C1/M1/M2 hosted results do not verify C2.
+- **C2 implementation SHA:** `2740d4a8817b01dd3949ae585788512b1a9dbe4b`.
+- After fetching origin, both HEAD and origin/main resolved to that exact SHA and
+  the working tree was clean before these closure-documentation updates.
+- Hosted **Quality run 36278101826**, attempt 1, event `push`, completed successfully
+  at that implementation SHA across `checks`, `minimal-install` and `browser`.
+- [Hosted run](https://github.com/SkillSpringAI/Gnomon/actions/runs/36278101826).
+- This closure documentation is separate from the implementation commit. The hosted
+  evidence below verifies the implementation SHA, not a later documentation SHA.
+
+## Hosted closure evidence
+
+The run started at 2026-09-26 23:00:53 UTC; all required jobs had completed by
+23:03:18 UTC (27 September in Pacific/Auckland). Run metadata, individual job/step
+conclusions and logs were inspected before marking C2 closed.
+
+| Required job | Result and evidence |
+|---|---|
+| [checks](https://github.com/SkillSpringAI/Gnomon/actions/runs/36278101826/job/108504622388) | Success. Normal suite: 1,848 passed, 28 skipped, 636 warnings in 67.96 seconds. Lint, strict typing, migrations, smoke/prototype, conformance traceability and database wheel verification all passed. |
+| [minimal-install](https://github.com/SkillSpringAI/Gnomon/actions/runs/36278101826/job/108504622321) | Success. Clean base wheel installation, dependency check, all 34 migration-resource checksums and memory API/provider behavior without AWS passed. |
+| [browser](https://github.com/SkillSpringAI/Gnomon/actions/runs/36278101826/job/108504622454) | Success with RUN_BROWSER_TESTS=1 and PLAYWRIGHT_CHANNEL=chromium. All 28 browser cases passed in 45.90 seconds; the JUnit assertion confirmed exactly 28 tests with zero failures, errors or skips. |
+
+The only hosted normal-suite skips were the 28 intentionally opt-in browser cases,
+all executed separately in the required Chromium job. All four real PostgreSQL
+client-tool cases skipped locally ran successfully in hosted checks. There are no
+remaining skipped hosted browser cases.
+
+Both PostgreSQL jobs applied all 34 migrations. Prototype verification confirmed a
+fresh database, no-op migration rerun, real HTTP lifecycle/cycle/blocked-outcome
+behavior and restart persistence including authority epoch. The installed-wheel
+database probe passed schema installation, populated upgrade, rerun, checksum-drift
+rejection and report drafting; both wheel jobs confirmed all 34 packaged migration
+checksums. Hosted closure establishes the existing bounded test-deployment gate,
+not wider deployment readiness or release conformance. No hosted failure required
+classification or changes; no production code changed during closure.
 
 ## Production review
 
@@ -84,7 +113,8 @@ an intentional test interception point, not a second inventory implementation.
 
 ## Local verification
 
-Commands and results are recorded against the uncommitted C2 working tree:
+Commands and results below were recorded before the C2 implementation commit,
+against the working tree subsequently committed as the implementation SHA above:
 
 | Check | Result |
 |---|---|
@@ -115,13 +145,13 @@ Focused integration files: `test_recovery_context_service.py`,
 `test_m2_reconstruction_fixture.py`, `test_m2_reconstruction_equivalence.py`,
 `test_backup_credential_sentinels.py`.
 
-The focused skips are two real reconstruction variants and one credential-sentinel
-drill requiring unavailable pg_dump/pg_restore. Mocked mechanics/equivalence tests
-are not substitutes for those real client-tool cases. RUN_BROWSER_TESTS is unset;
-the normal suite intentionally skips opt-in browser cases. No C2 browser or hosted
-verification is claimed. Quality must run its checks, minimal-install and browser
-jobs against the eventual exact C2 commit, including zero skips in all 28 browser
-cases and the real PostgreSQL-client cases absent locally.
+The focused local skips were two real reconstruction variants and one
+credential-sentinel drill requiring unavailable pg_dump/pg_restore. Mocked
+mechanics/equivalence tests are not substitutes for those real client-tool cases.
+RUN_BROWSER_TESTS was unset during local verification; the normal local suite
+intentionally skipped opt-in browser cases. Hosted evidence above separately
+verifies the exact implementation SHA, including all 28 Chromium cases and the
+real PostgreSQL-client cases absent locally.
 
 The full suite's 32 skips comprise 28 browser cases plus four real client-tool
 cases: backup creation, two reconstruction variants, and the credential-sentinel
@@ -132,12 +162,11 @@ test changes in Pass 4.
 
 ## Closure hygiene and excluded debt
 
-The maintained source-of-truth, implementation-status and roadmap now distinguish
-local C2 implementation from pending commit/hosted verification. Dated M1/M2/C1
-records remain historical and unchanged. Before formal closure, record the exact
-implementation SHA and hosted Quality/browser results here, update the maintained
-status/roadmap accordingly, and add the completed checkpoint to development history.
-Do not advance to C3 as part of this assessment.
+The maintained source-of-truth, implementation-status, roadmap and development
+history now record the exact C2 implementation SHA and hosted closure. Dated
+M1/M2/C1 records remain historical and unchanged. Closure changes only these
+documentation/history records; the implementation SHA remains distinct from a
+subsequent closure-documentation commit. No C3 work began.
 
 Excluded debt remains: restoration's private cross-service reconciliation and
 `__new__` construction, duplicated reconciliation assembly, the context inventory
