@@ -9,33 +9,22 @@ from sqlalchemy import Engine, select
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 
+from research_agent.application.recovery_authority_basis import read_recovery_authority_basis
+from research_agent.application.recovery_inventory import read_supported_recovery_inventory
 from research_agent.application.security_capability import SecurityCapability, require_capability
-from research_agent.application.security_state_store import SecurityStateStore
 from research_agent.domain.recovery import (
     CaptureRecoveryContext,
     ReconciliationCheck,
     RecoveryAuthorityBasis,
-    RecoveryBootstrapOrigin,
     RecoveryContext,
-    RecoveryEvidenceKind,
     RecoveryEvidenceReference,
     RecoveryInventoryStatus,
-    RecoveryOperationKind,
     RecoveryScope,
     UnresolvedRecoveryOperation,
     validate_recovery_context_basis,
 )
-from research_agent.domain.security import SecurityActor, SecurityState
-from research_agent.persistence.models import (
-    MemoryChangeRecord,
-    ReportGenerationAttemptRecord,
-    ResearchCycleAttemptRecord,
-    ResearchEventRecord,
-    SecurityStateRecord,
-    SecurityTransitionRecord,
-    SourceRelationshipChangeRecord,
-    StoppingDecisionChangeRecord,
-)
+from research_agent.domain.security import SecurityActor
+from research_agent.persistence.models import SecurityStateRecord
 from research_agent.persistence.recovery import RecoveryContextAuditRecord, RecoveryContextRecord
 
 LOCAL_ACTOR_ID = "local-recovery-diagnostics"
@@ -84,28 +73,10 @@ class RecoveryContextService:
             .with_for_update(read=True)
         )
         require_capability(session, SecurityCapability.READ_AUDIT)
-        current = SecurityStateStore(session).load()
-        assert record is not None  # Missing singleton was rejected by the capability guard.
-        origin = None
-        if current.recovery_bootstrap_pending:
-            if (
-                record.recovery_bootstrap_from_version is None
-                or record.recovery_bootstrap_started_at is None
-                or record.recovery_bootstrap_from_state is None
-            ):
-                raise RecoveryContextUnavailable("Bootstrap origin is missing")
-            origin = RecoveryBootstrapOrigin(
-                state=SecurityState(record.recovery_bootstrap_from_state),
-                version=record.recovery_bootstrap_from_version,
-                started_at=record.recovery_bootstrap_started_at,
-            )
-        return RecoveryAuthorityBasis(
-            security_state_id=1,
-            authority_epoch_id=current.authority_epoch_id.value,
-            state=current.state,
-            version=current.version,
-            recovery_bootstrap_pending=current.recovery_bootstrap_pending,
-            bootstrap_origin=origin,
+        return read_recovery_authority_basis(
+            session,
+            record,
+            unavailable=RecoveryContextUnavailable,
         )
 
     def current_basis(self) -> RecoveryAuthorityBasis:
@@ -194,49 +165,7 @@ class RecoveryContextService:
     def _inventory(
         session: Session,
     ) -> tuple[list[RecoveryEvidenceReference], list[UnresolvedRecoveryOperation], bool]:
-        evidence: list[RecoveryEvidenceReference] = []
-        for kind, column in (
-            (RecoveryEvidenceKind.SECURITY_TRANSITION, SecurityTransitionRecord.transition_id),
-            (RecoveryEvidenceKind.RESEARCH_EVENT, ResearchEventRecord.id),
-            (RecoveryEvidenceKind.MEMORY_CHANGE, MemoryChangeRecord.change_id),
-            (
-                RecoveryEvidenceKind.SOURCE_RELATIONSHIP_CHANGE,
-                SourceRelationshipChangeRecord.change_id,
-            ),
-            (RecoveryEvidenceKind.STOPPING_DECISION_CHANGE, StoppingDecisionChangeRecord.change_id),
-        ):
-            evidence.extend(
-                RecoveryEvidenceReference(kind=kind, record_id=identity)
-                for identity in session.scalars(select(column).order_by(column).limit(101))
-            )
-        operations: list[UnresolvedRecoveryOperation] = []
-        for operation_kind, column, status, terminal in (
-            (
-                RecoveryOperationKind.PROVIDER_ATTEMPT,
-                ReportGenerationAttemptRecord.operation_id,
-                ReportGenerationAttemptRecord.status,
-                ("SUCCEEDED", "FAILED"),
-            ),
-            (
-                RecoveryOperationKind.CYCLE_ATTEMPT,
-                ResearchCycleAttemptRecord.id,
-                ResearchCycleAttemptRecord.status,
-                ("COMPLETED", "FAILED", "BLOCKED", "INTERRUPTED"),
-            ),
-        ):
-            # Unknown/unrecognized nonterminal statuses are retained conservatively.
-            operations.extend(
-                UnresolvedRecoveryOperation(
-                    kind=operation_kind,
-                    operation_id=identity,
-                    outcome="unknown",
-                )
-                for identity in session.scalars(
-                    select(column).where(status.not_in(terminal)).order_by(column).limit(101)
-                )
-            )
-        partial = len(evidence) > 100 or len(operations) > 100
-        return evidence[:100], operations[:100], partial
+        return read_supported_recovery_inventory(session)
 
     def _decode(self, session: Session, record: RecoveryContextRecord) -> RecoveryContext:
         try:

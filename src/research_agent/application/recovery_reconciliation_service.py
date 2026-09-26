@@ -13,6 +13,7 @@ from research_agent.application.recovery_context_service import (
     RecoveryContextService,
     RecoveryContextUnavailable,
 )
+from research_agent.application.recovery_inventory import read_supported_recovery_inventory
 from research_agent.domain.recovery import (
     ReconciledRecoveryOperation,
     ReconciliationCheck,
@@ -68,7 +69,7 @@ class RecoveryReconciliationService:
             context = self._contexts._decode(session, record)
             checked_at = datetime.now(UTC)
             context_evidence = set(context.evidence_basis)
-            current_evidence, current_unresolved, partial = RecoveryContextService._inventory(
+            current_evidence, current_unresolved, partial = read_supported_recovery_inventory(
                 session
             )
             current_evidence_set = set(current_evidence)
@@ -229,9 +230,9 @@ class RecoveryReconciliationService:
         context: RecoveryContext,
         current_unresolved: set[UnresolvedRecoveryOperation],
     ) -> tuple[ReconciledRecoveryOperation, ...]:
-        identities = {
-            (item.kind, item.operation_id) for item in context.unresolved_operations
-        } | {(item.kind, item.operation_id) for item in current_unresolved}
+        identities = {(item.kind, item.operation_id) for item in context.unresolved_operations} | {
+            (item.kind, item.operation_id) for item in current_unresolved
+        }
         operations = [
             RecoveryReconciliationService._operation(session, kind, operation_id)
             for kind, operation_id in sorted(

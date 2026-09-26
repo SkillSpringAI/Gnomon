@@ -7,6 +7,13 @@
 
 The [architectural invariant verification map](architectural-invariant-verification.md) distinguishes executable evidence from documented rules and future recommendations for INV-01–INV-12.
 
+**C2 local implementation:** Recovery basis construction and supported inventory
+reads have been extracted into recovery-specific internal modules. The
+[C2 verification assessment](../development/c2-recovery-shared-read-verification.md)
+records local checks against baseline `e84ff8e`. C2 is uncommitted, has no hosted
+Quality/browser result at a C2 SHA, and is not formally closed. The C1 hosted
+evidence above must not be interpreted as verification of the C2 working tree.
+
 **C1 local verification:** The [26 September completion record](../development/c1-documentation-authority-baseline.md) records passing lint, strict types, traceability, migration, smoke/prototype, and both wheel checks; the normal suite passed with 1,815 passed and 32 skipped, and all 28 browser cases passed separately using Edge. Four host PostgreSQL-client-tool cases were locally skipped and Chromium could not launch on this Windows host; the successful hosted run exercised those four cases and all 28 Chromium browser cases.
 
 ## Supported verification scope

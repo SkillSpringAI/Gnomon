@@ -64,8 +64,9 @@ provenance.
 Remaining consolidation, without redesigning recovery bootstrap, AuthorityEpoch,
 protected restoration, or deterministic reconciliation:
 
-1. Establish explicit shared recovery read and inventory boundaries used by
-   context capture and reconciliation.
+1. Commit and hosted-verify the locally implemented C2 shared recovery read and
+   inventory boundaries. See the [local assessment](c2-recovery-shared-read-verification.md);
+   C2 is not formally closed.
 2. Separate database restore mechanics from governed recovery entry so each
    boundary has one clear responsibility and failure contract.
 3. Extract restore-list planning where it clarifies reconstruction mechanics.
@@ -165,6 +166,9 @@ recovery invariants harder to inspect.
 2. **Recovery shared-read boundary.** Make the common authority-basis and supported
    evidence/operation inventory reads explicit for RecoveryContext capture and
    reconciliation. Preserve freshness, boundedness, and fail-closed results.
+   C2 is implemented in the working tree; commit and hosted verification remain
+   required before formal closure. The [C2 assessment](c2-recovery-shared-read-verification.md)
+   records the local evidence and excluded debt.
 3. **Reconstruction mechanics boundary.** Separate guarded database import,
    restore-list planning where useful, and equivalence inspection from governed
    recovery entry. Preserve the M2 recovery fence, protected restoration, atomic

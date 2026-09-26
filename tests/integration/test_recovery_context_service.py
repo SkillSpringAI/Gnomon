@@ -20,6 +20,8 @@ from research_agent.application.recovery_context_service import (
     RecoveryContextService,
     RecoveryContextUnavailable,
 )
+from research_agent.application.recovery_reconciliation_service import RecoveryReconciliationService
+from research_agent.application.recovery_restoration_service import RecoveryRestorationService
 from research_agent.application.security_capability import SecurityCapabilityDenied
 from research_agent.domain.recovery import CaptureRecoveryContext
 from research_agent.persistence.database import engine
@@ -383,3 +385,108 @@ def test_no_capture_outside_bootstrap_and_epoch_change_rejects_old_basis(recover
     with pytest.raises(RecoveryContextConflict, match="not pending"):
         service.capture(command(service))
     assert counts(recovery_db) == (0, 0)
+
+
+@pytest.mark.parametrize("consumer", ["context", "reconciliation", "restoration"])
+def test_basis_read_preserves_transaction_isolation_and_lock_strength(recovery_db, consumer):
+    service = {
+        "context": RecoveryContextService,
+        "reconciliation": RecoveryReconciliationService,
+        "restoration": RecoveryRestorationService,
+    }[consumer](recovery_db)
+    expected = RecoveryContextService(recovery_db).current_basis()
+    with service._transaction() as session:
+        if consumer == "restoration":
+            basis, record = service._locked_basis(session)
+            assert record.state == "normal"
+        else:
+            basis = RecoveryContextService._basis(session)
+        assert basis == expected
+        assert session.scalar(text("SHOW transaction_isolation")) == "repeatable read"
+        # Readers coexist; restoration excludes even another SHARE reader.
+        with recovery_db.begin() as conn:
+            if consumer == "restoration":
+                with pytest.raises(DBAPIError) as error:
+                    conn.execute(text("SELECT id FROM security_state FOR SHARE NOWAIT"))
+                assert error.value.orig.sqlstate == "55P03"
+            else:
+                assert conn.scalar(text("SELECT id FROM security_state FOR SHARE NOWAIT")) == 1
+        with recovery_db.begin() as conn:
+            with pytest.raises(DBAPIError) as error:
+                conn.execute(text("SELECT id FROM security_state FOR UPDATE NOWAIT"))
+            assert error.value.orig.sqlstate == "55P03"
+    with recovery_db.begin() as conn:
+        assert conn.scalar(text("SELECT id FROM security_state FOR UPDATE NOWAIT")) == 1
+
+
+def test_inventory_bound_is_aggregate_and_partial_blocks_reconciliation(recovery_db):
+    task_id = seed(recovery_db, 99)
+    service = RecoveryContextService(recovery_db)
+    exact = service.capture(command(service))
+    assert exact.inventory_status == "complete"
+    assert len(exact.evidence_basis) == 99
+    assert len(exact.unresolved_operations) == 100  # 99 provider + one cycle
+    transition_id = uuid4()
+    with recovery_db.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO security_state_transitions "
+                "(transition_id, previous_state, new_state, reason_code, actor_type, actor_id, "
+                "created_at, security_state_version) VALUES "
+                "(:id, 'normal', 'recovery_required', 'RECOVERY_STARTED', 'local_operator', "
+                "'fixture', now(), 2)"
+            ),
+            {"id": transition_id},
+        )
+    exact_evidence = service.capture(command(service))
+    assert exact_evidence.inventory_status == "complete"
+    assert len(exact_evidence.evidence_basis) == 100
+    assert exact_evidence.evidence_basis[0].record_id == transition_id
+    assert exact_evidence.evidence_basis[0].kind == "security_transition"
+    assert [item.record_id for item in exact_evidence.evidence_basis[1:]] == sorted(
+        item.record_id for item in exact.evidence_basis
+    )
+    with recovery_db.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO report_generation_attempts "
+                "(operation_id, task_id, status, started_at, expires_at) "
+                "VALUES (:id, :task, 'UNKNOWN', now(), now() + interval '1 hour')"
+            ),
+            {"id": uuid4(), "task": task_id},
+        )
+    partial = service.capture(command(service))
+    assert partial.inventory_status == "partial"
+    assert len(partial.evidence_basis) == len(partial.unresolved_operations) == 100
+    # Aggregate overflow must be detected even though neither operation kind exceeds 100.
+    verdict = RecoveryReconciliationService(recovery_db).reconcile(partial.context_id)
+    outcomes = {check.check.value: check.outcome.value for check in verdict.checks}
+    assert outcomes == {
+        "authority_lineage": "passed",
+        "history_integrity": "passed",
+        "evidence_integrity": "unknown",
+        "operation_outcomes": "unknown",
+        "configuration_integrity": "unknown",
+    }
+    assert not verdict.restoration_allowed
+    restoration = RecoveryRestorationService(recovery_db)
+    with restoration._transaction() as session:
+        basis, _ = restoration._locked_basis(session)
+        assert (
+            restoration._reconcile(session, partial.context_id, basis, verdict.checked_at)
+            == verdict
+        )
+    with recovery_db.begin() as conn:
+        conn.execute(text("UPDATE report_generation_attempts SET status='FAILED'"))
+        conn.execute(text("UPDATE research_cycle_attempts SET status='COMPLETED'"))
+    # A now-complete inventory does not make the original partial capture complete.
+    later = RecoveryReconciliationService(recovery_db).reconcile(partial.context_id)
+    assert later.inventory_status == "complete"
+    assert {check.check.value: check.outcome.value for check in later.checks} == {
+        "authority_lineage": "passed",
+        "history_integrity": "passed",
+        "evidence_integrity": "unknown",
+        "operation_outcomes": "passed",
+        "configuration_integrity": "passed",
+    }
+    assert not later.restoration_allowed

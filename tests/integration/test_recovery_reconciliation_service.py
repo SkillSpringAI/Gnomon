@@ -241,3 +241,69 @@ def test_reconciliation_reports_stale_authority_basis(recovery_db):
     assert check_map(reconciliation)[ReconciliationCheck.AUTHORITY_LINEAGE] == (
         ReconciliationOutcome.FAILED
     )
+
+
+@pytest.mark.parametrize(
+    "provider_status,cycle_status,unresolved",
+    [
+        ("PENDING", "RUNNING", True),
+        ("DISPATCHED", "RUNNING", True),
+        ("EXPIRED", "RUNNING", True),
+        ("FUTURE_STATUS", "FUTURE_STATUS", True),
+        ("FAILED", "FAILED", False),
+        ("SUCCEEDED", "BLOCKED", False),
+        ("SUCCEEDED", "INTERRUPTED", False),
+    ],
+)
+def test_inventory_terminal_exclusions_and_unrecognized_statuses(
+    recovery_db,
+    provider_status,
+    cycle_status,
+    unresolved,
+):
+    _, provider_id, attempt_id, _ = seed_unresolved(recovery_db)
+    service = RecoveryContextService(recovery_db)
+    captured = service.capture(command(service))
+    with recovery_db.begin() as conn:
+        if provider_status == "FUTURE_STATUS":
+            # Simulate a newer persisted vocabulary only in this disposable schema.
+            conn.execute(
+                text(
+                    "ALTER TABLE report_generation_attempts "
+                    "DROP CONSTRAINT report_generation_attempts_status_check"
+                )
+            )
+            conn.execute(
+                text(
+                    "ALTER TABLE research_cycle_attempts "
+                    "DROP CONSTRAINT research_cycle_attempts_status_check"
+                )
+            )
+        conn.execute(
+            text("UPDATE report_generation_attempts SET status=:status WHERE operation_id=:id"),
+            {"status": provider_status, "id": provider_id},
+        )
+        conn.execute(
+            text("UPDATE research_cycle_attempts SET status=:status WHERE id=:id"),
+            {"status": cycle_status, "id": attempt_id},
+        )
+    refreshed = service.capture(command(service))
+    assert len(refreshed.unresolved_operations) == (2 if unresolved else 0)
+    assert all(item.outcome == "unknown" for item in refreshed.unresolved_operations)
+    verdict = RecoveryReconciliationService(recovery_db).reconcile(captured.context_id)
+    assert verdict.restoration_allowed is (not unresolved)
+    by_id = {item.operation_id: item for item in verdict.operations}
+    assert by_id[provider_id].status == provider_status
+    assert by_id[attempt_id].status == cycle_status
+    assert by_id[provider_id].disposition == (
+        RecoveryOperationDisposition.UNKNOWN
+        if unresolved
+        else RecoveryOperationDisposition.DID_NOT_COMMIT
+        if provider_status == "FAILED"
+        else RecoveryOperationDisposition.COMMITTED
+    )
+    assert by_id[attempt_id].disposition == (
+        RecoveryOperationDisposition.UNKNOWN
+        if unresolved
+        else RecoveryOperationDisposition.COMMITTED
+    )

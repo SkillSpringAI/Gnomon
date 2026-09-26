@@ -16,16 +16,17 @@ from research_agent.application.authorization_service import (
     AuthorizationService,
     AuthorizationUnavailable,
 )
+from research_agent.application.recovery_authority_basis import read_recovery_authority_basis
 from research_agent.application.recovery_context_service import (
     RecoveryContextService,
     RecoveryContextUnavailable,
 )
+from research_agent.application.recovery_inventory import read_supported_recovery_inventory
 from research_agent.application.recovery_reconciliation_service import (
     RecoveryReconciliationConflict,
     RecoveryReconciliationService,
 )
 from research_agent.application.security_capability import SecurityCapability, require_capability
-from research_agent.application.security_state_store import SecurityStateStore
 from research_agent.domain.authorization import (
     AuthorizationCapability,
     validate_execution_authorization,
@@ -37,7 +38,6 @@ from research_agent.domain.recovery import (
     ProtectedRestorationResult,
     ReconciliationOutcome,
     RecoveryAuthorityBasis,
-    RecoveryBootstrapOrigin,
     RecoveryInventoryStatus,
     RecoveryReconciliation,
     ReplaceAuthorityEpoch,
@@ -241,33 +241,14 @@ class RecoveryRestorationService:
             .execution_options(populate_existing=True)
         )
         require_capability(session, SecurityCapability.READ_AUDIT)
-        current = SecurityStateStore(session).load()
-        if record is None:
-            raise ProtectedRestorationDenied("Security state is unavailable")
-        origin = None
-        if current.recovery_bootstrap_pending:
-            if (
-                record.recovery_bootstrap_from_version is None
-                or record.recovery_bootstrap_started_at is None
-                or record.recovery_bootstrap_from_state is None
-            ):
-                raise ProtectedRestorationDenied("Bootstrap origin is missing")
-            origin = RecoveryBootstrapOrigin(
-                state=SecurityState(record.recovery_bootstrap_from_state),
-                version=record.recovery_bootstrap_from_version,
-                started_at=record.recovery_bootstrap_started_at,
-            )
-        return (
-            RecoveryAuthorityBasis(
-                security_state_id=1,
-                authority_epoch_id=current.authority_epoch_id.value,
-                state=current.state,
-                version=current.version,
-                recovery_bootstrap_pending=current.recovery_bootstrap_pending,
-                bootstrap_origin=origin,
-            ),
+        basis = read_recovery_authority_basis(
+            session,
             record,
+            unavailable=ProtectedRestorationDenied,
+            missing_record_message="Security state is unavailable",
         )
+        assert record is not None  # The shared reader rejects a missing locked row.
+        return basis, record
 
     @staticmethod
     def _reconcile(
@@ -277,7 +258,6 @@ class RecoveryRestorationService:
         checked_at: datetime,
     ) -> RecoveryReconciliation:
         try:
-            context_service = RecoveryContextService
             record = session.get(RecoveryContextRecord, context_id)
             if record is None:
                 raise ProtectedRestorationDenied("Recovery context not found")
@@ -285,7 +265,9 @@ class RecoveryRestorationService:
                 session, record
             )
             context_evidence = set(context.evidence_basis)
-            current_evidence, current_unresolved, partial = context_service._inventory(session)
+            current_evidence, current_unresolved, partial = read_supported_recovery_inventory(
+                session
+            )
             current_evidence_set = set(current_evidence)
             current_unresolved_set = set(current_unresolved)
             operations = RecoveryReconciliationService._operations(
