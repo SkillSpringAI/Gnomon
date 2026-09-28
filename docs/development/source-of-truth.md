@@ -15,6 +15,12 @@ lock, capability, freshness, authorization and policy ownership. C2 is formally
 closed for this bounded extraction; see the
 [C2 closure record](c2-recovery-shared-read-verification.md).
 
+**C3a local candidate (uncommitted):** Reconstruction now commits the manifest-derived
+recovery fence and `reconstruction_validation_pending` before data import, then clears
+only that validation gate after bounded production checks. RecoveryContext capture
+follows publication. This is a local implementation claim, not hosted verification or
+formal C3a closure; see the [C3a verification record](c3a-continuous-reconstruction-fence-verification.md).
+
 ## Current implementation
 
 Gnomon is a local-first research API with PostgreSQL as its reference durable store. API, application, domain, ports, adapters, persistence, configuration, and security have explicit package boundaries. Models and external content can supply observations or proposals; deterministic services decide whether governed state changes.

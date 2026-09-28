@@ -65,6 +65,12 @@ Remaining consolidation, without redesigning recovery bootstrap, AuthorityEpoch,
 protected restoration, or deterministic reconciliation (C2 shared recovery reads
 are [closed at `2740d4a`](c2-recovery-shared-read-verification.md) by hosted Quality):
 
+The local, uncommitted C3a candidate establishes continuous reconstruction fencing
+and a validation-pending gate before this mechanics boundary is extracted. Its
+[verification record](c3a-continuous-reconstruction-fence-verification.md) distinguishes
+local implementation from hosted closure. C3b must keep readiness publication inside
+the successful import, migration, and bounded-validation sequence.
+
 1. Separate database restore mechanics from governed recovery entry so each
    boundary has one clear responsibility and failure contract.
 2. Extract restore-list planning where it clarifies reconstruction mechanics.

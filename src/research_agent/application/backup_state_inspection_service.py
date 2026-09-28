@@ -73,6 +73,8 @@ class BackupStateInspectionService:
                         "PostgreSQL major version is unsupported"
                     )
                 current = SecurityStateStore(session).load()
+                if current.reconstruction_validation_pending:
+                    raise BackupStateInspectionUnavailable("Reconstruction validation is pending")
                 return BackupStateInspection(
                     database=BackupDatabaseMetadata(
                         postgresql_major_version=major,

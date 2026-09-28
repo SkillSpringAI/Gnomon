@@ -85,3 +85,57 @@ def test_restore_list_excludes_protected_data_and_orders_foreign_keys(tmp_path, 
     assert "4; 0 104 TABLE DATA public trusted_sources" in selected
     assert "5; 0 105 TABLE public security_state" in selected
     assert selected.index("7; 0 107 TABLE DATA") < selected.index("6; 0 106 TABLE DATA")
+
+
+def test_reconstruct_composes_mechanics_then_recovery(tmp_path, monkeypatch):
+    service = DatabaseReconstructionService(engine())
+    mechanical = object()
+    recovered = object()
+    calls = []
+
+    def restore(directory):
+        calls.append(("mechanics", directory))
+        return mechanical
+
+    def enter(result):
+        calls.append(("recovery", result))
+        return recovered
+
+    monkeypatch.setattr(service, "_restore_verified_data", restore)
+    monkeypatch.setattr(service, "_enter_recovery", enter)
+    assert service.reconstruct(tmp_path) is recovered
+    assert calls == [("mechanics", tmp_path), ("recovery", mechanical)]
+
+
+def test_public_restore_cli_calls_complete_workflow_only(tmp_path, monkeypatch, capsys):
+    import runpy
+    import sys
+    from types import SimpleNamespace
+
+    script = Path(__file__).resolve().parents[2] / "scripts" / "restore_postgres.py"
+    namespace = runpy.run_path(str(script))
+    calls = []
+
+    class Service:
+        def __init__(self, target, *, pg_restore_path):
+            calls.append(("construct", pg_restore_path))
+
+        def reconstruct(self, directory):
+            calls.append(("reconstruct", directory))
+            return SimpleNamespace(
+                target_database_scope="target",
+                backup_directory=directory,
+                recovery_context_id="fresh-context",
+            )
+
+    namespace["main"].__globals__["DatabaseReconstructionService"] = Service
+    monkeypatch.setattr(sys, "argv", [str(script), str(tmp_path), "--pg-restore", "restore"])
+    assert namespace["main"]() == 0
+    assert calls == [("construct", "restore"), ("reconstruct", tmp_path)]
+    assert "fresh-context" in capsys.readouterr().out
+    for flag in ("--skip-recovery", "--restore-only"):
+        monkeypatch.setattr(sys, "argv", [str(script), str(tmp_path), flag])
+        with pytest.raises(SystemExit) as exc:
+            namespace["main"]()
+        assert exc.value.code == 2
+    assert len(calls) == 2

@@ -175,10 +175,31 @@ def assert_reconstruction_equivalent(
     restored: Engine,
     *,
     task_id: UUID,
+    reconstruction_fenced: bool = False,
 ) -> None:
     """Raise with the first changed projection group when databases differ."""
     source_projection = projection_for(source, task_id=task_id)
     restored_projection = projection_for(restored, task_id=task_id)
+    if reconstruction_fenced:
+        source_authority = source_projection.groups["security_epoch"][0]
+        restored_authority = restored_projection.groups["security_epoch"][0]
+        expected = dict(source_authority)
+        expected.update(
+            version=source_authority["version"] + 1,
+            recovery_bootstrap_pending=True,
+            recovery_bootstrap_from_state=source_authority["state"],
+            recovery_bootstrap_from_version=source_authority["version"],
+            reconstruction_validation_pending=False,
+        )
+        if restored_authority.get("recovery_bootstrap_started_at") is None or {
+            key: value
+            for key, value in restored_authority.items()
+            if key != "recovery_bootstrap_started_at"
+        } != {
+            key: value for key, value in expected.items() if key != "recovery_bootstrap_started_at"
+        }:
+            raise ReconstructionEquivalenceMismatch("Reconstruction authority fence differs")
+        restored_projection.groups["security_epoch"][0] = source_authority
     if source_projection.groups != restored_projection.groups:
         for group_name in _PROJECTION_QUERIES:
             if source_projection.groups[group_name] != restored_projection.groups[group_name]:

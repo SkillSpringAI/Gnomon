@@ -124,3 +124,38 @@ def test_equivalence_reports_first_changed_group(equivalence_dbs):
             restored,
             task_id=source_fixture.task_id,
         )
+
+
+def test_equivalence_accepts_only_the_expected_new_recovery_fence(equivalence_dbs):
+    source, restored = equivalence_dbs
+    with source.begin() as conn:
+        fixture = seed_canonical_reconstruction_fixture(conn)
+    with restored.begin() as conn:
+        conn.execute(
+            text("UPDATE security_state SET authority_epoch_id=:epoch WHERE id=1"),
+            {"epoch": fixture.authority_epoch_id},
+        )
+        seed_canonical_reconstruction_fixture(conn)
+        conn.execute(
+            text(
+                """
+                UPDATE security_state SET version=version+1,
+                    recovery_bootstrap_pending=true,
+                    recovery_bootstrap_started_at=now(),
+                    recovery_bootstrap_from_state=state,
+                    recovery_bootstrap_from_version=version
+                WHERE id=1
+                """
+            )
+        )
+    with pytest.raises(ReconstructionEquivalenceMismatch, match="security_epoch"):
+        assert_reconstruction_equivalent(source, restored, task_id=fixture.task_id)
+    assert_reconstruction_equivalent(
+        source, restored, task_id=fixture.task_id, reconstruction_fenced=True
+    )
+    with restored.begin() as conn:
+        conn.execute(text("UPDATE security_state SET recovery_bootstrap_from_version=1"))
+    with pytest.raises(ReconstructionEquivalenceMismatch, match="fence"):
+        assert_reconstruction_equivalent(
+            source, restored, task_id=fixture.task_id, reconstruction_fenced=True
+        )

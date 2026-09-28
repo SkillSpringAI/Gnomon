@@ -167,6 +167,8 @@ class RecoveryRestorationService:
         request: PrepareProtectedRestoration,
     ) -> tuple[PreparedProtectedRestoration, RecoveryAuthorityBasis, SecurityStateRecord, datetime]:
         basis, record = self._locked_basis(session)
+        if record.reconstruction_validation_pending:
+            raise ProtectedRestorationDenied("Reconstruction validation is pending")
         if not basis.recovery_bootstrap_pending:
             raise ProtectedRestorationDenied("Recovery bootstrap is not pending")
         if basis.authority_epoch_id != request.expected_authority_epoch_id:

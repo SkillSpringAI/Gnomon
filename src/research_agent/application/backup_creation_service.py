@@ -12,15 +12,21 @@ from typing import Protocol
 from uuid import UUID, uuid4
 
 from pydantic import ValidationError
-from sqlalchemy import Engine
+from sqlalchemy import Engine, select
 from sqlalchemy.engine import make_url
+from sqlalchemy.orm import Session
 
 from research_agent.application.backup_state_inspection_service import (
     BackupStateInspection,
     BackupStateInspectionService,
     BackupStateInspectionUnavailable,
 )
+from research_agent.application.security_state_store import (
+    SecurityStateStore,
+    SecurityStateUnavailable,
+)
 from research_agent.domain.backup import BackupIntegrityMetadata, BackupManifest
+from research_agent.persistence.models import SecurityStateRecord
 
 DUMP_FILENAME = "database.dump"
 MANIFEST_FILENAME = "manifest.json"
@@ -127,7 +133,20 @@ class BackupCreationService:
             )
             manifest_path = temp / MANIFEST_FILENAME
             manifest_path.write_text(manifest.model_dump_json(indent=2) + "\n", encoding="utf-8")
-            temp.rename(target)
+            if self.state_inspector is None:
+                # Hold the singleton lock through publication so a reconstruction
+                # cannot become validation-pending during a completed pg_dump.
+                with Session(self.engine) as session, session.begin():
+                    session.execute(
+                        select(SecurityStateRecord.id)
+                        .where(SecurityStateRecord.id == 1)
+                        .with_for_update(read=True)
+                    ).all()
+                    if SecurityStateStore(session).load().reconstruction_validation_pending:
+                        raise BackupCreationError("Reconstruction validation is pending")
+                    temp.rename(target)
+            else:
+                temp.rename(target)
             return BackupCreationResult(
                 backup_id=backup_id,
                 backup_directory=target,
@@ -138,6 +157,7 @@ class BackupCreationService:
         except (
             BackupCreationError,
             BackupStateInspectionUnavailable,
+            SecurityStateUnavailable,
             OSError,
             ValidationError,
             subprocess.CalledProcessError,

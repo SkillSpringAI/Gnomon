@@ -32,6 +32,9 @@ class SecurityStateRecord(Base):
     )
     recovery_bootstrap_from_state: Mapped[str | None] = mapped_column(String(32))
     recovery_bootstrap_from_version: Mapped[int | None] = mapped_column(Integer)
+    reconstruction_validation_pending: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
 
 class SecurityTransitionRecord(Base):

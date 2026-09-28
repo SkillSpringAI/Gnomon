@@ -48,6 +48,12 @@ def bootstrap_sql():
     )
 
 
+def readiness_sql():
+    return next(p for p in migration_files() if p.name.startswith("035_")).read_text(
+        encoding="utf-8"
+    )
+
+
 def test_populated_upgrade_preserves_state_and_historical_audit(legacy_connection):
     connection = legacy_connection
     connection.execute(text("UPDATE security_state SET state='lockdown', version=2"))
@@ -86,6 +92,7 @@ def test_corruption_never_regenerates_epoch(legacy_connection, corruption):
     connection = legacy_connection
     connection.exec_driver_sql(epoch_sql())
     connection.exec_driver_sql(bootstrap_sql())
+    connection.exec_driver_sql(readiness_sql())
     # Simulate corrupted storage by bypassing constraints in this rollback-only schema.
     if corruption == "missing":
         connection.execute(text("DELETE FROM security_state"))

@@ -66,13 +66,21 @@ class RecoveryContextService:
             raise
 
     @staticmethod
-    def _basis(session: Session) -> RecoveryAuthorityBasis:
+    def _basis(
+        session: Session, *, require_reconstruction_ready: bool = False
+    ) -> RecoveryAuthorityBasis:
         record = session.scalar(
             select(SecurityStateRecord)
             .where(SecurityStateRecord.id == 1)
             .with_for_update(read=True)
         )
         require_capability(session, SecurityCapability.READ_AUDIT)
+        if (
+            require_reconstruction_ready
+            and record is not None
+            and record.reconstruction_validation_pending
+        ):
+            raise RecoveryContextConflict("Reconstruction validation is pending")
         return read_recovery_authority_basis(
             session,
             record,
@@ -99,7 +107,7 @@ class RecoveryContextService:
         request = CaptureRecoveryContext.model_validate(request)
         command = request.model_dump(mode="json")
         with self._transaction() as session:
-            basis = self._basis(session)
+            basis = self._basis(session, require_reconstruction_ready=True)
             existing = session.get(RecoveryContextRecord, request.context_id)
             if existing is not None:
                 historical = self._decode(session, existing)
@@ -198,7 +206,7 @@ class RecoveryContextService:
 
     def read(self, context_id: UUID, *, require_current: bool = False) -> RecoveryContext:
         with self._transaction() as session:
-            basis = self._basis(session)
+            basis = self._basis(session, require_reconstruction_ready=require_current)
             record = session.get(RecoveryContextRecord, context_id)
             if record is None:
                 raise RecoveryContextUnavailable("Recovery context not found")

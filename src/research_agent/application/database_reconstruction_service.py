@@ -10,7 +10,7 @@ from tempfile import TemporaryDirectory
 from typing import Protocol
 from uuid import UUID, uuid4
 
-from sqlalchemy import Engine, text
+from sqlalchemy import Connection, Engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -22,6 +22,7 @@ from research_agent.application.authority_bootstrap import (
 )
 from research_agent.application.backup_creation_service import ProcessRunner, _default_runner
 from research_agent.application.backup_state_inspection_service import (
+    SUPPORTED_POSTGRESQL_MAJOR_VERSIONS,
     BackupStateInspectionService,
     BackupStateInspectionUnavailable,
 )
@@ -114,7 +115,7 @@ class DatabaseReconstructionService:
             ) from exc
 
     def _restore_verified_data(self, backup_directory: Path) -> DatabaseReconstructionResult:
-        """Internal pre-recovery boundary used by the equivalence drill."""
+        """Internal fenced import and bounded validation before context capture."""
         try:
             preflight = (self.preflight or RestorePreflightService(self.target_engine)).validate(
                 Path(backup_directory)
@@ -123,28 +124,15 @@ class DatabaseReconstructionService:
                 list_path = Path(directory) / "restore.list"
                 self._write_restore_list(preflight.dump_path, list_path)
                 args, env = self._pg_restore_command(preflight.dump_path, list_path)
+                self._establish_reconstruction_fence(preflight)
                 self.runner(args, env=env, cwd=preflight.backup_directory)
-            self._apply_restored_authority(preflight)
             applied = tuple(run_migrations(self.target_engine))
-            inspection = BackupStateInspectionService(self.target_engine).inspect(
-                application_version=preflight.manifest.application.application_version,
-                source_revision=preflight.manifest.application.source_revision,
-            )
-            if (
-                inspection.authority.security_state != preflight.manifest.authority.security_state
-                or inspection.authority.security_state_version
-                != preflight.manifest.authority.security_state_version
-                or inspection.authority.authority_epoch_id
-                != preflight.manifest.authority.authority_epoch_id
-                or inspection.authority.recovery_bootstrap_pending
-            ):
-                raise DatabaseReconstructionError("Restored authority metadata mismatch")
-            self._verify_critical_tables()
+            database_scope = self._publish_reconstruction_readiness(preflight)
             return DatabaseReconstructionResult(
                 backup_directory=preflight.backup_directory,
                 dump_path=preflight.dump_path,
                 applied_migrations=applied,
-                target_database_scope=inspection.database.database_scope,
+                target_database_scope=database_scope,
             )
         except DatabaseReconstructionError:
             raise
@@ -158,6 +146,7 @@ class DatabaseReconstructionService:
             RestorePreflightDenied,
             OSError,
             SQLAlchemyError,
+            RuntimeError,
         ) as exc:
             raise DatabaseReconstructionError("Database reconstruction failed") from exc
 
@@ -268,34 +257,100 @@ class DatabaseReconstructionService:
         args.append(str(dump_path))
         return args, self._restore_environment()
 
-    def _apply_restored_authority(self, preflight: RestorePreflightResult) -> None:
+    def _establish_reconstruction_fence(self, preflight: RestorePreflightResult) -> None:
+        """Commit the final manifest-derived recovery basis before any data import."""
         authority = preflight.manifest.authority
         with self.target_engine.begin() as conn:
-            updated = conn.execute(
+            current = conn.execute(
+                text(
+                    """
+                    SELECT state, version, recovery_bootstrap_pending,
+                           recovery_bootstrap_started_at, recovery_bootstrap_from_state,
+                           recovery_bootstrap_from_version, reconstruction_validation_pending
+                    FROM security_state WHERE id = 1 FOR UPDATE
+                    """
+                )
+            ).one_or_none()
+            if current is None or (
+                current.state != SecurityState.NORMAL.value
+                or current.version != 1
+                or current.recovery_bootstrap_pending
+                or current.recovery_bootstrap_started_at is not None
+                or current.recovery_bootstrap_from_state is not None
+                or current.recovery_bootstrap_from_version is not None
+                or current.reconstruction_validation_pending
+            ):
+                raise DatabaseReconstructionError("Target authority is not pristine")
+            conn.execute(
                 text(
                     """
                     UPDATE security_state
                     SET state = :state,
                         version = :version,
                         authority_epoch_id = :authority_epoch_id,
-                        recovery_bootstrap_pending = false,
-                        recovery_bootstrap_started_at = NULL,
-                        recovery_bootstrap_from_state = NULL,
-                        recovery_bootstrap_from_version = NULL,
+                        recovery_bootstrap_pending = true,
+                        recovery_bootstrap_started_at = now(),
+                        recovery_bootstrap_from_state = :state,
+                        recovery_bootstrap_from_version = :origin_version,
+                        reconstruction_validation_pending = true,
                         updated_at = now()
                     WHERE id = 1
                     """
                 ),
                 {
                     "state": authority.security_state.value,
-                    "version": authority.security_state_version,
+                    "version": authority.security_state_version + 1,
+                    "origin_version": authority.security_state_version,
                     "authority_epoch_id": authority.authority_epoch_id,
                 },
             )
-            if updated.rowcount != 1:
-                raise DatabaseReconstructionError("Canonical security state is missing")
 
-    def _verify_critical_tables(self) -> None:
-        with self.target_engine.connect() as conn:
-            for table_name in _CRITICAL_TABLES:
-                conn.execute(text(f'SELECT 1 FROM "{table_name}" LIMIT 1')).all()
+    def _publish_reconstruction_readiness(self, preflight: RestorePreflightResult) -> str:
+        """Revalidate the fenced import and publish bounded validation atomically."""
+        authority = preflight.manifest.authority
+        with self.target_engine.begin() as conn:
+            row = conn.execute(
+                text(
+                    """
+                    SELECT state, version, authority_epoch_id, recovery_bootstrap_pending,
+                           recovery_bootstrap_started_at, recovery_bootstrap_from_state,
+                           recovery_bootstrap_from_version, reconstruction_validation_pending
+                    FROM security_state WHERE id = 1 FOR UPDATE
+                    """
+                )
+            ).one_or_none()
+            if row is None or (
+                row.state != authority.security_state.value
+                or row.version != authority.security_state_version + 1
+                or row.authority_epoch_id != authority.authority_epoch_id
+                or row.recovery_bootstrap_pending is not True
+                or row.recovery_bootstrap_started_at is None
+                or row.recovery_bootstrap_from_state != authority.security_state.value
+                or row.recovery_bootstrap_from_version != authority.security_state_version
+                or row.reconstruction_validation_pending is not True
+            ):
+                raise DatabaseReconstructionError("Reconstructed authority basis mismatch")
+            with Session(bind=conn) as session:
+                major = BackupStateInspectionService._postgresql_major_version(session)
+                if major not in SUPPORTED_POSTGRESQL_MAJOR_VERSIONS:
+                    raise DatabaseReconstructionError("Target PostgreSQL version is unsupported")
+                BackupStateInspectionService._migration_entries(session)
+            self._verify_critical_tables(conn)
+            database_scope = str(conn.execute(text("SELECT current_database()")).scalar_one())
+            if database_scope != preflight.target_database_scope:
+                raise DatabaseReconstructionError("Reconstruction target database changed")
+            conn.execute(
+                text(
+                    """
+                    UPDATE security_state
+                    SET reconstruction_validation_pending = false, updated_at = now()
+                    WHERE id = 1
+                    """
+                )
+            )
+            return database_scope
+
+    @staticmethod
+    def _verify_critical_tables(conn: Connection) -> None:
+        for table_name in _CRITICAL_TABLES:
+            conn.execute(text(f'SELECT 1 FROM "{table_name}" LIMIT 1')).all()

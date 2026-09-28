@@ -59,7 +59,7 @@ class AuthorizationService:
             raise
 
     @staticmethod
-    def _authority(session: Session) -> tuple[UUID, int]:
+    def _authority(session: Session) -> tuple[UUID, int, bool]:
         record = session.scalar(
             select(SecurityStateRecord)
             .where(SecurityStateRecord.id == 1)
@@ -68,18 +68,22 @@ class AuthorizationService:
         require_capability(session, SecurityCapability.READ_AUDIT)
         current = SecurityStateStore(session).load()
         assert record is not None
-        return current.authority_epoch_id.value, current.version
+        return (
+            current.authority_epoch_id.value,
+            current.version,
+            current.reconstruction_validation_pending,
+        )
 
     def current_authority_epoch_id(self) -> UUID:
         with self._transaction() as session:
-            epoch, _ = self._authority(session)
+            epoch, _, _ = self._authority(session)
             return epoch
 
     def issue_operator(self, request: IssueOperatorAuthorization) -> OperatorAuthorization:
         request = IssueOperatorAuthorization.model_validate(request)
         command = request.model_dump(mode="json")
         with self._transaction() as session:
-            epoch, version = self._authority(session)
+            epoch, version, validation_pending = self._authority(session)
             existing = session.get(OperatorAuthorizationRecord, request.authorization_id)
             if existing is not None:
                 historical = self._decode_operator(session, existing)
@@ -88,6 +92,11 @@ class AuthorizationService:
                         "Operator authorization identity was used for a different request"
                     )
                 return historical
+            if validation_pending and (
+                request.recovery_context_id is not None
+                or request.granted_capability is AuthorizationCapability.RECOVERY_ACTION
+            ):
+                raise AuthorizationConflict("Reconstruction validation is pending")
             if request.expected_authority_epoch_id != epoch:
                 raise AuthorizationConflict("Expected authority epoch is stale")
             now = datetime.now(UTC)
@@ -141,7 +150,7 @@ class AuthorizationService:
         request = IssueExecutionAuthorization.model_validate(request)
         command = request.model_dump(mode="json")
         with self._transaction() as session:
-            epoch, version = self._authority(session)
+            epoch, version, validation_pending = self._authority(session)
             existing = session.get(
                 ExecutionAuthorizationRecord,
                 request.execution_authorization_id,
@@ -162,6 +171,12 @@ class AuthorizationService:
             if operator_record is None:
                 raise AuthorizationUnavailable("Operator authorization not found")
             operator = self._decode_operator(session, operator_record)
+            if validation_pending and (
+                request.recovery_context_id is not None
+                or operator.recovery_context_id is not None
+                or operator.granted_capability is AuthorizationCapability.RECOVERY_ACTION
+            ):
+                raise AuthorizationConflict("Reconstruction validation is pending")
             now = datetime.now(UTC)
             try:
                 execution = ExecutionAuthorization(
@@ -220,7 +235,7 @@ class AuthorizationService:
     ) -> ExecutionAuthorization:
         """Return execution authorization only when it is fresh for current effects."""
         with self._transaction() as session:
-            epoch, _ = self._authority(session)
+            epoch, _, _ = self._authority(session)
             execution_record = session.get(
                 ExecutionAuthorizationRecord,
                 execution_authorization_id,

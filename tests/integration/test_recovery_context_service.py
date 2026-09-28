@@ -48,6 +48,8 @@ def recovery_db(request):
                     if path.name.startswith("033_"):
                         break
                     conn.exec_driver_sql(path.read_text(encoding="utf-8"))
+                readiness = next(path for path in migration_files() if path.name.startswith("035_"))
+                conn.exec_driver_sql(readiness.read_text(encoding="utf-8"))
         else:
             run_migrations(isolated)
         with Session(isolated) as session:
@@ -359,6 +361,8 @@ def test_populated_upgrade_preserves_unknown_attempts_and_authority(recovery_db)
             for table in tables
         }
         assert before == after
+        later = next(path for path in migration_files() if path.name.startswith("034_"))
+        conn.exec_driver_sql(later.read_text(encoding="utf-8"))
     service = RecoveryContextService(recovery_db)
     context = service.capture(command(service))
     assert len(context.unresolved_operations) == 2

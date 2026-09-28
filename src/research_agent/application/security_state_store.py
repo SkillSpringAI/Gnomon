@@ -18,6 +18,7 @@ class PersistedSecurityState:
     version: int
     authority_epoch_id: AuthorityEpochId
     recovery_bootstrap_pending: bool = False
+    reconstruction_validation_pending: bool = False
 
     @property
     def identity(self) -> tuple[AuthorityEpochId, int]:
@@ -61,9 +62,20 @@ class SecurityStateStore:
             raise SecurityStateUnavailable("Persisted recovery-bootstrap state is invalid")
         if not pending and any(value is not None for value in metadata):
             raise SecurityStateUnavailable("Persisted recovery-bootstrap state is invalid")
+        validation_pending = record.reconstruction_validation_pending
+        if not isinstance(validation_pending, bool) or (
+            validation_pending
+            and (
+                not pending
+                or record.recovery_bootstrap_from_version is None
+                or record.version <= record.recovery_bootstrap_from_version
+            )
+        ):
+            raise SecurityStateUnavailable("Persisted reconstruction-validation state is invalid")
         return PersistedSecurityState(
             state=SecurityState.RECOVERY_REQUIRED if pending else stored_state,
             version=record.version,
             authority_epoch_id=epoch,
             recovery_bootstrap_pending=pending,
+            reconstruction_validation_pending=validation_pending,
         )

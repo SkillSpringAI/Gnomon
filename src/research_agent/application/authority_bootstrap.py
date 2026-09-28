@@ -76,6 +76,15 @@ class AuthorityBootstrapService:
             raise AuthorityBootstrapUnavailable("Canonical authority is invalid") from exc
         if record.version < 1:
             raise AuthorityBootstrapUnavailable("Canonical authority version is invalid")
+        if not isinstance(record.reconstruction_validation_pending, bool) or (
+            record.reconstruction_validation_pending
+            and (
+                not record.recovery_bootstrap_pending
+                or record.recovery_bootstrap_from_version is None
+                or record.version <= record.recovery_bootstrap_from_version
+            )
+        ):
+            raise AuthorityBootstrapUnavailable("Reconstruction-validation state is invalid")
 
     def _require_pristine(self, record: SecurityStateRecord) -> None:
         has_history = any(
@@ -91,6 +100,7 @@ class AuthorityBootstrapService:
             record.state != SecurityState.NORMAL.value
             or record.version != 1
             or record.recovery_bootstrap_pending
+            or record.reconstruction_validation_pending
             or has_history
         ):
             raise AuthorityBootstrapUnavailable(

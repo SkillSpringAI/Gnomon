@@ -41,6 +41,7 @@ def record(state: str = "normal", version: int = 1) -> SecurityStateRecord:
         recovery_bootstrap_started_at=None,
         recovery_bootstrap_from_state=None,
         recovery_bootstrap_from_version=None,
+        reconstruction_validation_pending=False,
     )
 
 

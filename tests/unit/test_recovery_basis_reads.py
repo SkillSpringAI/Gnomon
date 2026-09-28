@@ -38,6 +38,7 @@ def test_basis_reader_preserves_fail_closed_exception_boundary(reader, defect):
         recovery_bootstrap_started_at=datetime.now(UTC),
         recovery_bootstrap_from_state="normal",
         recovery_bootstrap_from_version=7,
+        reconstruction_validation_pending=False,
     )
     expected_error = SecurityCapabilityDenied
     if defect in {"started_at", "state", "version"}:

@@ -8,6 +8,10 @@ from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from research_agent.application.authority_bootstrap import (
+    AuthorityBootstrapService,
+    AuthorityStartupMode,
+)
 from research_agent.application.authorization_service import (
     AuthorizationConflict,
     AuthorizationService,
@@ -108,6 +112,25 @@ def test_operator_and_execution_issue_replay_without_authority_change(authorizat
     assert counts(authorization_db) == (1, 1, 2)
     with authorization_db.connect() as conn:
         assert conn.scalar(text("SELECT state FROM security_state WHERE id=1")) == "normal"
+
+
+def test_pending_fence_alone_does_not_invalidate_same_epoch_execution_record(authorization_db):
+    service = AuthorizationService(authorization_db)
+    operator = service.issue_operator(operator_command(service))
+    execution = service.issue_execution(execution_command(service, operator))
+    with Session(authorization_db) as session:
+        AuthorityBootstrapService(session).initialize(AuthorityStartupMode.RECOVERY)
+
+    # This helper checks epoch, time, context ID, and capability, but does not
+    # establish that the context itself is fresh or authorize a downstream effect.
+    assert (
+        service.require_current_execution(
+            execution.execution_authorization_id,
+            recovery_context_id=execution.recovery_context_id,
+            required_capability=AuthorizationCapability.RECOVERY_ACTION,
+        )
+        == execution
+    )
 
 
 def test_identity_reuse_with_different_command_is_rejected(authorization_db):
@@ -274,6 +297,8 @@ def test_populated_upgrade_preserves_authority_and_adds_authorization_tables(aut
         conn.exec_driver_sql(upgrade.read_text(encoding="utf-8"))
         assert conn.scalar(text("SELECT to_jsonb(s) FROM security_state s")) == before
         assert conn.scalar(text("SELECT count(*) FROM operator_authorizations")) == 0
+        readiness = next(path for path in migration_files() if path.name.startswith("035_"))
+        conn.exec_driver_sql(readiness.read_text(encoding="utf-8"))
     service = AuthorizationService(authorization_db)
     operator = service.issue_operator(operator_command(service))
     service.issue_execution(execution_command(service, operator))
