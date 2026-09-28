@@ -115,6 +115,7 @@ def main() -> None:
     root = Path(__file__).resolve().parents[1]
     environment = os.environ.copy()
     environment.pop("PYTHONPATH", None)
+    environment.pop("OWNER_DATABASE_URL", None)
     environment["LLM_PROVIDER"] = "stub"
     environment["LLM_MAX_DRAFTS_PER_TASK"] = "20"
     environment["PERSISTENCE_BACKEND"] = "memory"
@@ -160,6 +161,15 @@ def main() -> None:
             (work / "expected.json").write_text(json.dumps(manifest), encoding="utf-8")
             (work / "probe.py").write_text(PROBE, encoding="utf-8")
             subprocess.run([str(python), "probe.py"], check=True, cwd=work, env=environment)
+            if args.database:
+                owner_environment = dict(environment)
+                owner_environment["OWNER_DATABASE_URL"] = isolated_url
+                subprocess.run(
+                    [str(python), "-m", "research_agent.cli", "migrate"],
+                    check=True,
+                    cwd=work,
+                    env=owner_environment,
+                )
     finally:
         if admin is not None:
             if created:

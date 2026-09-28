@@ -3,10 +3,8 @@
 import argparse
 from pathlib import Path
 
-from sqlalchemy import create_engine
-
 from research_agent.application.backup_creation_service import BackupCreationService
-from research_agent.config.settings import get_settings
+from research_agent.persistence.owner_database import create_owner_database_engine
 
 
 def main() -> None:
@@ -17,7 +15,7 @@ def main() -> None:
     parser.add_argument("--pg-dump", default="pg_dump")
     args = parser.parse_args()
 
-    engine = create_engine(get_settings().database_url, pool_pre_ping=True)
+    engine = create_owner_database_engine()
     try:
         result = BackupCreationService(engine, pg_dump_path=args.pg_dump).create(
             args.backup_directory,

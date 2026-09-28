@@ -28,6 +28,18 @@ post-C3a review found the existing private guarded operation sufficient, so C3b
 extraction was intentionally not implemented.
 See the [C3a closure record](c3a-continuous-reconstruction-fence-verification.md).
 
+**M3a local implementation pending closure verification:** normal runtime still
+builds its engine solely from `DATABASE_URL`; migration, backup and complete
+reconstruction operator commands now require a separate `OWNER_DATABASE_URL`.
+Real PostgreSQL restricted-role tests and the local regression/wheel checks
+exercise this wiring. The [database credential procedure](../operations/database-credentials.md)
+records the current grants and deployment order. Hosted verification and an
+actual restricted production deployment remain outstanding; the default local
+Docker credential is still an administrative convenience.
+M3a's stage is: characterized in [Pass 1](m3-pass1-runtime-persistence-baseline.md)
+and [Pass 2](m3a-pass2-runtime-privileges.md), locally implemented in Pass 3,
+implementation commit pending, hosted verification pending, formal closure pending.
+
 ## Current implementation
 
 Gnomon is a local-first research API with PostgreSQL as its reference durable store. API, application, domain, ports, adapters, persistence, configuration, and security have explicit package boundaries. Models and external content can supply observations or proposals; deterministic services decide whether governed state changes.
@@ -46,7 +58,7 @@ The supported local scope includes:
 
 | Area | Supported guarantee | Material limit |
 |---|---|---|
-| Authority | Governed writes validate current state and required capability; model or external-agent output grants no authority. | Authentication, privileged database-role separation, and full incident controls remain open. |
+| Authority | Governed writes validate current state and required capability; model or external-agent output grants no authority. Runtime/owner URL selection is implemented locally. | Authentication, deployed role separation, hosted M3a verification, and full incident controls remain open. |
 | Persistence | Ordered checksummed migrations, reviewed atomic state/history/audit writes, attempt identities, and bounded failure handling. | Direct privileged database writes, broader constraint coverage, ambiguous commits, and cryptographic tamper evidence are not covered by these guarantees. |
 | Execution | Current source, provider, and fake-agent paths use bounded attempts and preserve explicit failure or unknown outcomes. | No live external-agent adapter, generic autonomous runtime, or universal cancellation guarantee exists. |
 | Recovery | Reconstructed state enters a separate recovery-bootstrap fence; supported reconciliation and authorization precede restoration and fresh epoch use. | Supported inventory is bounded; wider deployment recovery and full operational procedure remain separate work. |
@@ -61,7 +73,7 @@ No P0 is identified in this reviewed documentation baseline. These P1 or P1/P2 a
 | Priority | Gap | Current boundary |
 |---|---|---|
 | P1 | Deployment and release conformance | The M2 reconstruction/recovery drill is hosted-verified for its supported test deployment. A consolidated operator procedure, remaining adversarial cases, broader deployment evidence, and release review remain open. |
-| P1 | Runtime and persistence hardening | Normal runtime database privileges, selected lower-layer constraints, ambiguous-commit evidence, and the audit durability/tamper-resistance decision remain open. |
+| P1 | Runtime and persistence hardening | M3a credential selection and tested grants are local, pending deployment and hosted verification. Selected lower-layer constraints, ambiguous-commit evidence, and the audit durability/tamper-resistance decision remain open. |
 | P1/P2 | Security operations | Authenticated multi-operator authority, full incident containment, scoped isolation, privileged purge, and wider adapter privacy/egress coverage remain open. |
 | P1/P2 | Architectural consolidation | C2 shared recovery reads and C3a continuous reconstruction fencing are hosted-verified and closed. C3b extraction was reviewed and dropped; investigation/execution responsibilities, repository/read projections, and invariant verification mapping remain in the M4 programme. |
 | P1/P2 | Research expansion | Broader dependency-aware reassessment, semantic retrieval, live external-agent operation, long-running orchestration, and fresh-agent handoff remain deferred to their roadmap gates. |

@@ -191,6 +191,7 @@ class BackupCreationService:
             args.extend(["--username", url.username])
         env = dict(self.environment)
         env.pop("DATABASE_URL", None)
+        env.pop("OWNER_DATABASE_URL", None)
         if url.password:
             env["PGPASSWORD"] = url.password
         return args, env

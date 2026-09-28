@@ -107,6 +107,7 @@ Use the [documentation map](docs/README.md) to find maintained material.
 - [Implementation and conformance](docs/development/conformance.md)
 - [Workspace verification](docs/operations/workspace-verification.md)
 - [Migration operations](migrations/README.md)
+- [Database credentials and runtime grants](docs/operations/database-credentials.md)
 - [Repository structure](docs/repo-structure.md)
 
 Archived documents are retained for historical context only and are explicitly non-authoritative. Start with maintained Markdown in the documentation map rather than the archive.

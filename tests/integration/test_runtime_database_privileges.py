@@ -1,7 +1,9 @@
 """Characterize application DML with a non-owner PostgreSQL login."""
 
+import os
 import shutil
 import subprocess
+import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
@@ -11,6 +13,7 @@ from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
+from research_agent import cli
 from research_agent.application.assessment_service import AssessmentService
 from research_agent.application.authority_bootstrap import (
     AuthorityBootstrapService,
@@ -22,6 +25,7 @@ from research_agent.application.backup_state_inspection_service import (
     BackupStateInspectionService,
     BackupStateInspectionUnavailable,
 )
+from research_agent.application.database_reconstruction_service import DatabaseReconstructionService
 from research_agent.application.evidence_service import EvidenceService
 from research_agent.application.memory_service import MemoryService
 from research_agent.application.migrations import migration_files, run_migrations
@@ -51,6 +55,7 @@ from research_agent.domain.research import (
     TaskStatusChange,
 )
 from research_agent.persistence.database import engine as admin_engine
+from research_agent.persistence.owner_database import create_owner_database_engine
 from research_agent.persistence.repositories import SqlAlchemyResearchTaskRepository
 
 # This inventory is intentionally explicit: a new migration table requires a grant review.
@@ -242,6 +247,28 @@ def test_owner_migration_and_runtime_privilege_inventory(privilege_database):
         )
 
 
+def test_configured_owner_engine_is_distinct_from_runtime(privilege_database, monkeypatch):
+    owner_db, runtime_db, _, (owner, runtime, _, _) = privilege_database
+    monkeypatch.setenv("OWNER_DATABASE_URL", owner_db.url.render_as_string(hide_password=False))
+    operator_db = create_owner_database_engine()
+    try:
+        with operator_db.connect() as conn:
+            assert conn.scalar(text("SELECT current_user")) == owner
+        with runtime_db.connect() as conn:
+            assert conn.scalar(text("SELECT current_user")) == runtime
+        assert run_migrations(operator_db) == []
+        monkeypatch.setattr(sys, "argv", ["research-agent", "migrate"])
+        cli.main()  # Complete CLI path uses the configured owner login.
+        service = DatabaseReconstructionService(operator_db)
+        args, env = service._pg_restore_command(Path("database.dump"), Path("restore.list"))
+        assert args[args.index("--username") + 1] == owner
+        assert owner_db.url.password not in " ".join(args)
+        assert env["PGPASSWORD"] == owner_db.url.password
+        assert "OWNER_DATABASE_URL" not in env
+    finally:
+        operator_db.dispose()
+
+
 def test_restricted_runtime_governed_dml_locks_and_recovery(privilege_database):
     _, runtime_db, _, _ = privilege_database
     with Session(runtime_db) as session:
@@ -397,7 +424,9 @@ def test_restricted_runtime_cannot_run_migrations(privilege_database):
     assert denied.value.orig.sqlstate == "42501"
 
 
-def test_backup_inspection_requires_ledger_read_but_no_write(privilege_database, tmp_path):
+def test_backup_inspection_requires_ledger_read_but_no_write(
+    privilege_database, tmp_path, monkeypatch
+):
     owner_db, runtime_db, reader_db, (_, runtime, _, _) = privilege_database
     with pytest.raises(BackupStateInspectionUnavailable):
         BackupStateInspectionService(runtime_db).inspect(
@@ -426,7 +455,7 @@ def test_backup_inspection_requires_ledger_read_but_no_write(privilege_database,
                 "docker",
                 "exec",
                 "-e",
-                f"PGPASSWORD={env['PGPASSWORD']}",
+                "PGPASSWORD",
                 postgres[0],
                 "pg_dump",
                 "--format=custom",
@@ -436,7 +465,11 @@ def test_backup_inspection_requires_ledger_read_but_no_write(privilege_database,
                 "--username",
                 args[args.index("--username") + 1],
             ]
-            completed = subprocess.run(command, check=True, capture_output=True)
+            docker_environment = dict(os.environ)
+            docker_environment["PGPASSWORD"] = env["PGPASSWORD"]
+            completed = subprocess.run(
+                command, check=True, capture_output=True, env=docker_environment
+            )
             output.write_bytes(completed.stdout)
             return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -468,3 +501,16 @@ def test_backup_inspection_requires_ledger_read_but_no_write(privilege_database,
     ).create(tmp_path / "runtime-backup", application_version="0.1.0", source_revision="a1b2c3d")
     assert result.dump_path.stat().st_size > 0
     assert len(result.manifest.schema_metadata.migrations) == 35
+    monkeypatch.setenv("OWNER_DATABASE_URL", owner_db.url.render_as_string(hide_password=False))
+    selected_owner = create_owner_database_engine()
+    try:
+        with selected_owner.connect() as conn:
+            assert conn.scalar(text("SELECT current_user")) == owner_db.url.username
+        owner_backup = BackupCreationService(
+            selected_owner,
+            **({"runner": docker_pg_dump} if not shutil.which("pg_dump") else {}),
+        ).create(tmp_path / "owner-backup", application_version="0.1.0", source_revision="a1b2c3d")
+        assert owner_backup.dump_path.stat().st_size > 0
+        assert len(owner_backup.manifest.schema_metadata.migrations) == 35
+    finally:
+        selected_owner.dispose()

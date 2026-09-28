@@ -7,7 +7,10 @@ from research_agent.application.database_reconstruction_service import (
     DatabaseReconstructionError,
     DatabaseReconstructionService,
 )
-from research_agent.persistence.database import engine
+from research_agent.persistence.owner_database import (
+    OwnerDatabaseConfigurationError,
+    create_owner_database_engine,
+)
 
 
 def main() -> int:
@@ -16,11 +19,15 @@ def main() -> int:
     parser.add_argument("--pg-restore", default="pg_restore")
     args = parser.parse_args()
     try:
-        result = DatabaseReconstructionService(
-            engine,
-            pg_restore_path=args.pg_restore,
-        ).reconstruct(args.backup_directory)
-    except DatabaseReconstructionError as exc:
+        owner_engine = create_owner_database_engine()
+        try:
+            result = DatabaseReconstructionService(
+                owner_engine,
+                pg_restore_path=args.pg_restore,
+            ).reconstruct(args.backup_directory)
+        finally:
+            owner_engine.dispose()
+    except (OwnerDatabaseConfigurationError, DatabaseReconstructionError) as exc:
         parser.error(str(exc))
     print(
         f"Reconstructed {result.target_database_scope} from {result.backup_directory}; "

@@ -52,12 +52,18 @@ def test_database_password_is_process_only_when_constructing_backup_commands(tmp
     try:
         backup = BackupCreationService(
             fake_engine,
-            environment={"DATABASE_URL": url.render_as_string(hide_password=False)},
+            environment={
+                "DATABASE_URL": url.render_as_string(hide_password=False),
+                "OWNER_DATABASE_URL": url.render_as_string(hide_password=False),
+            },
         )
         dump_args, dump_env = backup._pg_dump_command(tmp_path / "database.dump")
         restore = DatabaseReconstructionService(
             fake_engine,
-            environment={"DATABASE_URL": url.render_as_string(hide_password=False)},
+            environment={
+                "DATABASE_URL": url.render_as_string(hide_password=False),
+                "OWNER_DATABASE_URL": url.render_as_string(hide_password=False),
+            },
         )
         restore_args, restore_env = restore._pg_restore_command(
             tmp_path / "database.dump", tmp_path / "restore.list"
@@ -65,6 +71,7 @@ def test_database_password_is_process_only_when_constructing_backup_commands(tmp
         for args, env in ((dump_args, dump_env), (restore_args, restore_env)):
             assert sentinel not in " ".join(args)
             assert "DATABASE_URL" not in env
+            assert "OWNER_DATABASE_URL" not in env
             assert env["PGPASSWORD"] == sentinel
     finally:
         fake_engine.dispose()
@@ -116,9 +123,7 @@ def test_credential_sentinels_absent_after_real_backup_and_restore(tmp_path, mon
         monkeypatch.delenv("AWS_BEARER_TOKEN_BEDROCK", raising=False)
         monkeypatch.setenv(
             "DATABASE_URL",
-            base_url.set(password=database_url_secret).render_as_string(
-                hide_password=False
-            ),
+            base_url.set(password=database_url_secret).render_as_string(hide_password=False),
         )
         monkeypatch.setattr(
             provider_module,

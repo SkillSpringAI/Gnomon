@@ -222,6 +222,7 @@ class DatabaseReconstructionService:
     def _restore_environment(self) -> dict[str, str]:
         env = dict(self.environment)
         env.pop("DATABASE_URL", None)
+        env.pop("OWNER_DATABASE_URL", None)
         url = make_url(self.target_engine.url)
         if url.password:
             env["PGPASSWORD"] = url.password

@@ -95,6 +95,12 @@ directories fail explicitly, including in installed wheels.
 
 The application expects all numbered migrations to be present. Run
 `python -m research_agent.cli migrate` (or `make migrate`) after PostgreSQL is ready.
+This operator command now requires `OWNER_DATABASE_URL`, a PostgreSQL psycopg URL
+for the migration owner. `DATABASE_URL` remains the normal runtime connection;
+the migration command does not fall back to it. Inject the owner URL only into
+the operator process, not the API environment. See
+[database credentials](../docs/operations/database-credentials.md) for the
+runtime grant contract and upgrade order.
 The runner creates `research_agent_schema_migrations`, takes a transaction-scoped
 PostgreSQL advisory lock, applies pending files in filename order, and records each
 completed filename. Tracking-table bootstrap also holds the advisory lock so two

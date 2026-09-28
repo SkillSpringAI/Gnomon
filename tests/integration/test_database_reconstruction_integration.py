@@ -72,6 +72,7 @@ from research_agent.domain.recovery import (
 from research_agent.domain.security import SecurityReasonCode, SecurityState
 from research_agent.persistence.authorization import ExecutionAuthorizationRecord
 from research_agent.persistence.database import engine
+from research_agent.persistence.owner_database import create_owner_database_engine
 
 SOURCE_REVISION = "316c90bf1816743ce73571e907b5c24e4da6cdec"
 DUMP_BYTES = b"pg-restore-custom-bytes"
@@ -120,9 +121,7 @@ def write_backup(tmp_path, manifest: BackupManifest, dump: bytes = DUMP_BYTES):
     return backup
 
 
-def test_reconstruction_runs_restore_and_verifies_target(
-    reconstruction_target_db, tmp_path
-):
+def test_reconstruction_runs_restore_and_verifies_target(reconstruction_target_db, tmp_path):
     manifest = manifest_from_target(reconstruction_target_db)
     backup = write_backup(tmp_path, manifest)
     task_id = uuid4()
@@ -157,9 +156,10 @@ def test_reconstruction_runs_restore_and_verifies_target(
     assert result.applied_migrations == ()
     assert result.recovery_context_id is not None
     with reconstruction_target_db.connect() as conn:
-        assert conn.scalar(
-            text("SELECT title FROM research_tasks WHERE id = :id"), {"id": task_id}
-        ) == "Reconstructed"
+        assert (
+            conn.scalar(text("SELECT title FROM research_tasks WHERE id = :id"), {"id": task_id})
+            == "Reconstructed"
+        )
         restored = conn.execute(
             text(
                 """
@@ -272,9 +272,12 @@ def test_reconstruction_enters_recovery_with_new_context(
         assert SecurityStateStore(session).load().recovery_bootstrap_pending
         with pytest.raises(SecurityCapabilityDenied):
             require_capability(session, SecurityCapability.MEMORY_MUTATION)
-    assert RecoveryContextService(reconstruction_target_db).read(
-        result.recovery_context_id, require_current=True
-    ).context_id == result.recovery_context_id
+    assert (
+        RecoveryContextService(reconstruction_target_db)
+        .read(result.recovery_context_id, require_current=True)
+        .context_id
+        == result.recovery_context_id
+    )
 
 
 def test_failed_pg_restore_leaves_committed_validation_pending_fence(
@@ -446,9 +449,7 @@ def test_readiness_rejects_changed_manifest_authority_basis(
         assert conn.scalar(text("SELECT count(*) FROM recovery_contexts")) == 0
 
 
-def test_reconstruction_rejects_malformed_restored_authority(
-    reconstruction_target_db, tmp_path
-):
+def test_reconstruction_rejects_malformed_restored_authority(reconstruction_target_db, tmp_path):
     manifest = manifest_from_target(reconstruction_target_db)
     backup = write_backup(tmp_path, manifest)
 
@@ -470,7 +471,7 @@ def test_reconstruction_rejects_malformed_restored_authority(
     reason="pg_dump and pg_restore are not installed",
 )
 @pytest.mark.parametrize("variant", ["baseline", "restrictive_unresolved"])
-def test_real_pg_restore_reconstructs_task_data(tmp_path, variant):
+def test_real_pg_restore_reconstructs_task_data(tmp_path, variant, monkeypatch):
     base_url = make_url(get_settings().database_url)
     if base_url.host not in {"localhost", "127.0.0.1", "::1"}:
         pytest.skip("real reconstruction integration requires local PostgreSQL")
@@ -479,7 +480,13 @@ def test_real_pg_restore_reconstructs_task_data(tmp_path, variant):
     admin = create_engine(base_url, isolation_level="AUTOCOMMIT")
     created: list[str] = []
     source = create_engine(base_url.set(database=source_database))
-    target = create_engine(base_url.set(database=target_database))
+    target_owner_url = base_url.set(database=target_database).render_as_string(hide_password=False)
+    monkeypatch.setenv(
+        "OWNER_DATABASE_URL",
+        target_owner_url,
+    )
+    target = create_owner_database_engine()
+    assert target.url.database == target_database
     task_id = uuid4()
     try:
         try:
@@ -506,18 +513,30 @@ def test_real_pg_restore_reconstructs_task_data(tmp_path, variant):
                 ),
                 {"id": task_id},
             )
-        backup = BackupCreationService(source).create(
-            tmp_path / "backup-set",
-            application_version="0.1.0",
-            source_revision=SOURCE_REVISION,
+        monkeypatch.setenv(
+            "OWNER_DATABASE_URL",
+            base_url.set(database=source_database).render_as_string(hide_password=False),
         )
+        backup_owner = create_owner_database_engine()
+        try:
+            backup = BackupCreationService(backup_owner).create(
+                tmp_path / "backup-set",
+                application_version="0.1.0",
+                source_revision=SOURCE_REVISION,
+            )
+        finally:
+            backup_owner.dispose()
+        monkeypatch.setenv("OWNER_DATABASE_URL", target_owner_url)
         service = DatabaseReconstructionService(target)
         verified = service._restore_verified_data(backup.backup_directory)
         with target.connect() as conn:
-            assert conn.scalar(
-                text("SELECT title FROM research_tasks WHERE id = :id"),
-                {"id": task_id},
-            ) == "Real restore"
+            assert (
+                conn.scalar(
+                    text("SELECT title FROM research_tasks WHERE id = :id"),
+                    {"id": task_id},
+                )
+                == "Real restore"
+            )
         assert_reconstruction_equivalent(
             source, target, task_id=fixture.task_id, reconstruction_fenced=True
         )
@@ -634,15 +653,11 @@ def test_real_pg_restore_reconstructs_task_data(tmp_path, variant):
                 IssueOperatorAuthorization(
                     authorization_id=uuid4(),
                     expected_authority_epoch_id=replacement.authority_epoch_id,
-                    principal=OperatorPrincipal(
-                        kind="local_operator", principal_id="local-admin"
-                    ),
+                    principal=OperatorPrincipal(kind="local_operator", principal_id="local-admin"),
                     granted_capability=AuthorizationCapability.RECOVERY_ACTION,
                     scope=operator.scope,
                     issuance_basis=(
-                        AuthorizationBasisReference(
-                            kind="recovery_context", record_id=context_id
-                        ),
+                        AuthorizationBasisReference(kind="recovery_context", record_id=context_id),
                     ),
                     expires_at=datetime.now(UTC) + timedelta(hours=1),
                     replay_id=uuid4(),

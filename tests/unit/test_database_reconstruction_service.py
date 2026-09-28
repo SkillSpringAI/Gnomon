@@ -22,7 +22,11 @@ def test_pg_restore_command_uses_supported_flags_and_excludes_bootstrap_data(tmp
     service = DatabaseReconstructionService(
         engine(),
         pg_restore_path="pg_restore-test",
-        environment={"PATH": "test", "DATABASE_URL": "postgresql://leak"},
+        environment={
+            "PATH": "test",
+            "DATABASE_URL": "postgresql://leak",
+            "OWNER_DATABASE_URL": "postgresql://owner-leak",
+        },
     )
     restore_list = tmp_path / "restore.list"
     args, env = service._pg_restore_command(dump, restore_list)
@@ -42,6 +46,7 @@ def test_pg_restore_command_uses_supported_flags_and_excludes_bootstrap_data(tmp
     assert str(dump) == args[-1]
     assert env["PGPASSWORD"] == "secret"
     assert "DATABASE_URL" not in env
+    assert "OWNER_DATABASE_URL" not in env
 
 
 def test_pg_restore_command_requires_postgresql():
@@ -118,6 +123,7 @@ def test_public_restore_cli_calls_complete_workflow_only(tmp_path, monkeypatch, 
 
     class Service:
         def __init__(self, target, *, pg_restore_path):
+            assert isinstance(target, OwnerEngine)
             calls.append(("construct", pg_restore_path))
 
         def reconstruct(self, directory):
@@ -129,13 +135,23 @@ def test_public_restore_cli_calls_complete_workflow_only(tmp_path, monkeypatch, 
             )
 
     namespace["main"].__globals__["DatabaseReconstructionService"] = Service
+
+    class OwnerEngine:
+        def dispose(self):
+            calls.append(("dispose", None))
+
+    namespace["main"].__globals__["create_owner_database_engine"] = OwnerEngine
     monkeypatch.setattr(sys, "argv", [str(script), str(tmp_path), "--pg-restore", "restore"])
     assert namespace["main"]() == 0
-    assert calls == [("construct", "restore"), ("reconstruct", tmp_path)]
+    assert calls == [
+        ("construct", "restore"),
+        ("reconstruct", tmp_path),
+        ("dispose", None),
+    ]
     assert "fresh-context" in capsys.readouterr().out
     for flag in ("--skip-recovery", "--restore-only"):
         monkeypatch.setattr(sys, "argv", [str(script), str(tmp_path), flag])
         with pytest.raises(SystemExit) as exc:
             namespace["main"]()
         assert exc.value.code == 2
-    assert len(calls) == 2
+    assert len(calls) == 3
