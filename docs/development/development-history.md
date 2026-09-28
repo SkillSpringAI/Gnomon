@@ -74,6 +74,20 @@ clean-wheel checks and all 34 migrations passed. The
 implementation commit from subsequent documentation, preserves local verification
 and excluded debt, and records that no C3 work began.
 
+## C3a — Continuous reconstruction fencing
+
+Closed 28 September 2026 at implementation
+`0618dec6fb6e0eea2942af2ae9ba672234999882`. Reconstruction now persists a
+manifest-derived recovery fence and validation-pending gate before PostgreSQL data
+import, publishes readiness only after bounded production validation, and then
+captures a fresh RecoveryContext. Hosted [Quality run 36367975815](https://github.com/SkillSpringAI/Gnomon/actions/runs/36367975815)
+passed all three jobs: 1,886 passed/28 browser-only skips in normal regression,
+28 Chromium cases passed separately, and all 35 migrations passed. The real
+PostgreSQL reconstruction variants ran hosted with their M2 source/restored
+equivalence assertions. The [closure record](c3a-continuous-reconstruction-fence-verification.md)
+preserves local limits, the exact hosted evidence, and the remaining C3b boundary.
+C3b mechanics extraction has not begun.
+
 ## Historical decisions retained
 
 - Preserve adapters → ports → application → governance/security → persistence boundaries.

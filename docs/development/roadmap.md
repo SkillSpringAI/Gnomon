@@ -65,11 +65,13 @@ Remaining consolidation, without redesigning recovery bootstrap, AuthorityEpoch,
 protected restoration, or deterministic reconciliation (C2 shared recovery reads
 are [closed at `2740d4a`](c2-recovery-shared-read-verification.md) by hosted Quality):
 
-The local, uncommitted C3a candidate establishes continuous reconstruction fencing
-and a validation-pending gate before this mechanics boundary is extracted. Its
-[verification record](c3a-continuous-reconstruction-fence-verification.md) distinguishes
-local implementation from hosted closure. C3b must keep readiness publication inside
-the successful import, migration, and bounded-validation sequence.
+C3a continuous reconstruction fencing and the validation-pending gate are formally
+closed at implementation `0618dec6fb6e0eea2942af2ae9ba672234999882`, verified by
+hosted [Quality run 36367975815](https://github.com/SkillSpringAI/Gnomon/actions/runs/36367975815).
+The [closure record](c3a-continuous-reconstruction-fence-verification.md) retains
+the bounded evidence. C3b mechanics extraction has not begun; it must keep
+readiness publication inside the successful import, migration, and bounded-validation
+sequence.
 
 1. Separate database restore mechanics from governed recovery entry so each
    boundary has one clear responsibility and failure contract.

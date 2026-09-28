@@ -17,11 +17,15 @@ locally. The [C2 closure record](../development/c2-recovery-shared-read-verifica
 retains local limits and exact hosted evidence. C2 is formally closed for the bounded
 shared-read extraction; this does not extend recovery policy or deployment claims.
 
-**C3a local candidate:** The uncommitted C3a change adds durable reconstruction
-validation pending, pre-import recovery fencing, bounded readiness publication,
-and narrow recovery/backup gates. Local verification and remaining hosted requirements
-are recorded in the [C3a verification record](../development/c3a-continuous-reconstruction-fence-verification.md).
-It is not committed, hosted-verified, or formally closed.
+**C3a hosted closure:** Implementation `0618dec6fb6e0eea2942af2ae9ba672234999882`
+passed [Quality run 36367975815](https://github.com/SkillSpringAI/Gnomon/actions/runs/36367975815)
+across `checks`, `minimal-install`, and `browser`. Normal regression reported
+**1,886 passed, 28 browser-only skips**; the separate Chromium suite had **28
+passed**. All **35 migrations** passed, and the four real PostgreSQL client-tool
+cases ran hosted, including both reconstruction variants with M2 equivalence
+assertions. The [C3a closure record](../development/c3a-continuous-reconstruction-fence-verification.md)
+retains local limits and exact hosted evidence. C3a is formally closed for its
+bounded fail-closed reconstruction authority slice; C3b has not begun.
 
 **C1 local verification:** The [26 September completion record](../development/c1-documentation-authority-baseline.md) records passing lint, strict types, traceability, migration, smoke/prototype, and both wheel checks; the normal suite passed with 1,815 passed and 32 skipped, and all 28 browser cases passed separately using Edge. Four host PostgreSQL-client-tool cases were locally skipped and Chromium could not launch on this Windows host; the successful hosted run exercised those four cases and all 28 Chromium browser cases.
 

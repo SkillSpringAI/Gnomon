@@ -15,11 +15,16 @@ lock, capability, freshness, authorization and policy ownership. C2 is formally
 closed for this bounded extraction; see the
 [C2 closure record](c2-recovery-shared-read-verification.md).
 
-**C3a local candidate (uncommitted):** Reconstruction now commits the manifest-derived
-recovery fence and `reconstruction_validation_pending` before data import, then clears
-only that validation gate after bounded production checks. RecoveryContext capture
-follows publication. This is a local implementation claim, not hosted verification or
-formal C3a closure; see the [C3a verification record](c3a-continuous-reconstruction-fence-verification.md).
+**Hosted-verified C3a implementation:** `0618dec6fb6e0eea2942af2ae9ba672234999882`.
+[Quality run 36367975815](https://github.com/SkillSpringAI/Gnomon/actions/runs/36367975815)
+passed all three jobs: 1,886 passed/28 intentional browser skips in the normal
+suite, and all 28 Chromium cases passed separately. All 35 migrations and the real
+PostgreSQL reconstruction variants, including their M2 equivalence assertions,
+ran hosted. Reconstruction commits the manifest-derived recovery fence and
+`reconstruction_validation_pending` before data import, then clears only that
+validation gate after bounded production checks. RecoveryContext capture follows
+publication. C3a is formally closed for this bounded slice; C3b has not begun.
+See the [C3a closure record](c3a-continuous-reconstruction-fence-verification.md).
 
 ## Current implementation
 
@@ -56,7 +61,7 @@ No P0 is identified in this reviewed documentation baseline. These P1 or P1/P2 a
 | P1 | Deployment and release conformance | The M2 reconstruction/recovery drill is hosted-verified for its supported test deployment. A consolidated operator procedure, remaining adversarial cases, broader deployment evidence, and release review remain open. |
 | P1 | Runtime and persistence hardening | Normal runtime database privileges, selected lower-layer constraints, ambiguous-commit evidence, and the audit durability/tamper-resistance decision remain open. |
 | P1/P2 | Security operations | Authenticated multi-operator authority, full incident containment, scoped isolation, privileged purge, and wider adapter privacy/egress coverage remain open. |
-| P1/P2 | Architectural consolidation | C2 shared recovery reads are hosted-verified and closed. Reconstruction mechanics, investigation/execution responsibilities, repository/read projections, and invariant verification mapping remain the confirmed M4 programme. |
+| P1/P2 | Architectural consolidation | C2 shared recovery reads and C3a continuous reconstruction fencing are hosted-verified and closed. C3b reconstruction-mechanics extraction, investigation/execution responsibilities, repository/read projections, and invariant verification mapping remain the confirmed M4 programme. |
 | P1/P2 | Research expansion | Broader dependency-aware reassessment, semantic retrieval, live external-agent operation, long-running orchestration, and fresh-agent handoff remain deferred to their roadmap gates. |
 
 ## Evidence and provenance

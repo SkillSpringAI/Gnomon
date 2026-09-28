@@ -1,9 +1,35 @@
-# C3a continuous reconstruction fence: local verification
+# C3a continuous reconstruction fence: verification and closure
 
-**Status:** **Commit ready.** Local implementation and adversarial verification complete in the
-uncommitted working tree based on the formally closed C2 repository. This record
-does not claim a committed implementation SHA, hosted verification, or formal C3a
-closure. C3b mechanics extraction has not begun.
+**Status:** **FORMALLY CLOSED** for the bounded C3a reconstruction-fencing slice,
+28 September 2026. The implementation SHA is
+`0618dec6fb6e0eea2942af2ae9ba672234999882`. Before this documentation-only
+closure update, `HEAD`, `origin/main`, and hosted `main` resolved to that SHA and
+the working tree was clean. [Quality run 36367975815](https://github.com/SkillSpringAI/Gnomon/actions/runs/36367975815)
+completed successfully at that exact SHA. C3b mechanics extraction has not begun.
+This closure documentation is separate from the hosted-tested implementation commit.
+
+## Hosted closure evidence
+
+All three required jobs passed at the implementation SHA:
+
+| Job | Result |
+|---|---|
+| [checks](https://github.com/SkillSpringAI/Gnomon/actions/runs/36367975815/job/108758098598) | Success. Normal regression: **1,886 passed, 28 skipped**; every skip was an intentionally opt-in browser case. Ruff lint, strict mypy, migrations, smoke/prototype, conformance traceability, and database-wheel verification passed. |
+| [minimal-install](https://github.com/SkillSpringAI/Gnomon/actions/runs/36367975815/job/108758098743) | Success. Installed base wheel passed without AWS; all **35 migration resources** matched source checksums. |
+| [browser](https://github.com/SkillSpringAI/Gnomon/actions/runs/36367975815/job/108758098754) | Success with Chromium: **28 passed**, zero failures, errors, or skips, including the separate JUnit count assertion. |
+
+The checks job applied all **35 migrations**, including
+`035_reconstruction_validation_pending.sql`. Its installed-wheel database probe
+passed schema installation, populated upgrade, rerun, checksum-drift rejection,
+and draft creation. The normal-suite skip report lists only browser tests. Thus
+the four real PostgreSQL client-tool cases ran hosted: the two baseline and
+restrictive-unresolved `pg_restore` reconstruction variants, the credential-sentinel
+`pg_dump`/`pg_restore` case, and the real `pg_dump` backup case. Both real
+reconstruction variants call the stronger M2 source/restored equivalence assertion;
+the M2 equivalence helper tests were also in the passing normal suite. The hosted
+log reports aggregate passing counts rather than individual passed test names.
+These M2 checks do not turn bounded production post-restore validation into a
+claim of complete semantic equivalence.
 
 ## Implemented boundary
 
@@ -91,8 +117,8 @@ pending gate on protected restoration.
   install, populated upgrade, rerun, historical-drift rejection, and API draft.
 - The real PostgreSQL reconstruction/equivalence drill was **not run locally**:
   neither `pg_dump` nor `pg_restore` is installed. Simulated runner tests are not
-  equivalent evidence. Hosted Quality must run both real reconstruction variants
-  and the credential-sentinel and dump cases against the eventual C3a SHA.
+  equivalent evidence. The hosted run above exercised both real reconstruction
+  variants and the credential-sentinel and dump cases at the exact C3a SHA.
 - Browser regression is recorded separately from the normal suite. The initial
   concurrent local run had 26 passes and two source-registry fixture 403 errors
   while another security suite used the same database. The isolated rerun passed
@@ -101,7 +127,7 @@ pending gate on protected restoration.
 Repository-wide pre-existing Ruff formatting debt is outside C3a. A scoped
 full-file formatter check passed during Pass 3C, then the final pre-commit
 hygiene pass removed unrelated formatter churn from existing lines in C3a-touched
-files. Ruff lint and `git diff --check` pass on the resulting diff; no
-full-file formatting claim is made for that baseline formatting. The implementation
-remains uncommitted. Hosted verification and a reviewed exact implementation SHA
-are required before formal closure.
+files. Ruff lint and `git diff --check` pass on the resulting implementation diff;
+no full-file formatting claim is made for that baseline formatting. The
+implementation was committed and hosted-verified at the SHA recorded above. This
+documentation-only closure does not include production, test, or C3b changes.
