@@ -29,6 +29,16 @@ bounded fail-closed reconstruction authority slice. The post-C3a review retained
 the existing private guarded-reconstruction operation and intentionally stopped
 C3 without implementing C3b extraction.
 
+**M3a hosted closure:** Implementation `78a9e408887559e5e100a6f4d22376afee799522`
+passed [Quality run 36382958751](https://github.com/SkillSpringAI/Gnomon/actions/runs/36382958751)
+across `checks`, `minimal-install`, and `browser`. Normal regression reported
+**1,908 passed, 28 browser-only skips**; separate Chromium reported **28 passed**.
+Both real `pg_restore` reconstruction variants executed their C3a/M2 equivalence
+assertions. Real PostgreSQL tests verified distinct configured owner/runtime
+principals and the privilege boundary. All **35 migrations** and the installed-wheel
+database and minimal-install checks passed. The [M3a closure record](../development/m3a-runtime-owner-credential-closure.md)
+retains the exact scope and limits. M3a is formally closed; M3b has not begun.
+
 **C1 local verification:** The [26 September completion record](../development/c1-documentation-authority-baseline.md) records passing lint, strict types, traceability, migration, smoke/prototype, and both wheel checks; the normal suite passed with 1,815 passed and 32 skipped, and all 28 browser cases passed separately using Edge. Four host PostgreSQL-client-tool cases were locally skipped and Chromium could not launch on this Windows host; the successful hosted run exercised those four cases and all 28 Chromium browser cases.
 
 ## Supported verification scope
@@ -53,6 +63,6 @@ The [historical implementation-status journal](../archive/completed-slices/2026-
 
 ## Open verification limits
 
-- Deployment authentication and database role separation, ambiguous-commit behavior, full audit durability/tamper evidence, broader incident handling, privileged purge, and live external-agent behavior lack release-level proof.
+- Deployment authentication and provisioned production role separation, ambiguous-commit behavior, full audit durability/tamper evidence, broader incident handling, privileged purge, and live external-agent behavior lack release-level proof.
 - M2 has a supported hosted reconstruction/recovery drill. A consolidated operator procedure, remaining adversarial reconstruction cases, and broader deployment/release verification remain open.
 - The matrix classifies whole source sections and does not assert a separate behavioral test for each normative sentence. Mixed sections retain their partial or conflicting classification and stated limitations.

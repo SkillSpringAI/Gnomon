@@ -92,6 +92,13 @@ Separate migration authority from normal runtime database authority.
 The normal application role should not possess schema-management privileges merely
 because migrations require them.
 
+M3a's code-level runtime/owner credential boundary is formally closed at
+implementation `78a9e408887559e5e100a6f4d22376afee799522`, verified by
+[Quality run 36382958751](https://github.com/SkillSpringAI/Gnomon/actions/runs/36382958751).
+The [closure record](m3a-runtime-owner-credential-closure.md) preserves the
+real-role and reconstruction evidence. Provisioning distinct roles in a deployed
+database remains operational work. M3b has not begun.
+
 ### 3.2 Constraint Coverage Review
 
 Review remaining authoritative vocabularies and state machines for database-level

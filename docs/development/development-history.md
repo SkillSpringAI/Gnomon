@@ -93,6 +93,19 @@ C3b extraction was intentionally not implemented; the
 [C3 closure rationale](c3a-continuous-reconstruction-fence-verification.md#post-c3a-architecture-review-and-c3-closure)
 records the decision and its retained boundaries.
 
+## M3a — Runtime and owner database credentials
+
+Closed 28 September 2026 at implementation
+`78a9e408887559e5e100a6f4d22376afee799522`. Hosted
+[Quality run 36382958751](https://github.com/SkillSpringAI/Gnomon/actions/runs/36382958751)
+passed all three jobs: 1,908 passed/28 browser-only skips in normal regression,
+28 Chromium cases passed separately, both real `pg_restore` reconstruction
+variants with C3a/M2 equivalence checks, distinct owner/runtime PostgreSQL role
+tests, all 35 migrations, and installed-wheel/minimal-install verification. The
+[closure record](m3a-runtime-owner-credential-closure.md) distinguishes tested
+code-level credential selection from deployment provisioning and retains the
+scope of the privilege evidence. M3b has not begun.
+
 ## Historical decisions retained
 
 - Preserve adapters → ports → application → governance/security → persistence boundaries.
