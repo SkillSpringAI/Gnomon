@@ -23,7 +23,9 @@ PostgreSQL reconstruction variants, including their M2 equivalence assertions,
 ran hosted. Reconstruction commits the manifest-derived recovery fence and
 `reconstruction_validation_pending` before data import, then clears only that
 validation gate after bounded production checks. RecoveryContext capture follows
-publication. C3a is formally closed for this bounded slice; C3b has not begun.
+publication. C3a is formally closed and is the final C3 production slice. A
+post-C3a review found the existing private guarded operation sufficient, so C3b
+extraction was intentionally not implemented.
 See the [C3a closure record](c3a-continuous-reconstruction-fence-verification.md).
 
 ## Current implementation
@@ -61,7 +63,7 @@ No P0 is identified in this reviewed documentation baseline. These P1 or P1/P2 a
 | P1 | Deployment and release conformance | The M2 reconstruction/recovery drill is hosted-verified for its supported test deployment. A consolidated operator procedure, remaining adversarial cases, broader deployment evidence, and release review remain open. |
 | P1 | Runtime and persistence hardening | Normal runtime database privileges, selected lower-layer constraints, ambiguous-commit evidence, and the audit durability/tamper-resistance decision remain open. |
 | P1/P2 | Security operations | Authenticated multi-operator authority, full incident containment, scoped isolation, privileged purge, and wider adapter privacy/egress coverage remain open. |
-| P1/P2 | Architectural consolidation | C2 shared recovery reads and C3a continuous reconstruction fencing are hosted-verified and closed. C3b reconstruction-mechanics extraction, investigation/execution responsibilities, repository/read projections, and invariant verification mapping remain the confirmed M4 programme. |
+| P1/P2 | Architectural consolidation | C2 shared recovery reads and C3a continuous reconstruction fencing are hosted-verified and closed. C3b extraction was reviewed and dropped; investigation/execution responsibilities, repository/read projections, and invariant verification mapping remain in the M4 programme. |
 | P1/P2 | Research expansion | Broader dependency-aware reassessment, semantic retrieval, live external-agent operation, long-running orchestration, and fresh-agent handoff remain deferred to their roadmap gates. |
 
 ## Evidence and provenance

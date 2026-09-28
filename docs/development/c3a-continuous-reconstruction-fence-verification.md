@@ -5,7 +5,8 @@
 `0618dec6fb6e0eea2942af2ae9ba672234999882`. Before this documentation-only
 closure update, `HEAD`, `origin/main`, and hosted `main` resolved to that SHA and
 the working tree was clean. [Quality run 36367975815](https://github.com/SkillSpringAI/Gnomon/actions/runs/36367975815)
-completed successfully at that exact SHA. C3b mechanics extraction has not begun.
+completed successfully at that exact SHA. C3a is the final production implementation
+slice of C3; the later C3b proposal was reviewed and intentionally not implemented.
 This closure documentation is separate from the hosted-tested implementation commit.
 
 ## Hosted closure evidence
@@ -94,13 +95,39 @@ The private `_publish_reconstruction_readiness()` has one production call site,
 after successful restore and migration in `_restore_verified_data()`. Its
 successful-import evidence is the enclosing trusted control flow, not a durable
 database marker; direct invocation by privileged internal code is not a supported
-operator path. This is acceptable for C3a's existing internal trust model. **C3b
-constraint:** mechanics extraction must not expose publication independently or
-permit callers to bypass successful import, migration, and bounded validation.
+operator path. This is acceptable for C3a's existing internal trust model.
+Readiness publication must remain private and inseparable from successful import,
+migration, and bounded validation.
 `require_current_execution()` retains its existing read semantics; it has no
 production point-of-effect caller in this slice and was intentionally not made a
 general permission gate. Historical authorization alone does not satisfy the
 pending gate on protected restoration.
+
+## Post-C3a architecture review and C3 closure
+
+The review at documentation HEAD `5dc3ae12a0b180f6e9141246a1434e80c1d71c7d`
+found that private `_restore_verified_data()` already owns the cohesive guarded
+sequence: preflight, restore planning, final manifest-derived S/V/E fence,
+`pg_restore`, migrations, bounded production validation, and readiness publication.
+`reconstruct()` remains the supported complete operator workflow: it calls that
+private operation and then `_enter_recovery()` for governed recovery entry and a
+fresh RecoveryContext. There is no public restore-only operation.
+
+Extracting the guarded sequence into a separately constructible component would
+add a callable intermediate surface without a demonstrated reuse, testability,
+or ownership benefit. Readiness publication has no independent successful-import
+marker and must not become independently usable. Restore-list planning has no
+other production consumer or lifecycle, so it stays inside guarded reconstruction.
+`DatabaseReconstructionResult` uses an optional context ID before and after
+recovery entry; that representational debt alone does not justify extraction.
+
+On the already-pending finalized fence, `AuthorityBootstrapService.initialize(RECOVERY)`
+validates and reloads authority without mutating S/V/E, origin, or current version.
+The new integration characterization test checks the canonical row before and
+after that call and `_enter_recovery()`. Failure after the fence commits but before
+publication leaves validation pending; an incomplete target is discarded and
+recreated rather than resumed. C3b production extraction is intentionally
+abandoned, and C3 ends with the C3a implementation and this review.
 
 ## Local verification
 

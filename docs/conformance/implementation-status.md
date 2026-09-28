@@ -25,7 +25,9 @@ passed**. All **35 migrations** passed, and the four real PostgreSQL client-tool
 cases ran hosted, including both reconstruction variants with M2 equivalence
 assertions. The [C3a closure record](../development/c3a-continuous-reconstruction-fence-verification.md)
 retains local limits and exact hosted evidence. C3a is formally closed for its
-bounded fail-closed reconstruction authority slice; C3b has not begun.
+bounded fail-closed reconstruction authority slice. The post-C3a review retained
+the existing private guarded-reconstruction operation and intentionally stopped
+C3 without implementing C3b extraction.
 
 **C1 local verification:** The [26 September completion record](../development/c1-documentation-authority-baseline.md) records passing lint, strict types, traceability, migration, smoke/prototype, and both wheel checks; the normal suite passed with 1,815 passed and 32 skipped, and all 28 browser cases passed separately using Edge. Four host PostgreSQL-client-tool cases were locally skipped and Chromium could not launch on this Windows host; the successful hosted run exercised those four cases and all 28 Chromium browser cases.
 

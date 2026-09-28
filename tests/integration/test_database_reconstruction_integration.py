@@ -730,6 +730,45 @@ def test_internal_boundary_has_manifest_authority_with_fence_and_no_new_grants(
             require_capability(session, SecurityCapability.MEMORY_MUTATION)
 
 
+def test_recovery_bootstrap_is_no_op_on_published_reconstruction_fence(
+    reconstruction_target_db, tmp_path
+):
+    original = manifest_from_target(reconstruction_target_db)
+    manifest = original.model_copy(
+        update={"authority": original.authority.model_copy(update={"security_state_version": 7})}
+    )
+    backup = write_backup(tmp_path, manifest)
+
+    def runner(args, *, env, cwd=None):
+        if "--list" in args:
+            return CompletedProcess(args, 0, TEST_ARCHIVE_LISTING, "")
+        return CompletedProcess(args, 0, "", "")
+
+    service = DatabaseReconstructionService(reconstruction_target_db, runner=runner)
+    verified = service._restore_verified_data(backup)
+    with reconstruction_target_db.connect() as conn:
+        before = conn.scalar(text("SELECT to_jsonb(s) FROM security_state s WHERE id=1"))
+        assert conn.scalar(text("SELECT count(*) FROM recovery_contexts")) == 0
+    assert before["version"] == 8
+    assert before["recovery_bootstrap_from_version"] == 7
+    assert before["recovery_bootstrap_pending"] is True
+    assert before["reconstruction_validation_pending"] is False
+
+    with Session(reconstruction_target_db) as session:
+        current = AuthorityBootstrapService(session).initialize(AuthorityStartupMode.RECOVERY)
+    assert current.state is SecurityState.RECOVERY_REQUIRED
+    assert current.version == 8
+    with reconstruction_target_db.connect() as conn:
+        assert conn.scalar(text("SELECT to_jsonb(s) FROM security_state s WHERE id=1")) == before
+        assert conn.scalar(text("SELECT count(*) FROM recovery_contexts")) == 0
+
+    recovered = service._enter_recovery(verified)
+    assert recovered.recovery_context_id is not None
+    with reconstruction_target_db.connect() as conn:
+        assert conn.scalar(text("SELECT to_jsonb(s) FROM security_state s WHERE id=1")) == before
+        assert conn.scalar(text("SELECT count(*) FROM recovery_contexts")) == 1
+
+
 @pytest.mark.parametrize("failure_phase", ["migration", "inspection", "critical", "publication"])
 def test_failure_after_restore_leaves_validation_pending_target_and_retry_is_denied(
     reconstruction_target_db, tmp_path, monkeypatch, failure_phase

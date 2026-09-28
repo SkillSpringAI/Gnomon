@@ -61,31 +61,22 @@ not general release or deployment conformance. The [incremental sequence](M2%20I
 and linked M2 completion records preserve slice scope, commands, results, and
 provenance.
 
-Remaining consolidation, without redesigning recovery bootstrap, AuthorityEpoch,
-protected restoration, or deterministic reconciliation (C2 shared recovery reads
-are [closed at `2740d4a`](c2-recovery-shared-read-verification.md) by hosted Quality):
+C2 shared recovery reads are [closed at `2740d4a`](c2-recovery-shared-read-verification.md)
+by hosted Quality. C3a continuous reconstruction fencing is formally closed at
+implementation `0618dec6fb6e0eea2942af2ae9ba672234999882`, verified by hosted
+[Quality run 36367975815](https://github.com/SkillSpringAI/Gnomon/actions/runs/36367975815).
+The [C3 closure review](c3a-continuous-reconstruction-fence-verification.md#post-c3a-architecture-review-and-c3-closure)
+found that the required guarded-reconstruction boundary already exists privately.
+C3b component and restore-planning extraction were reconsidered and intentionally
+not implemented; they are no longer required remaining work. The successful
+import, migration, bounded-validation, and readiness-publication sequence stays
+indivisible within guarded reconstruction, followed by governed recovery entry.
 
-C3a continuous reconstruction fencing and the validation-pending gate are formally
-closed at implementation `0618dec6fb6e0eea2942af2ae9ba672234999882`, verified by
-hosted [Quality run 36367975815](https://github.com/SkillSpringAI/Gnomon/actions/runs/36367975815).
-The [closure record](c3a-continuous-reconstruction-fence-verification.md) retains
-the bounded evidence. C3b mechanics extraction has not begun; it must keep
-readiness publication inside the successful import, migration, and bounded-validation
-sequence.
-
-1. Separate database restore mechanics from governed recovery entry so each
-   boundary has one clear responsibility and failure contract.
-2. Extract restore-list planning where it clarifies reconstruction mechanics.
-3. Complete documentation lifecycle cleanup while retaining the M2 execution
-   and verification records.
-4. Preserve canonical reconstruction, restrictive unresolved-outcome, recovery,
-   epoch-rotation, and credential-sentinel verification during consolidation.
-5. Complete the still-applicable adversarial reconstruction cases and a maintained
-   operator backup/restore procedure before claiming broader operational readiness.
-
-**Consolidation exit gate:** existing supported reconstruction and recovery
-behavior remains equivalent under the relevant tests and hosted Quality gate.
-Broader release conformance remains a separate gate.
+Remaining M2 work is a maintained operator backup/restore procedure and the
+still-applicable adversarial reconstruction cases before broader operational
+readiness. Preserve canonical and restrictive-fixture equivalence, recovery,
+epoch-rotation, and credential-sentinel evidence. Broader release conformance
+remains a separate gate.
 
 ## Milestone 3: Runtime And Persistence Hardening
 
@@ -177,10 +168,12 @@ recovery invariants harder to inspect.
    including all 28 required Chromium cases with no skips. The
    [C2 closure record](c2-recovery-shared-read-verification.md) retains the evidence
    and excluded debt; C3 has not begun in this closure.
-3. **Reconstruction mechanics boundary.** Separate guarded database import,
-   restore-list planning where useful, and equivalence inspection from governed
-   recovery entry. Preserve the M2 recovery fence, protected restoration, atomic
-   epoch rotation, and restrictive-fixture verification.
+3. **Reconstruction authority boundary.** C3a closed the continuous fence and
+   bounded readiness gate at `0618dec6fb6e0eea2942af2ae9ba672234999882`.
+   The [post-C3a review](c3a-continuous-reconstruction-fence-verification.md#post-c3a-architecture-review-and-c3-closure)
+   found the private guarded-reconstruction boundary sufficient. C3b extraction
+   was intentionally not implemented; C3 ends here while the M2 recovery and
+   restrictive-fixture contracts remain in force.
 4. **Investigation and execution service boundary.** Clarify ownership of task
    lifecycle, exact execution attempts, runner orchestration, and governed result
    mutation. Keep source, provider, and agent paths explicit and preserve lock and

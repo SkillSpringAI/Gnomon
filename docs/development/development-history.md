@@ -85,8 +85,13 @@ passed all three jobs: 1,886 passed/28 browser-only skips in normal regression,
 28 Chromium cases passed separately, and all 35 migrations passed. The real
 PostgreSQL reconstruction variants ran hosted with their M2 source/restored
 equivalence assertions. The [closure record](c3a-continuous-reconstruction-fence-verification.md)
-preserves local limits, the exact hosted evidence, and the remaining C3b boundary.
-C3b mechanics extraction has not begun.
+preserves local limits and the exact hosted evidence. C3a is the final C3 production
+implementation slice. A post-C3a architecture review found that private
+`_restore_verified_data()` already owns guarded reconstruction and that a separately
+constructible C3b component would add callable surface without demonstrated benefit.
+C3b extraction was intentionally not implemented; the
+[C3 closure rationale](c3a-continuous-reconstruction-fence-verification.md#post-c3a-architecture-review-and-c3-closure)
+records the decision and its retained boundaries.
 
 ## Historical decisions retained
 
