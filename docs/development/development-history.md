@@ -104,7 +104,20 @@ variants with C3a/M2 equivalence checks, distinct owner/runtime PostgreSQL role
 tests, all 35 migrations, and installed-wheel/minimal-install verification. The
 [closure record](m3a-runtime-owner-credential-closure.md) distinguishes tested
 code-level credential selection from deployment provisioning and retains the
-scope of the privilege evidence. M3b has not begun.
+scope of the privilege evidence. M3b had not begun at this M3a closure.
+
+## M3b Pass 2 — Research-cycle status value invariant
+
+Closed 29 September 2026 at implementation
+`5038f6f2414c357359e314d2a220932ffcade6bb`. Hosted
+[Quality run 36511325666](https://github.com/SkillSpringAI/Gnomon/actions/runs/36511325666)
+passed all three jobs: 1,914 passed/28 browser-only skips in normal regression,
+28 Chromium cases passed separately, the real invalid-backup reconstruction
+rejection and both existing C3a/M2 reconstruction variants, M3a restricted-role
+tests, all 36 migrations, and installed-wheel/minimal-install verification. The
+[closure record](m3b-cycle-status-constraint-closure.md) preserves the invalid
+legacy-row upgrade failure and the scope of the single selected constraint.
+Other M3b candidates remain deferred.
 
 ## Historical decisions retained
 

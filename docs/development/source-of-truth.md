@@ -36,13 +36,16 @@ across all three jobs: 1,908 passed/28 browser-only skips in normal regression,
 C3a/M2 equivalence assertions, distinct PostgreSQL owner/runtime role tests,
 and all 35 migrations plus wheel/minimal-install verification. Normal runtime
 uses `DATABASE_URL`; migration, backup and complete reconstruction commands
-require `OWNER_DATABASE_URL`. M3a is formally closed. M3b Pass 2's available
-local checks cover only the cycle-status value constraint; real `pg_restore`
-verification and commit remain pending. The
-[closure record](m3a-runtime-owner-credential-closure.md) and
+require `OWNER_DATABASE_URL`. M3a is formally closed. M3b Pass 2's cycle-status
+value constraint is hosted-verified and formally closed at implementation
+`5038f6f2414c357359e314d2a220932ffcade6bb` by
+[Quality run 36511325666](https://github.com/SkillSpringAI/Gnomon/actions/runs/36511325666).
+The [M3a closure record](m3a-runtime-owner-credential-closure.md) and
 [credential procedure](../operations/database-credentials.md) retain evidence,
 grants and deployment order. An actual restricted production deployment remains
 outstanding; the default local Docker credential is an administrative convenience.
+The [M3b closure record](m3b-cycle-status-constraint-closure.md) retains the
+bounded constraint and its hosted reconstruction and migration evidence.
 
 ## Current implementation
 
@@ -77,7 +80,7 @@ No P0 is identified in this reviewed documentation baseline. These P1 or P1/P2 a
 | Priority | Gap | Current boundary |
 |---|---|---|
 | P1 | Deployment and release conformance | The M2 reconstruction/recovery drill is hosted-verified for its supported test deployment. A consolidated operator procedure, remaining adversarial cases, broader deployment evidence, and release review remain open. |
-| P1 | Runtime and persistence hardening | M3a credential selection and tested grants are hosted-verified; deployed role separation remains an operator requirement. M3b Pass 2 adds only a cycle-status vocabulary check in the working tree; other selected lower-layer questions, ambiguous-commit evidence, and the audit durability/tamper-resistance decision remain open. |
+| P1 | Runtime and persistence hardening | M3a credential selection and tested grants, and M3b's bounded cycle-status vocabulary check, are hosted-verified; deployed role separation remains an operator requirement. Other selected lower-layer questions, ambiguous-commit evidence, and the audit durability/tamper-resistance decision remain open. |
 | P1/P2 | Security operations | Authenticated multi-operator authority, full incident containment, scoped isolation, privileged purge, and wider adapter privacy/egress coverage remain open. |
 | P1/P2 | Architectural consolidation | C2 shared recovery reads and C3a continuous reconstruction fencing are hosted-verified and closed. C3b extraction was reviewed and dropped; investigation/execution responsibilities, repository/read projections, and invariant verification mapping remain in the M4 programme. |
 | P1/P2 | Research expansion | Broader dependency-aware reassessment, semantic retrieval, live external-agent operation, long-running orchestration, and fresh-agent handoff remain deferred to their roadmap gates. |
