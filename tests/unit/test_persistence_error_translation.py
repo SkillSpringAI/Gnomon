@@ -56,7 +56,9 @@ def test_known_constraint_maps_to_safe_stable_error(
     assert raised.value.__cause__ is error
 
 
-@pytest.mark.parametrize("constraint_name", ["unknown_constraint", None])
+@pytest.mark.parametrize(
+    "constraint_name", ["unknown_constraint", "research_cycles_status_valid", None]
+)
 def test_unknown_or_undiagnosed_failure_is_reraised_unchanged(constraint_name: str | None) -> None:
     error = integrity_error(constraint_name)
     with pytest.raises(IntegrityError) as raised:

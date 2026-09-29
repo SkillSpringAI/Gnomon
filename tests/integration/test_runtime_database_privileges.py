@@ -147,10 +147,10 @@ def privilege_database(tmp_path_factory):
             conn.exec_driver_sql("REVOKE ALL ON SCHEMA public FROM PUBLIC")
         baseline = Path(tmp_path_factory.mktemp("m3_privilege_migrations"))
         files = migration_files()
-        assert len(files) == 35
+        assert len(files) == 36
         for path in files[:-1]:
             shutil.copyfile(path, baseline / path.name)
-        assert len(run_migrations(owner_engine, directory=baseline)) == 34
+        assert len(run_migrations(owner_engine, directory=baseline)) == 35
         with Session(owner_engine) as session:
             task = ResearchService(SqlAlchemyResearchTaskRepository(session)).create_task(
                 ResearchBrief(title="Populated owner upgrade", objective="Retain this task")
@@ -202,7 +202,7 @@ def test_owner_migration_and_runtime_privilege_inventory(privilege_database):
             conn.scalar(text("SELECT extname FROM pg_extension WHERE extname='pgcrypto'"))
             == "pgcrypto"
         )
-        assert conn.scalar(text("SELECT count(*) FROM research_agent_schema_migrations")) == 35
+        assert conn.scalar(text("SELECT count(*) FROM research_agent_schema_migrations")) == 36
     with runtime_db.connect() as conn:
         assert conn.scalar(text("SELECT current_user")) == runtime
         assert (
@@ -435,7 +435,7 @@ def test_backup_inspection_requires_ledger_read_but_no_write(
     inspection = BackupStateInspectionService(reader_db).inspect(
         application_version="0.1.0", source_revision="a1b2c3d"
     )
-    assert len(inspection.schema_metadata.migrations) == 35
+    assert len(inspection.schema_metadata.migrations) == 36
     if shutil.which("pg_dump"):
         backup = BackupCreationService(reader_db)
     elif shutil.which("docker"):
@@ -500,7 +500,7 @@ def test_backup_inspection_requires_ledger_read_but_no_write(
         **({"runner": docker_pg_dump} if not shutil.which("pg_dump") else {}),
     ).create(tmp_path / "runtime-backup", application_version="0.1.0", source_revision="a1b2c3d")
     assert result.dump_path.stat().st_size > 0
-    assert len(result.manifest.schema_metadata.migrations) == 35
+    assert len(result.manifest.schema_metadata.migrations) == 36
     monkeypatch.setenv("OWNER_DATABASE_URL", owner_db.url.render_as_string(hide_password=False))
     selected_owner = create_owner_database_engine()
     try:
@@ -511,6 +511,6 @@ def test_backup_inspection_requires_ledger_read_but_no_write(
             **({"runner": docker_pg_dump} if not shutil.which("pg_dump") else {}),
         ).create(tmp_path / "owner-backup", application_version="0.1.0", source_revision="a1b2c3d")
         assert owner_backup.dump_path.stat().st_size > 0
-        assert len(owner_backup.manifest.schema_metadata.migrations) == 35
+        assert len(owner_backup.manifest.schema_metadata.migrations) == 36
     finally:
         selected_owner.dispose()

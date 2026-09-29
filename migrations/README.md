@@ -132,3 +132,12 @@ Lists preserve order and deduplicate entries. Future shape changes require an
 explicit version/compatibility policy. Omitted cycle identity binds objective
 indices to the latest cycle at acceptance and stores the resolved number; new
 clients should supply it explicitly. Apply migrations before serving the new code.
+
+## Cycle-status value compatibility (036)
+
+`036_research_cycles_status_valid.sql` adds a named `CHECK` for the five supported
+`research_cycles.status` values. It preserves the existing `NOT NULL` column
+and does not encode transition order. Existing invalid rows abort the migration;
+no historical status is coerced or deleted. Use the
+[operator audit query](../docs/operations/migrations.md) before upgrading an
+existing deployment.

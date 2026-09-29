@@ -97,7 +97,10 @@ implementation `78a9e408887559e5e100a6f4d22376afee799522`, verified by
 [Quality run 36382958751](https://github.com/SkillSpringAI/Gnomon/actions/runs/36382958751).
 The [closure record](m3a-runtime-owner-credential-closure.md) preserves the
 real-role and reconstruction evidence. Provisioning distinct roles in a deployed
-database remains operational work. M3b has not begun.
+database remains operational work. The [M3b Pass 1 selection record](m3b-pass1-material-persistence-invariants.md)
+selected only the cycle-status value gap. Pass 2's available local checks pass;
+real `pg_restore` verification remains hosted, and the slice is not yet committed
+or closed. Other candidates remain deferred.
 
 ### 3.2 Constraint Coverage Review
 

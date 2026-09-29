@@ -4,6 +4,7 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
+from pathlib import Path
 from subprocess import CalledProcessError, CompletedProcess
 from threading import Event
 from uuid import uuid4
@@ -37,7 +38,7 @@ from research_agent.application.database_reconstruction_service import (
     DatabaseReconstructionError,
     DatabaseReconstructionService,
 )
-from research_agent.application.migrations import run_migrations
+from research_agent.application.migrations import migration_files, run_migrations
 from research_agent.application.recovery_context_service import (
     RecoveryContextConflict,
     RecoveryContextService,
@@ -464,6 +465,102 @@ def test_reconstruction_rejects_malformed_restored_authority(reconstruction_targ
             reconstruction_target_db,
             runner=runner,
         ).reconstruct(backup)
+
+
+@pytest.mark.skipif(
+    shutil.which("pg_dump") is None or shutil.which("pg_restore") is None,
+    reason="pg_dump and pg_restore are not installed",
+)
+def test_real_pg_restore_rejects_legacy_invalid_cycle_status(tmp_path, monkeypatch):
+    base_url = make_url(get_settings().database_url)
+    if base_url.host not in {"localhost", "127.0.0.1", "::1"}:
+        pytest.skip("real reconstruction integration requires local PostgreSQL")
+    source_name = "cycle_status_restore_source_" + uuid4().hex
+    target_name = "cycle_status_restore_target_" + uuid4().hex
+    admin = create_engine(base_url, isolation_level="AUTOCOMMIT")
+    source = create_engine(base_url.set(database=source_name))
+    target_url = base_url.set(database=target_name).render_as_string(hide_password=False)
+    created: list[str] = []
+    target = None
+    try:
+        try:
+            with admin.connect() as conn:
+                for name in (source_name, target_name):
+                    conn.exec_driver_sql(f'CREATE DATABASE "{name}"')
+                    created.append(name)
+        except SQLAlchemyError as exc:
+            pytest.skip(f"cannot create disposable databases: {exc}")
+        old_migrations = Path(tmp_path / "pre-m3b-migrations")
+        old_migrations.mkdir()
+        files = migration_files()
+        assert files[-1].name == "036_research_cycles_status_valid.sql"
+        for migration in files[:-1]:
+            (old_migrations / migration.name).write_bytes(migration.read_bytes())
+        assert len(run_migrations(source, directory=old_migrations)) == 35
+        task_id = uuid4()
+        with source.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO research_tasks
+                        (id, title, objective, status, brief, plan, created_at, updated_at)
+                    VALUES (:id, 'Legacy cycle', 'Reject invalid status.', 'active',
+                            '{}'::jsonb, '{}'::jsonb, now(), now())
+                    """
+                ),
+                {"id": task_id},
+            )
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO research_cycles
+                        (id, task_id, cycle_number, objectives, methods, status, created_at)
+                    VALUES (:id, :task_id, 1, '[]'::jsonb, '[]'::jsonb,
+                            'unrecognized', now())
+                    """
+                ),
+                {"id": uuid4(), "task_id": task_id},
+            )
+        monkeypatch.setenv(
+            "OWNER_DATABASE_URL",
+            base_url.set(database=source_name).render_as_string(hide_password=False),
+        )
+        backup_owner = create_owner_database_engine()
+        try:
+            backup = BackupCreationService(backup_owner).create(
+                tmp_path / "legacy-backup",
+                application_version="0.1.0",
+                source_revision=SOURCE_REVISION,
+            )
+        finally:
+            backup_owner.dispose()
+        monkeypatch.setenv("OWNER_DATABASE_URL", target_url)
+        target = create_owner_database_engine()
+        assert run_migrations(target) == [migration.name for migration in files]
+        with pytest.raises(DatabaseReconstructionError) as raised:
+            DatabaseReconstructionService(target).reconstruct(backup.backup_directory)
+        assert isinstance(raised.value.__cause__, CalledProcessError)
+        assert "research_cycles_status_valid" in (raised.value.__cause__.stderr or "")
+        with target.connect() as conn:
+            row = conn.execute(
+                text(
+                    "SELECT state, version, recovery_bootstrap_pending, "
+                    "reconstruction_validation_pending FROM security_state WHERE id = 1"
+                )
+            ).one()
+            assert row == ("normal", 2, True, True)
+            assert conn.scalar(text("SELECT count(*) FROM research_tasks")) == 0
+            assert conn.scalar(text("SELECT count(*) FROM recovery_contexts")) == 0
+        with Session(target) as session:
+            assert SecurityStateStore(session).load().state is SecurityState.RECOVERY_REQUIRED
+    finally:
+        source.dispose()
+        if target is not None:
+            target.dispose()
+        for name in reversed(created):
+            with admin.connect() as conn:
+                conn.exec_driver_sql(f'DROP DATABASE "{name}" WITH (FORCE)')
+        admin.dispose()
 
 
 @pytest.mark.skipif(

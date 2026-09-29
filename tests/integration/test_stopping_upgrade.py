@@ -59,9 +59,10 @@ def test_populated_pre_031_stopping_upgrade_preserves_legacy_reads():
                     before = connection.scalar(
                         text("SELECT resulting_state FROM stopping_decision_changes")
                     )
+                    # Reapply only the historical stopping-era migrations under test.
                     for _ in range(2):
                         for path in files:
-                            if path.name >= "031_":
+                            if "031_" <= path.name < "036_":
                                 connection.exec_driver_sql(path.read_text(encoding="utf-8"))
                         with Session(
                             bind=connection, join_transaction_mode="create_savepoint"

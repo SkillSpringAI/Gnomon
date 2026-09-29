@@ -37,7 +37,9 @@ Both real `pg_restore` reconstruction variants executed their C3a/M2 equivalence
 assertions. Real PostgreSQL tests verified distinct configured owner/runtime
 principals and the privilege boundary. All **35 migrations** and the installed-wheel
 database and minimal-install checks passed. The [M3a closure record](../development/m3a-runtime-owner-credential-closure.md)
-retains the exact scope and limits. M3a is formally closed; M3b has not begun.
+retains the exact scope and limits. M3a is formally closed. M3b Pass 2 is a
+separate cycle-status constraint slice with available local checks passing;
+real `pg_restore` verification and commit remain pending.
 
 **C1 local verification:** The [26 September completion record](../development/c1-documentation-authority-baseline.md) records passing lint, strict types, traceability, migration, smoke/prototype, and both wheel checks; the normal suite passed with 1,815 passed and 32 skipped, and all 28 browser cases passed separately using Edge. Four host PostgreSQL-client-tool cases were locally skipped and Chromium could not launch on this Windows host; the successful hosted run exercised those four cases and all 28 Chromium browser cases.
 

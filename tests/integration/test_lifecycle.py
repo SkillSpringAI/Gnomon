@@ -7,14 +7,18 @@ from uuid import UUID, uuid4
 import pytest
 from conftest import purge_test_tasks
 from fastapi.testclient import TestClient
-from sqlalchemy import event, select
+from sqlalchemy import event, select, text
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from research_agent.api.app import create_app
+from research_agent.application.migrations import run_migrations
 from research_agent.persistence.database import engine
 from research_agent.persistence.models import (
     ResearchCycleRecord,
     ResearchEventRecord,
 )
+from research_agent.persistence.repositories import SqlAlchemyResearchTaskRepository
 
 
 @pytest.fixture
@@ -49,6 +53,21 @@ def cycle_rows(task_id):
             .where(ResearchCycleRecord.task_id == UUID(task_id))
             .order_by(ResearchCycleRecord.cycle_number)
         ).all()
+
+
+def test_unknown_cycle_status_is_rejected_without_changing_loaded_task(lifecycle_task):
+    _, task_id = lifecycle_task
+    run_migrations(engine)
+    with pytest.raises(IntegrityError) as raised:
+        with engine.begin() as connection:
+            connection.execute(
+                text("UPDATE research_cycles SET status = 'unrecognized' WHERE task_id = :task_id"),
+                {"task_id": UUID(task_id)},
+            )
+    assert raised.value.orig.diag.constraint_name == "research_cycles_status_valid"
+    with Session(engine) as session:
+        task = SqlAlchemyResearchTaskRepository(session).get(UUID(task_id))
+        assert task.cycles[0].status.value == "planned"
 
 
 def test_status_survives_restart_and_preserves_cycle_ids(lifecycle_task):
