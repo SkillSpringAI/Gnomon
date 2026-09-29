@@ -137,6 +137,14 @@ Maintain the distinction between:
 
 Introduce explicit connection-loss/ambiguous-commit tests.
 
+The provider-session CREATE/DELETE fail-closed slice is
+[closed](m3c-provider-session-commit-closure.md) at implementation
+`0c55a279dc1664789203794b114e9439f75bf38e` by hosted
+[Quality run 36522924832](https://github.com/SkillSpringAI/Gnomon/actions/runs/36522924832).
+Its post-commit exception tests exercise service behavior under an injected
+uncertain outcome; they are not network-level lost-acknowledgement tests.
+Provider-attempt and external-effect reconciliation remain future work.
+
 Do not treat transaction rollback tests as proof of ambiguous commit recovery.
 Verify idempotency/reconciliation around operations where the caller may not know
 whether PostgreSQL committed.

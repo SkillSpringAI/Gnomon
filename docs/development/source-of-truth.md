@@ -47,6 +47,18 @@ outstanding; the default local Docker credential is an administrative convenienc
 The [M3b closure record](m3b-cycle-status-constraint-closure.md) retains the
 bounded constraint and its hosted reconstruction and migration evidence.
 
+**M3c provider-session closure:** Implementation
+`0c55a279dc1664789203794b114e9439f75bf38e` passed
+[Quality run 36522924832](https://github.com/SkillSpringAI/Gnomon/actions/runs/36522924832):
+1,928 passed/28 browser-only skips in normal regression, 28 Chromium cases
+passed separately, and all 36 migrations plus database-wheel/minimal-install
+checks passed. Provider-session CREATE publishes only after confirmed audit
+commit; DELETE removes local capability before its audit work and never
+restores it after failure. The
+[closure record](m3c-provider-session-commit-closure.md) preserves the
+synthetic lost-acknowledgement test limit. Provider-attempt and external-effect
+reconciliation remain open; this is not closure of all M3c.
+
 ## Current implementation
 
 Gnomon is a local-first research API with PostgreSQL as its reference durable store. API, application, domain, ports, adapters, persistence, configuration, and security have explicit package boundaries. Models and external content can supply observations or proposals; deterministic services decide whether governed state changes.

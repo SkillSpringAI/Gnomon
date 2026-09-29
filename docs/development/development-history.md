@@ -119,6 +119,20 @@ tests, all 36 migrations, and installed-wheel/minimal-install verification. The
 legacy-row upgrade failure and the scope of the single selected constraint.
 Other M3b candidates remain deferred.
 
+## M3c provider-session commit boundary
+
+Closed 29 September 2026 at implementation
+`0c55a279dc1664789203794b114e9439f75bf38e`. Hosted
+[Quality run 36522924832](https://github.com/SkillSpringAI/Gnomon/actions/runs/36522924832)
+passed all three jobs: 1,928 passed/28 browser-only skips in normal regression,
+28 Chromium cases, all 36 migrations, and database-wheel/minimal-install
+verification. Provider-session tests ran hosted. CREATE now publishes a local
+token only after confirmed audit commit; DELETE revokes local capability before
+database work and remains fail-closed after failure. The
+[closure record](m3c-provider-session-commit-closure.md) retains the exact
+failure, concurrency, audit, and synthetic-test limits. Provider-attempt and
+external-effect reconciliation were not begun in this slice.
+
 ## Historical decisions retained
 
 - Preserve adapters → ports → application → governance/security → persistence boundaries.
