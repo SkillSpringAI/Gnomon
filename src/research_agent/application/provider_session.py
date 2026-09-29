@@ -30,9 +30,7 @@ class ProviderSessionStore:
         with self._lock:
             now = datetime.now(UTC)
             self._sessions = {
-                key: session
-                for key, session in self._sessions.items()
-                if session.expires_at > now
+                key: session for key, session in self._sessions.items() if session.expires_at > now
             }
             while len(self._sessions) >= self._max_sessions:
                 self._sessions.pop(next(iter(self._sessions)))
@@ -49,6 +47,12 @@ class ProviderSessionStore:
             except Exception:
                 self._sessions = before
                 raise
+
+    @contextmanager
+    def locked(self) -> Iterator[None]:
+        """Serialize governed publication/revocation without restoring a revoked token."""
+        with self._lock:
+            yield
 
     def get(self, session_id: str | None) -> str | None:
         if not session_id:

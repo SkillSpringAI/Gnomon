@@ -14,6 +14,28 @@ Local development can use `POST /provider/session` to place a bearer token in a 
 
 This is a local bridge for testing, not an authentication system for a deployed multi-user UI. Production use requires an authenticated identity and encrypted session management.
 
+With PostgreSQL persistence, a session becomes usable only after its redacted
+CREATE audit transaction is confirmed committed. A DELETE request removes the
+process-local session before database access and audit authorization; if either
+fails, or if the audit commit outcome is uncertain, the old cookie may remain
+in the client but cannot retrieve the token. Replacement likewise
+drops the old session once its commit is attempted, and publishes the new one
+only after confirmed commit. A definite failure while staging a replacement
+before commit leaves the old session available. These choices can lose a local
+session rather than retain a credential whose governance outcome is uncertain.
+There is no automatic retry.
+
+Audit records describe accepted local session actions. They contain no token
+or session identifier, do not recreate a session after restart, and do not
+prove that an external provider credential was revoked. A CREATE audit can
+survive a lost commit acknowledgement while no new in-memory session is
+published. A request that already obtained a token before local deletion
+cannot be retroactively cancelled.
+
+The lost-acknowledgement tests inject an exception after a real database
+commit. They validate service behavior under that uncertain outcome; they do
+not reproduce a PostgreSQL network-level lost acknowledgement.
+
 ## Design requirements for future UI work
 
 - Show the active provider and model without displaying the key.

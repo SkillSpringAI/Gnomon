@@ -78,9 +78,7 @@ def provider_status(request: Request) -> ProviderStatusResponse:
     """Return provider settings without credentials or a network call."""
     settings = get_settings()
     if settings.llm_provider.lower() != "bedrock":
-        mode: Literal[
-            "stub", "bearer_token", "session_bearer_token", "aws_default_chain"
-        ] = "stub"
+        mode: Literal["stub", "bearer_token", "session_bearer_token", "aws_default_chain"] = "stub"
     elif provider_sessions.get(request.cookies.get("provider_session")):
         mode = "session_bearer_token"
     elif os.getenv("AWS_BEARER_TOKEN_BEDROCK"):
@@ -130,10 +128,8 @@ def create_provider_session(
         with SessionFactory() as db_session:
             audit = ProviderSessionAuditService(db_session)
             authority = audit.authorize_create()
-            with provider_sessions.transaction():
+            with provider_sessions.locked():
                 replacing_active_session = provider_sessions.get(previous_session_id) is not None
-                provider_sessions.delete(previous_session_id)
-                session_id, expires_at = provider_sessions.create(token, payload.ttl_seconds)
                 try:
                     if replacing_active_session:
                         audit.stage(
@@ -152,10 +148,18 @@ def create_provider_session(
                         result="accepted",
                         reason="created",
                     )
+                    # A flush failure is known to precede COMMIT, so the old
+                    # local session remains usable. Once COMMIT is attempted,
+                    # an exception may mean its acknowledgement was lost.
+                    db_session.flush()
+                    provider_sessions.delete(previous_session_id)
                     db_session.commit()
                 except Exception:
                     db_session.rollback()
                     raise
+                # No new credential is discoverable until durable acceptance
+                # has been acknowledged. The store lock spans both phases.
+                session_id, expires_at = provider_sessions.create(token, payload.ttl_seconds)
     response.set_cookie(
         "provider_session",
         session_id,
@@ -173,25 +177,32 @@ def delete_provider_session(request: Request, response: Response) -> None:
     """Forget the local provider token and expire the session cookie."""
     session_id = request.cookies.get("provider_session")
     settings = get_settings()
-    active = provider_sessions.get(session_id) is not None
     if settings.persistence_backend == "memory":
         with provider_sessions.transaction():
             provider_sessions.delete(session_id)
     else:
-        with SessionFactory() as db_session:
-            audit = ProviderSessionAuditService(db_session)
-            authority = audit.authorize_delete()
-            with provider_sessions.transaction():
-                audit.stage(
-                    authority,
-                    operation="DELETE",
-                    provider=settings.llm_provider,
-                    ttl_seconds=None,
-                    result="accepted" if active else "no_op",
-                    reason="deleted" if active else "already_absent",
-                )
-                db_session.commit()
-                provider_sessions.delete(session_id)
+        with provider_sessions.locked():
+            active = provider_sessions.get(session_id) is not None
+            # An attempted local revocation stays effective even if database
+            # access, authority checks, or the audit transaction fail.
+            provider_sessions.delete(session_id)
+            with SessionFactory() as db_session:
+                audit = ProviderSessionAuditService(db_session)
+                try:
+                    authority = audit.authorize_delete()
+                    audit.stage(
+                        authority,
+                        operation="DELETE",
+                        provider=settings.llm_provider,
+                        ttl_seconds=None,
+                        result="accepted" if active else "no_op",
+                        reason="deleted" if active else "already_absent",
+                    )
+                    db_session.flush()
+                    db_session.commit()
+                except Exception:
+                    db_session.rollback()
+                    raise
     response.delete_cookie("provider_session")
 
 

@@ -19,7 +19,7 @@ from research_agent.persistence.models import ProviderSessionEventRecord
 
 
 class ProviderSessionAuditService:
-    """Record and read provider-session lifecycle metadata without secrets."""
+    """Record governed local-session actions, not live or externally revoked tokens."""
 
     def __init__(self, session: Session, *, actor_id: str = "api:local_operator") -> None:
         if not actor_id.strip():
