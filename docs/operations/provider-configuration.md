@@ -36,6 +36,61 @@ The lost-acknowledgement tests inject an exception after a real database
 commit. They validate service behavior under that uncertain outcome; they do
 not reproduce a PostgreSQL network-level lost acknowledgement.
 
+## Opt-in local Bedrock test configuration
+
+Create a local-only configuration file from the tracked, placeholder-only
+example:
+
+```powershell
+Copy-Item .env.bedrock-live.example .env.bedrock-live.local
+```
+
+Run the copy command only once. Running it again overwrites the edited local
+file with the example placeholder; the pytest command does not copy or edit
+the file.
+
+Edit `.env.bedrock-live.local` and replace `<SET_LOCALLY>` with only the plain
+Bedrock API-key value after `AWS_BEARER_TOKEN_BEDROCK=`. Do not paste an AWS
+Windows shell command, `$Env:` assignment, quotes from that command, or a
+`Bearer ` prefix into the value. The local file is ignored by Git; the example
+is safe to commit. Never commit the bearer token. The dedicated test loads only
+this file, overrides the required provider settings for its own scope, then
+restores the prior
+process environment and settings cache. Normal tests do not read the file or
+require Bedrock credentials, and the live test is not part of ordinary CI.
+Normal collection does not require the optional AWS package; the offline
+client-construction and live-generation checks require `.[dev,aws]`.
+The opted-in harness also uses temporary empty AWS config and credentials
+files and suppresses inherited AWS profile and IAM credential sources. This
+keeps the Bedrock API-key test independent of local AWS CLI configuration;
+it does not edit or delete that configuration. Bedrock bearer authentication
+does not itself require `botocore[crt]`.
+
+Run the configuration-only check explicitly from the repository root:
+
+```powershell
+$Env:RUN_LIVE_BEDROCK_TESTS = "1"
+python -m pytest tests/integration/test_bedrock_live.py::test_bedrock_live_configuration_reaches_provider_status_without_a_request -v
+Remove-Item Env:RUN_LIVE_BEDROCK_TESTS -ErrorAction SilentlyContinue
+```
+
+That targeted check reaches only the application's provider-status
+configuration boundary and sends no provider request. The separate
+`test_bedrock_live_production_client_constructs_without_a_request` check
+constructs the production Bedrock Runtime client offline. The
+`test_one_live_bedrock_generation_through_gnomon` test attempts one real
+generation when explicitly selected with `RUN_LIVE_BEDROCK_TESTS=1`.
+Running the entire file with that flag also selects the live-generation test.
+The generation test uses a temporary observer around the existing production
+client call. Its output contains only selected status, AWS metadata, usage,
+and local parsing results; it does not include prompts, draft text, response
+bodies, headers, or credentials. The observer makes no additional request.
+Do not paste token values into commands, logs, or test output.
+
+The current optional `boto3>=1.35` floor does not guarantee Bedrock
+bearer-token support. A separately justified minimum SDK version remains a
+follow-up; no dependency minimum is changed by the live-test harness.
+
 ## Design requirements for future UI work
 
 - Show the active provider and model without displaying the key.
