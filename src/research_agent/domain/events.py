@@ -85,12 +85,15 @@ class EventPayload(BaseModel):
     relationship_lifecycle: Literal["active", "retracted"] | None = None
     relationship_revision: int | None = Field(default=None, ge=1)
     stopping_decision_id: UUID | None = None
-    stopping_reason: Literal[
-        "evidence_sufficient",
-        "resource_limited",
-        "evidence_unavailable",
-        "operator_stopped",
-    ] | None = None
+    stopping_reason: (
+        Literal[
+            "evidence_sufficient",
+            "resource_limited",
+            "evidence_unavailable",
+            "operator_stopped",
+        ]
+        | None
+    ) = None
     stopping_revision: int | None = Field(default=None, ge=1)
     evidence_fingerprint: str | None = None
     claim_count: int | None = None
@@ -123,6 +126,7 @@ class EventPayload(BaseModel):
             "report_input_too_large",
             "report_budget_exceeded",
             "provider_outcome_unknown",
+            "provider_request_rejected",
             "provider_dispatch_authority_revoked",
             "reservation_expired",
             "agent_network_failed",

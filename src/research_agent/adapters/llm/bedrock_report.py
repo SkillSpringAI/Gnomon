@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from research_agent.domain.report import InvestigationReport, ReportDraft, ReportUsage
+from research_agent.ports.reporting import ProviderRequestRejected
 from research_agent.security.boundaries import data_delimit
 
 
@@ -38,9 +39,11 @@ class BedrockReportDraftGenerator:
         )
 
     def generate(self, report: InvestigationReport) -> ReportDraft:
-        response = self.client.converse(
-            modelId=self.model,
-            system=[
+        from botocore.exceptions import ClientError  # type: ignore[import-untyped]
+
+        request = {
+            "modelId": self.model,
+            "system": [
                 {
                     "text": (
                         "Generate a cautious research report draft from the structured "
@@ -51,14 +54,20 @@ class BedrockReportDraftGenerator:
                     )
                 }
             ],
-            messages=[
+            "messages": [
                 {
                     "role": "user",
                     "content": [{"text": _prompt(report)}],
                 }
             ],
-            inferenceConfig={"maxTokens": self.max_output_tokens, "temperature": 0.1},
-        )
+            "inferenceConfig": {"maxTokens": self.max_output_tokens, "temperature": 0.1},
+        }
+        try:
+            response = self.client.converse(**request)
+        except ClientError as exc:
+            if _is_definitive_rejection(exc.response):
+                raise ProviderRequestRejected from None
+            raise
         text = _response_text(response)
         payload = _parse_json_object(text)
         usage = _usage(response)
@@ -73,6 +82,23 @@ class BedrockReportDraftGenerator:
             limitations=payload.get("limitations", []),
             usage=usage,
         )
+
+
+def _is_definitive_rejection(response: object) -> bool:
+    """Accept only a non-retried, modeled Bedrock access denial."""
+    if not isinstance(response, dict):
+        return False
+    error = response.get("Error")
+    metadata = response.get("ResponseMetadata")
+    return (
+        isinstance(error, dict)
+        and error.get("Code") == "AccessDeniedException"
+        and isinstance(metadata, dict)
+        and type(metadata.get("HTTPStatusCode")) is int
+        and metadata["HTTPStatusCode"] == 403
+        and type(metadata.get("RetryAttempts")) is int
+        and metadata["RetryAttempts"] == 0
+    )
 
 
 def _prompt(report: InvestigationReport) -> str:

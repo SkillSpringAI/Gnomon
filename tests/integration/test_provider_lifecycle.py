@@ -304,6 +304,129 @@ def test_failures_preserve_budget_semantics_and_atomic_audit(provider_task, monk
             service.reserve(task_id, uuid4(), 1, 60)
 
 
+def test_nonretried_bedrock_access_denial_is_terminal_rejection(provider_task, monkeypatch):
+    """Only structured, non-retried Converse denial refunds draft capacity."""
+    boto3 = pytest.importorskip("boto3")
+    client_error = pytest.importorskip("botocore.exceptions").ClientError
+
+    _, client, task_id = provider_task
+    monkeypatch.setenv("LLM_PROVIDER", "bedrock")
+    get_settings.cache_clear()
+    operation_id = uuid4()
+    calls = []
+
+    class DeniedClient:
+        def converse(self, **request):
+            calls.append(request["modelId"])
+            if len(calls) == 1:
+                raise client_error(
+                    {
+                        "Error": {
+                            "Code": "AccessDeniedException",
+                            "Message": "PRIVATE_PROVIDER_MESSAGE_SENTINEL",
+                        },
+                        "ResponseMetadata": {
+                            "HTTPStatusCode": 403,
+                            "RetryAttempts": 0,
+                            "RequestId": str(uuid4()),
+                        },
+                    },
+                    "Converse",
+                )
+            return {
+                "output": {
+                    "message": {
+                        "content": [
+                            {
+                                "text": '{"content":"safe draft","cited_source_ids":[],'
+                                '"cited_claim_ids":[],"limitations":[]}'
+                            }
+                        ]
+                    }
+                }
+            }
+
+    monkeypatch.setattr(boto3, "client", lambda *args, **kwargs: DeniedClient())
+    response = client.post(
+        f"/investigations/{task_id}/report/draft",
+        headers={"Idempotency-Key": str(operation_id)},
+    )
+    assert response.status_code == 502
+    assert response.json()["detail"] == "Provider request was rejected"
+    assert "PRIVATE_PROVIDER_MESSAGE_SENTINEL" not in response.text
+    assert len(calls) == 1
+    attempt, events = saved(operation_id)
+    assert attempt.status == "FAILED"
+    assert attempt.error_reason == "provider_request_rejected"
+    assert attempt.finished_at is not None
+    assert events.count("report.draft_failed") == 1
+    assert "report.draft_uncertain" not in events
+    with SessionFactory() as session:
+        payloads = session.scalars(
+            select(ResearchEventRecord.payload).where(
+                ResearchEventRecord.payload["operation_id"].astext == str(operation_id)
+            )
+        ).all()
+    assert all("PRIVATE_PROVIDER_MESSAGE_SENTINEL" not in str(payload) for payload in payloads)
+    assert any(payload.get("reason") == "provider_request_rejected" for payload in payloads)
+    assert (
+        client.post(
+            f"/investigations/{task_id}/report/draft",
+            headers={"Idempotency-Key": str(operation_id)},
+        ).status_code
+        == 409
+    )
+    assert client.post(f"/investigations/{task_id}/report/draft").status_code == 200
+    assert len(calls) == 2
+
+
+def test_session_bedrock_http_403_is_currently_unknown(provider_task, monkeypatch):
+    """A status-only HTTPX error has no modeled botocore rejection evidence."""
+    import httpx
+
+    _, client, task_id = provider_task
+    monkeypatch.setenv("LLM_PROVIDER", "bedrock")
+    get_settings.cache_clear()
+    operation_id = uuid4()
+    calls = []
+
+    def denied(url, **request):
+        calls.append(url)
+        return httpx.Response(
+            403,
+            json={"message": "PRIVATE_PROVIDER_MESSAGE_SENTINEL"},
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr("research_agent.adapters.llm.bedrock_bearer_report.httpx.post", denied)
+    assert (
+        client.post("/provider/session", json={"bearer_token": "SYNTHETIC_LOCAL_TOKEN"}).status_code
+        == 201
+    )
+    try:
+        response = client.post(
+            f"/investigations/{task_id}/report/draft",
+            headers={"Idempotency-Key": str(operation_id)},
+        )
+        assert response.status_code == 502
+        assert response.json()["detail"] == "Provider outcome is unknown"
+        assert "PRIVATE_PROVIDER_MESSAGE_SENTINEL" not in response.text
+        assert len(calls) == 1
+        attempt, events = saved(operation_id)
+        assert attempt.status == "UNKNOWN"
+        assert attempt.error_reason == "provider_outcome_unknown"
+        assert events.count("report.draft_uncertain") == 1
+        with SessionFactory() as session:
+            payloads = session.scalars(
+                select(ResearchEventRecord.payload).where(
+                    ResearchEventRecord.payload["operation_id"].astext == str(operation_id)
+                )
+            ).all()
+        assert all("PRIVATE_PROVIDER_MESSAGE_SENTINEL" not in str(payload) for payload in payloads)
+    finally:
+        client.delete("/provider/session")
+
+
 def test_crash_after_provider_return_rolls_back_final_state_and_audit(provider_task, monkeypatch):
     _, client, task_id = provider_task
     operation_id = uuid4()

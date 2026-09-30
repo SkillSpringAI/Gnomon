@@ -24,6 +24,7 @@ from research_agent.application.provider_budget_service import (
 )
 from research_agent.application.report_generation_service import (
     ReportGenerationError,
+    ReportGenerationRejected,
     ReportGenerationService,
     ReportGenerationUncertain,
 )
@@ -206,6 +207,14 @@ def generate_report_draft(
             payload=EventPayload(operation_id=operation_id, reason="provider_outcome_unknown"),
         )
         raise HTTPException(status_code=502, detail="Provider outcome is unknown") from exc
+    except ReportGenerationRejected as exc:
+        ProviderBudgetService(session).finish(
+            operation_id,
+            "FAILED",
+            "provider_request_rejected",
+            payload=EventPayload(operation_id=operation_id, reason="provider_request_rejected"),
+        )
+        raise HTTPException(status_code=502, detail="Provider request was rejected") from exc
     except ReportGenerationError as exc:
         ProviderBudgetService(session).finish(
             operation_id,

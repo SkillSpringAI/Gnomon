@@ -5,7 +5,9 @@ from research_agent.adapters.llm.bedrock_report import BedrockReportDraftGenerat
 from research_agent.adapters.llm.rule_based_report import RuleBasedReportDraftGenerator
 from research_agent.application.report_generation_service import (
     ReportGenerationError,
+    ReportGenerationRejected,
     ReportGenerationService,
+    ReportGenerationUncertain,
 )
 from research_agent.application.report_service import ReportService
 from research_agent.application.research_service import (
@@ -152,3 +154,78 @@ def test_bedrock_adapters_produce_the_same_validated_contract(
     assert draft.provider in {"aws_bedrock", "aws_bedrock_session"}
     assert draft.task_id == report.task_id
     assert draft.usage is not None and draft.usage.total_tokens == 5
+
+
+def _bedrock_report_and_adapter(response_or_error):
+    repository = InMemoryResearchTaskRepository()
+    task = ResearchService(repository).create_task(
+        ResearchBrief(title="Rejection classification", objective="Check bounded evidence.")
+    )
+    report = ReportService().build(repository.planning_snapshot(task.id))
+    adapter = BedrockReportDraftGenerator.__new__(BedrockReportDraftGenerator)
+    adapter.model = "test-model"
+    adapter.max_output_tokens = 1000
+    calls = []
+
+    class Client:
+        def converse(self, **request):
+            calls.append(request)
+            if isinstance(response_or_error, Exception):
+                raise response_or_error
+            return response_or_error
+
+    adapter.client = Client()
+    return report, adapter, calls
+
+
+@pytest.mark.parametrize(
+    ("code", "status", "retries", "expected"),
+    [
+        ("AccessDeniedException", 403, 0, ReportGenerationRejected),
+        ("AccessDeniedException", 403, 1, ReportGenerationUncertain),
+        ("AccessDeniedException", 403, None, ReportGenerationUncertain),
+        ("AccessDeniedException", 403, False, ReportGenerationUncertain),
+        ("AccessDeniedException", 403, "0", ReportGenerationUncertain),
+        ("AccessDeniedException", None, 0, ReportGenerationUncertain),
+        ("AccessDeniedException", "403", 0, ReportGenerationUncertain),
+        ("AccessDeniedException", True, 0, ReportGenerationUncertain),
+        ("AccessDeniedException", 500, 0, ReportGenerationUncertain),
+        ("ValidationException", 403, 0, ReportGenerationUncertain),
+        ("ThrottlingException", 429, 0, ReportGenerationUncertain),
+    ],
+)
+def test_bedrock_rejection_requires_exact_nonretried_modeled_evidence(
+    code, status, retries, expected
+) -> None:
+    client_error = pytest.importorskip("botocore.exceptions").ClientError
+    metadata = {}
+    if status is not None:
+        metadata["HTTPStatusCode"] = status
+    if retries is not None:
+        metadata["RetryAttempts"] = retries
+    error = client_error(
+        {
+            "Error": {"Code": code, "Message": "PRIVATE_PROVIDER_MESSAGE_SENTINEL"},
+            "ResponseMetadata": metadata,
+        },
+        "Converse",
+    )
+    report, adapter, calls = _bedrock_report_and_adapter(error)
+    with pytest.raises(expected) as caught:
+        ReportGenerationService(adapter).generate(report)
+    assert len(calls) == 1
+    assert "PRIVATE_PROVIDER_MESSAGE_SENTINEL" not in str(caught.value)
+
+
+def test_bedrock_non_client_error_and_post_response_parse_failure_remain_uncertain() -> None:
+    report, adapter, calls = _bedrock_report_and_adapter(RuntimeError("local failure"))
+    with pytest.raises(ReportGenerationUncertain):
+        ReportGenerationService(adapter).generate(report)
+    assert len(calls) == 1
+
+    report, adapter, calls = _bedrock_report_and_adapter(
+        {"output": {"message": {"content": [{"text": "not JSON"}]}}}
+    )
+    with pytest.raises(ReportGenerationUncertain):
+        ReportGenerationService(adapter).generate(report)
+    assert len(calls) == 1
