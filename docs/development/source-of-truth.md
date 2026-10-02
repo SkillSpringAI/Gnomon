@@ -59,6 +59,18 @@ restores it after failure. The
 synthetic lost-acknowledgement test limit. Provider-attempt and external-effect
 reconciliation remain open; this is not closure of all M3c.
 
+**M3c Pass 3A closure:** Implementation
+`0bcbc479876903d2382ebbedda50339c5918f1d5` passed
+[Quality run 36668127948](https://github.com/SkillSpringAI/Gnomon/actions/runs/36668127948):
+1,942 passed/28 browser-only skips in normal regression, 28 Chromium cases,
+all 36 migrations, and database-wheel/minimal-install checks. The boto3
+Bedrock adapter now distinguishes an exact non-retried modeled access denial
+from genuinely uncertain outcomes, finalizing the former as
+`FAILED / provider_request_rejected` through the existing audit transaction.
+The [closure record](m3c-pass3a-provider-rejection-closure.md) defines the
+strict proof rule and remaining limits. Session-cookie HTTPX behavior,
+SDK retries, durable AWS diagnostics, and broader reconciliation are unchanged.
+
 ## Current implementation
 
 Gnomon is a local-first research API with PostgreSQL as its reference durable store. API, application, domain, ports, adapters, persistence, configuration, and security have explicit package boundaries. Models and external content can supply observations or proposals; deterministic services decide whether governed state changes.
@@ -68,7 +80,7 @@ The supported local scope includes:
 - Investigations, briefs, hypotheses, questions, bounded cycles, lifecycle controls, evidence, conservative claim extraction, provenance, assessments, deterministic planning, snapshots, and reports.
 - Registered-domain HTTP retrieval with network and response bounds; source and fake-agent cycle runners with durable attempts, retained committed progress, exact-attempt fencing, interruption closure, and freshness-bound operator recovery.
 - Governed claim and assessment memory with versions, append-only application history, audit, optimistic conflict checks, and eligible rollback. Source-dependence relationships and stopping decisions have bounded, task-scoped command/history and read-projection contracts.
-- Local rule-based and optional Bedrock provider drafts with durable reservation and dispatch fencing, budgets, redacted audit, explicit unknown outcomes, and reconciliation. The fake agent network is bounded; live external-agent platforms are not enabled.
+- Local rule-based and optional Bedrock provider drafts with durable reservation and dispatch fencing, budgets, redacted audit, and explicit, operator-visible unknown outcomes that remain unreconciled with external provider effects. The fake agent network is bounded; live external-agent platforms are not enabled.
 - Five persisted global SecurityState values: `NORMAL`, `DEGRADED`, `COMPROMISED_SUSPECTED`, `LOCKDOWN`, and `RECOVERY_REQUIRED`. Versioned transitions, actor/reason checks, direction-aware capability policy, and point-of-effect guards are implemented for reviewed paths. Recovery bootstrap, AuthorityEpoch, exact execution attempt, and recovery fingerprint remain distinct.
 - M1 recovery authority for the bounded local scope: a restrictive bootstrap fence, fresh RecoveryContext, supported-evidence reconciliation, separate operator/execution authorization, protected restoration, and epoch replacement.
 - M2 backup and reconstruction for the supported PostgreSQL test-deployment path: manifest and state inspection, guarded backup/restore, canonical and restrictive-fixture equivalence, recovery entry, protected restoration with atomic epoch rotation, and credential-sentinel verification. M2 is functionally established with bounded consolidation remaining.

@@ -133,6 +133,20 @@ database work and remains fail-closed after failure. The
 failure, concurrency, audit, and synthetic-test limits. Provider-attempt and
 external-effect reconciliation were not begun in this slice.
 
+## M3c Pass 3A — Narrow Bedrock provider rejection
+
+Closed 30 September 2026 at implementation
+`0bcbc479876903d2382ebbedda50339c5918f1d5`. Hosted
+[Quality run 36668127948](https://github.com/SkillSpringAI/Gnomon/actions/runs/36668127948)
+passed all three jobs: 1,942 passed/28 opt-in browser skips in normal regression,
+28 Chromium cases passed separately, all 36 migrations, and database-wheel and
+minimal-install checks. Only a non-retried boto3 `Converse` `ClientError` with
+exact `AccessDeniedException`, integer HTTP 403, and integer zero SDK retries
+now finalizes `FAILED / provider_request_rejected`; other uncertain outcomes
+remain `UNKNOWN`. The [closure record](m3c-pass3a-provider-rejection-closure.md)
+pins the audit, budget, idempotency, live-evidence, and historical-attempt limits.
+Broader provider reconciliation was not begun.
+
 ## Historical decisions retained
 
 - Preserve adapters → ports → application → governance/security → persistence boundaries.

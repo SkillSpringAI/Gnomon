@@ -145,6 +145,14 @@ Its post-commit exception tests exercise service behavior under an injected
 uncertain outcome; they are not network-level lost-acknowledgement tests.
 Provider-attempt and external-effect reconciliation remain future work.
 
+M3c Pass 3A's bounded provider-rejection rule is
+[closed](m3c-pass3a-provider-rejection-closure.md) at implementation
+`0bcbc479876903d2382ebbedda50339c5918f1d5` by hosted
+[Quality run 36668127948](https://github.com/SkillSpringAI/Gnomon/actions/runs/36668127948).
+It handles only exact non-retried boto3 Bedrock `AccessDeniedException` with
+integer HTTP 403 and integer zero SDK retries. It neither resolves ambiguous
+provider effects nor changes the remaining M3c work.
+
 Do not treat transaction rollback tests as proof of ambiguous commit recovery.
 Verify idempotency/reconciliation around operations where the caller may not know
 whether PostgreSQL committed.
