@@ -305,7 +305,9 @@ def test_missing_or_unknown_memory_version_is_rejected(memory_task):
     assert unknown_target.status_code == 404
 
 
-def test_duplicate_rollback_is_idempotent(memory_task):
+@pytest.mark.parametrize("same_id", [True, False])
+@pytest.mark.parametrize("same_reason", [True, False])
+def test_duplicate_rollback_is_idempotent(memory_task, same_id, same_reason):
     client, task_id, claim_id, source_id, original_id = memory_task
     payload = {
         "target_type": "claim",
@@ -323,12 +325,34 @@ def test_duplicate_rollback_is_idempotent(memory_task):
     first = client.post(
         f"/investigations/{task_id}/memory/changes/{changed['change_id']}/reverse", json=reversal
     )
+    assert first.status_code == 200, first.text
+    history_url = f"/investigations/{task_id}/memory/{claim_id}/history"
+    history_after_first = client.get(history_url).json()
+    reversed_events_after_first = [
+        event
+        for event in client.get(f"/investigations/{task_id}/events").json()
+        if event["event_type"] == "memory.reversed"
+    ]
+    assert len(reversed_events_after_first) == 1
+    duplicate = {
+        "change_id": reversal["change_id"] if same_id else str(uuid4()),
+        "reason": reversal["reason"] if same_reason else "retry",
+    }
     second = client.post(
         f"/investigations/{task_id}/memory/changes/{changed['change_id']}/reverse",
-        json={"reason": "retry"},
+        json=duplicate,
     )
-    assert first.status_code == second.status_code == 200
-    assert first.json()["change_id"] == second.json()["change_id"]
+    assert second.status_code == 200, second.text
+    assert second.json() == first.json()
+    assert second.json()["change_id"] == reversal["change_id"]
+    assert second.json()["reason"] == reversal["reason"]
+    assert client.get(history_url).json() == history_after_first
+    reversed_events_after_second = [
+        event
+        for event in client.get(f"/investigations/{task_id}/events").json()
+        if event["event_type"] == "memory.reversed"
+    ]
+    assert reversed_events_after_second == reversed_events_after_first
 
 
 def test_stale_update_and_concurrent_modification_are_rejected(memory_task):

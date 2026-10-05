@@ -83,6 +83,14 @@ The initial target is a 48-hour reversible window for applicable autonomous memo
 
 Rollback must be auditable and idempotent. If it would overwrite a newer legitimate change, the system must reject it, create a conflict, perform a dependency-aware inverse operation, or request authorized resolution. Rollback is not historical erasure.
 
+For the current claim/assessment reversal API, duplicate-effect identity is the
+original change being reversed. After that change has been reversed, a permitted
+duplicate request returns the authoritative first reversal record without another
+memory change or `memory.reversed` event. A `200` duplicate response does not
+attest that the later request's reversal ID or reason was persisted; exact-command
+replay semantics are not provided. Current authority and capability checks still
+apply before returning the stored reversal.
+
 ## Lifecycle, archive, deletion, and retention
 
 The canonical lifecycle is explicit, though not every object uses every state:

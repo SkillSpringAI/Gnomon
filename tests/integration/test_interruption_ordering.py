@@ -528,7 +528,11 @@ def test_lockdown_wins_and_cached_normal_cannot_authorize(work, kind):
 
 
 @pytest.mark.parametrize("state", list(SecurityState)[1:])
-def test_reversal_api_and_service_denied_in_restrictive_states(work, state):
+@pytest.mark.parametrize("already_reversed", [False, True])
+def test_reversal_api_and_service_denied_in_restrictive_states(work, state, already_reversed):
+    if already_reversed:
+        with SessionFactory() as session:
+            mutation(session, work, "reverse")
     with engine.begin() as connection:
         connection.execute(text("UPDATE security_state SET state=:state"), {"state": state.value})
     with SessionFactory() as session, pytest.raises(SecurityCapabilityDenied):
